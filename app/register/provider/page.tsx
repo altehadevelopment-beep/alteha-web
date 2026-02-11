@@ -17,7 +17,9 @@ export default function ProviderRegistration() {
                 <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-alteha-turquoise/50 to-alteha-violet/50" />
 
                 <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-8 shadow-inner">
-                    <Logo className="w-16 h-16 drop-shadow-md" />
+                    <Link href="/">
+                        <Logo className="w-16 h-16 drop-shadow-md hover:scale-105 transition-transform duration-300" />
+                    </Link>
                 </div>
 
                 <h1 className="text-3xl font-black text-slate-900 mb-4 tracking-tight">Registro de Proveedores</h1>

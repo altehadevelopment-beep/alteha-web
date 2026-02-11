@@ -402,7 +402,9 @@ export default function InsuranceRegistrationPage() {
                 {/* Header */}
                 {step < 6 && (
                     <div className="text-center mb-10 mt-4">
-                        <Logo className="w-16 h-16 mx-auto mb-4" />
+                        <Link href="/">
+                            <Logo className="w-16 h-16 mx-auto mb-4 hover:scale-105 transition-transform duration-300" />
+                        </Link>
                         <h1 className="text-3xl font-black text-slate-900 tracking-tight">Registro de Aseguradora</h1>
                         <p className="text-slate-500 mt-2">Únete a la red de salud digital</p>
                     </div>

@@ -105,10 +105,10 @@ export function DashboardSidebar() {
                 isOpen ? "translate-x-0" : "-translate-x-full"
             )}>
                 <div className="flex flex-col h-full p-6">
-                    <div className="flex items-center gap-3 mb-10 px-2">
-                        <Logo className="w-10 h-10" />
+                    <Link href="/" className="flex items-center gap-3 mb-10 px-2 group cursor-pointer">
+                        <Logo className="w-10 h-10 group-hover:scale-105 transition-transform" />
                         <span className="font-black text-2xl tracking-[0.05em] text-slate-800">ALTEHA</span>
-                    </div>
+                    </Link>
 
                     <nav className="flex-1 space-y-2">
                         {menuItems.map((item) => {

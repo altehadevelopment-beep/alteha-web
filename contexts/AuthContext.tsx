@@ -67,8 +67,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         if (storedToken) {
             setToken(storedToken);
             resetTimer();
-            // Infer role from path if possible, or wait for explicit login
-            // For now, if we have a token and we are in a dashboard, fetch profile
+
             const segments = pathname.split('/');
             if (segments.includes('dashboard')) {
                 const role = segments[segments.indexOf('dashboard') + 1];

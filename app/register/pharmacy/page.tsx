@@ -343,7 +343,9 @@ export default function PharmacyRegistrationPage() {
 
                 {step < 6 && (
                     <div className="text-center mb-8">
-                        <Logo className="w-14 h-14 mx-auto mb-4" />
+                        <Link href="/">
+                            <Logo className="w-14 h-14 mx-auto mb-4 hover:scale-105 transition-transform duration-300" />
+                        </Link>
                         <h1 className="text-2xl font-black text-slate-900">Registro de Farmacia</h1>
                         <p className="text-slate-500 text-sm">Únete a nuestra red de proveedores</p>
                     </div>

@@ -38,7 +38,9 @@ export default function Home() {
       </div>
 
       <div className="z-10 text-center max-w-4xl flex flex-col items-center my-auto">
-        <Logo className="w-32 h-32 mb-8 animate-fade-in-up drop-shadow-xl" />
+        <Link href="/">
+          <Logo className="w-32 h-32 mb-8 animate-fade-in-up drop-shadow-xl hover:scale-105 transition-transform duration-300 cursor-pointer" />
+        </Link>
 
         <div className="inline-block mb-6 px-4 py-1.5 rounded-full bg-white border border-slate-200 text-sm font-medium text-slate-600 shadow-sm">
           Portal de Subastas Médicas Invertidas
@@ -135,7 +137,9 @@ export default function Home() {
             {/* GuiaPay Logo High-Fi */}
             <div className="flex items-center gap-2 group cursor-pointer grayscale opacity-70 hover:grayscale-0 hover:opacity-100 transition-all duration-500">
               <div className="bg-slate-900 p-2.5 rounded-2xl group-hover:scale-110 transition-all duration-300 shadow-xl group-hover:shadow-alteha-violet/20 border border-white/10">
-                <Logo className="w-7 h-7 invert" />
+                <Link href="/">
+                  <Logo className="w-7 h-7 invert cursor-pointer" />
+                </Link>
               </div>
               <span className="font-bold text-slate-900 text-2xl tracking-tight italic">Guía<span className="text-alteha-turquoise">pay</span></span>
             </div>

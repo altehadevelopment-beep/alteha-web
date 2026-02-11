@@ -18,6 +18,7 @@ import Link from 'next/link';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthContext';
+import { Logo } from '@/components/ui/Logo';
 
 export default function EditProfilePage() {
     const { userProfile, isLoadingProfile } = useAuth();
@@ -27,7 +28,7 @@ export default function EditProfilePage() {
     const fullName = displayProfile.firstName && displayProfile.lastName
         ? `Dr. ${displayProfile.firstName} ${displayProfile.lastName}`
         : '';
-    const specialtyName = displayProfile.specialties?.[0]?.name || '';
+    const specialtyNames = displayProfile.specialties?.map((s: any) => s.name).filter(Boolean).join(', ') || '';
 
     return (
         <div className="space-y-10 font-outfit max-w-4xl mx-auto pb-20">
@@ -41,10 +42,15 @@ export default function EditProfilePage() {
                     <h1 className="text-4xl font-black text-slate-900 tracking-tight">Editar Perfil Profesional</h1>
                     <p className="text-slate-500 font-medium">Gestiona tus credenciales y aumenta tu valoración en la red</p>
                 </div>
-                <Button className="hidden md:flex items-center gap-2 px-8 py-6 rounded-2xl bg-alteha-turquoise text-slate-900 hover:scale-105 transition-all">
-                    <Save className="w-5 h-5" />
-                    <span className="font-black">Guardar Cambios</span>
-                </Button>
+                <div className="flex items-center gap-6">
+                    <Button className="hidden md:flex items-center gap-2 px-8 py-6 rounded-2xl bg-alteha-turquoise text-slate-900 hover:scale-105 transition-all">
+                        <Save className="w-5 h-5" />
+                        <span className="font-black">Guardar Cambios</span>
+                    </Button>
+                    <Link href="/dashboard/specialist" className="hover:scale-110 transition-transform">
+                        <Logo className="w-12 h-12" />
+                    </Link>
+                </div>
             </div>
 
             {/* Profile Picture & Basic Info */}
@@ -70,7 +76,7 @@ export default function EditProfilePage() {
                         />
                         <Input
                             label="Especialidad Principal"
-                            defaultValue={specialtyName}
+                            defaultValue={specialtyNames}
                             placeholder={isLoadingProfile ? "Cargando..." : "Especialidad"}
                         />
                         <Input

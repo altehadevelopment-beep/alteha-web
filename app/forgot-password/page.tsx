@@ -50,9 +50,9 @@ export default function ForgotPasswordPage() {
                             exit={{ opacity: 0, x: 20 }}
                         >
                             <div className="flex flex-col items-center mb-8">
-                                <Link href="/login">
-                                    <div className="p-3 bg-slate-100 rounded-full mb-4 hover:bg-white transition-colors">
-                                        <Logo className="w-12 h-12" />
+                                <Link href="/">
+                                    <div className="p-3 bg-slate-100 rounded-full mb-4 hover:bg-white transition-colors group cursor-pointer">
+                                        <Logo className="w-12 h-12 group-hover:scale-105 transition-transform" />
                                     </div>
                                 </Link>
                                 <h1 className="text-2xl font-black text-slate-900 tracking-tight text-center">Recuperar Contraseña</h1>

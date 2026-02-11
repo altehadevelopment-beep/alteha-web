@@ -334,7 +334,8 @@ export default function DoctorRegistrationPage() {
                     medicalLicenseNumber: formData.medicalLicenseNumber,
                     isIndependent: formData.isIndependent,
                     specialtyIds: formData.specialtyIds,
-                    preferredClinicIds: formData.preferredClinicIds
+                    preferredClinicIds: formData.preferredClinicIds,
+                    status: 'PENDING'
                 },
                 profileImage || undefined,
                 medicalLicense || undefined,
@@ -380,7 +381,9 @@ export default function DoctorRegistrationPage() {
                 {/* Header */}
                 {step < 6 && (
                     <div className="text-center mb-10 mt-4">
-                        <Logo className="w-16 h-16 mx-auto mb-4" />
+                        <Link href="/">
+                            <Logo className="w-16 h-16 mx-auto mb-4 hover:scale-105 transition-transform duration-300" />
+                        </Link>
                         <h1 className="text-3xl font-black text-slate-900 tracking-tight">Registro de Médico</h1>
                         <p className="text-slate-500 mt-2">Únete al ecosistema ALTEHA</p>
                     </div>

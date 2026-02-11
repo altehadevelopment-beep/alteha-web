@@ -1,7 +1,7 @@
 "use client";
 
 import { useLoadScript, GoogleMap, Marker } from '@react-google-maps/api';
-import { useMemo } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 
 // Define libraries array outside component to avoid re-loading script
 const libraries: ("places" | "geometry" | "drawing" | "visualization")[] = ["places"];
@@ -12,6 +12,7 @@ interface Clinic {
     lat: number;
     lng: number;
     city: string;
+    logoUrl?: string;
 }
 
 interface MapProps {
@@ -27,15 +28,26 @@ export default function ClinicMap({ clinics, selectedId, onSelect, center = { la
         libraries: libraries,
     });
 
-    // Transform center array to object if necessary or use provided object
-    // Note: The previous component used [lat, lng], Google Maps uses {lat, lng}
-    // The props interface changed to reflect this, but we should handle the default
-    const mapCenter = useMemo(() => center, [center]);
+    const [map, setMap] = React.useState<google.maps.Map | null>(null);
+
+    // Smooth panning when center changes
+    useEffect(() => {
+        if (map && center) {
+            map.panTo(center);
+        }
+    }, [map, center]);
 
     const mapOptions = useMemo(() => ({
         disableDefaultUI: false,
         clickableIcons: true,
         scrollwheel: true,
+        styles: [
+            {
+                featureType: "poi",
+                elementType: "labels",
+                stylers: [{ visibility: "off" }]
+            }
+        ]
     }), []);
 
     if (!isLoaded) {
@@ -50,9 +62,10 @@ export default function ClinicMap({ clinics, selectedId, onSelect, center = { la
         <div className="h-[400px] w-full rounded-xl overflow-hidden shadow-inner border border-slate-200 z-0 relative">
             <GoogleMap
                 mapContainerStyle={{ width: '100%', height: '100%' }}
-                center={mapCenter}
-                zoom={13}
+                center={center}
+                zoom={14}
                 options={mapOptions}
+                onLoad={(map) => setMap(map)}
             >
                 {clinics.map((clinic) => (
                     <Marker
@@ -60,8 +73,19 @@ export default function ClinicMap({ clinics, selectedId, onSelect, center = { la
                         position={{ lat: clinic.lat, lng: clinic.lng }}
                         onClick={() => onSelect(clinic.id)}
                         animation={selectedId === clinic.id ? google.maps.Animation.BOUNCE : undefined}
-                    // Google Maps default markers are red. You can customize icons here if needed.
-                    // icon={...}
+                        icon={{
+                            url: clinic.logoUrl || '/hospital-placeholder.png', // Fallback
+                            scaledSize: new google.maps.Size(40, 40),
+                            origin: new google.maps.Point(0, 0),
+                            anchor: new google.maps.Point(20, 20),
+                        }}
+                        label={{
+                            text: selectedId === clinic.id ? clinic.name : '',
+                            color: '#1e293b',
+                            fontSize: '12px',
+                            fontWeight: 'bold',
+                            className: 'mt-10 bg-white/90 px-2 py-0.5 rounded-full border border-slate-200 shadow-sm'
+                        }}
                     />
                 ))}
             </GoogleMap>

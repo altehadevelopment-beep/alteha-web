@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { motion as m, AnimatePresence as AP } from 'framer-motion';
+import { motion as m, AnimatePresence as AP, AnimatePresence } from 'framer-motion';
 import {
     Bell,
     MessageSquare,
@@ -11,7 +11,6 @@ import {
     Search,
     Filter,
     ChevronRight,
-    Play,
     TrendingUp,
     Package,
     CheckCircle2,
@@ -19,9 +18,15 @@ import {
     MapPin,
     Hospital,
     FileText,
-    ArrowRight
+    ArrowRight,
+    Calendar,
+    Building2,
+    ExternalLink,
+    FileCheck,
+    Shield
 } from 'lucide-react';
 import Link from 'next/link';
+import { Button } from '@/components/ui/Button';
 
 // Mock Data for the banner
 const ADS = [
@@ -64,6 +69,8 @@ const AUCTIONS = [
 export default function SpecialistDashboard() {
     const { userProfile, isLoadingProfile } = useAuth();
     const [currentAd, setCurrentAd] = useState(0);
+    const [isImageExpanded, setIsImageExpanded] = useState(false);
+    const [showOnboarding, setShowOnboarding] = useState(false);
 
     useEffect(() => {
         const timer = setInterval(() => {
@@ -72,59 +79,245 @@ export default function SpecialistDashboard() {
         return () => clearInterval(timer);
     }, []);
 
+    // Check for pending status to show onboarding popup
+    useEffect(() => {
+        if (!isLoadingProfile && userProfile?.status === 'PENDING') {
+            const hasSeenOnboarding = sessionStorage.getItem('hasSeenOnboarding');
+            if (!hasSeenOnboarding) {
+                setShowOnboarding(true);
+            }
+        }
+    }, [isLoadingProfile, userProfile]);
+
+    const handleCloseOnboarding = () => {
+        setShowOnboarding(false);
+        sessionStorage.setItem('hasSeenOnboarding', 'true');
+    };
+
     // Placeholder data while loading or if profile fails
     const displayProfile = userProfile || {
         firstName: '...',
         lastName: 'Cargando',
         specialties: [{ name: 'Especialista' }],
-        profileImageUrl: null
+        profileImageUrl: null,
+        status: 'PENDING'
     };
+
+    const isPending = displayProfile.status === 'PENDING';
 
     const fullName = displayProfile.firstName && displayProfile.lastName
         ? `Dr. ${displayProfile.firstName} ${displayProfile.lastName}`
         : 'Cargando perfil...';
 
-    const specialtyName = displayProfile.specialties?.[0]?.name || 'Especialista';
+    const specialtyNames = displayProfile.specialties?.map((s: any) => s.name).filter(Boolean).join(', ') || 'Especialista';
+
+    const formattedDate = displayProfile.createdAt
+        ? new Date(displayProfile.createdAt).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })
+        : 'Reciente';
+
+    const rating = 5; // Default as requested
 
     return (
         <div className="space-y-10 font-outfit">
-            {/* Header Section */}
-            <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                <div className="flex items-center gap-5">
-                    <div className="relative">
-                        <div className="w-20 h-20 rounded-3xl overflow-hidden border-4 border-white shadow-xl bg-slate-100 flex items-center justify-center">
-                            {displayProfile.profileImageUrl ? (
-                                <img
-                                    src={displayProfile.profileImageUrl}
-                                    alt="Dr. Profile"
-                                    className="w-full h-full object-cover"
-                                />
-                            ) : (
-                                <img
-                                    src="/doctor-avatar.png"
-                                    alt="Dr. Profile"
-                                    className="w-full h-full object-cover opacity-50"
-                                />
-                            )}
-                        </div>
-                        <div className={`absolute -bottom-1 -right-1 w-6 h-6 border-2 border-white rounded-full ${isLoadingProfile ? 'bg-amber-400 animate-pulse' : 'bg-green-500'}`} />
-                    </div>
-                    <div>
-                        <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-                            {isLoadingProfile ? (
-                                <span className="animate-pulse">Cargando...</span>
-                            ) : fullName}
-                        </h2>
-                        <div className="flex items-center gap-3 mt-1 text-slate-500 font-medium">
-                            <span className="text-alteha-violet">{specialtyName}</span>
-                            <span className="w-1 h-1 rounded-full bg-slate-300" />
-                            <div className="flex items-center gap-1.5 text-slate-400 group">
-                                <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                                <span className="font-bold text-slate-900">4.9</span>
-                                <Link href="/dashboard/specialist/reviews" className="hover:text-alteha-violet transition-colors">
-                                    (128 reseñas)
-                                </Link>
+            {/* Onboarding Popup */}
+            <AP>
+                {showOnboarding && (
+                    <m.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[110] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4"
+                    >
+                        <m.div
+                            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                            className="bg-white rounded-[3rem] shadow-2xl max-w-lg w-full p-10 relative overflow-hidden"
+                        >
+                            {/* Decorative Background */}
+                            <div className="absolute -top-24 -right-24 w-48 h-48 bg-alteha-turquoise/10 rounded-full blur-3xl" />
+                            <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-alteha-violet/10 rounded-full blur-3xl" />
+
+                            <div className="relative z-10 text-center">
+                                <div className="w-20 h-20 bg-alteha-violet/10 rounded-[2rem] flex items-center justify-center mx-auto mb-6 text-alteha-violet">
+                                    <Star className="w-10 h-10 fill-alteha-violet" />
+                                </div>
+                                <h3 className="text-3xl font-black text-slate-900 tracking-tight mb-4">¡Impulsa tu Perfil Médico!</h3>
+                                <p className="text-slate-500 font-medium leading-relaxed mb-8">
+                                    Completa tu verificación y onboarding para obtener **mayores beneficios**,
+                                    prioridad en subastas y el sello de verificado en la plataforma ALTEHA.
+                                </p>
+                                <div className="space-y-3">
+                                    <Button
+                                        onClick={() => {
+                                            handleCloseOnboarding();
+                                            window.location.href = '/dashboard/specialist/verify';
+                                        }}
+                                        className="w-full py-4 bg-alteha-turquoise text-slate-900 font-black rounded-2xl shadow-lg shadow-alteha-turquoise/20 hover:scale-[1.02] transition-all"
+                                    >
+                                        Completar Registro Ahora
+                                    </Button>
+                                    <button
+                                        onClick={handleCloseOnboarding}
+                                        className="w-full py-4 text-slate-400 font-bold hover:text-slate-600 transition-colors"
+                                    >
+                                        Más tarde
+                                    </button>
+                                </div>
                             </div>
+                        </m.div>
+                    </m.div>
+                )}
+            </AP>
+
+            {/* Pending Notification Banner */}
+            <AnimatePresence>
+                {isPending && !isLoadingProfile && (
+                    <m.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="overflow-hidden"
+                    >
+                        <div className="bg-gradient-to-r from-alteha-violet/10 to-transparent border-l-4 border-alteha-violet p-6 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4">
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 bg-alteha-violet/20 rounded-xl text-alteha-violet">
+                                    <Shield className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h4 className="font-black text-slate-900">Tu cuenta está en estado PENDIENTE</h4>
+                                    <p className="text-sm text-slate-500 font-medium">Completa tu perfil para acceder a beneficios exclusivos y prioridad en cirugías.</p>
+                                </div>
+                            </div>
+                            <Link
+                                href="/dashboard/specialist/verify"
+                                className="px-6 py-3 bg-alteha-violet text-white rounded-xl font-bold text-sm shadow-lg shadow-alteha-violet/20 hover:scale-105 transition-all whitespace-nowrap"
+                            >
+                                Verificar Cuenta
+                            </Link>
+                        </div>
+                    </m.div>
+                )}
+            </AnimatePresence>
+
+            {/* Image Expansion Modal */}
+            <AP>
+                {isImageExpanded && (
+                    <m.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        onClick={() => setIsImageExpanded(false)}
+                        className="fixed inset-0 z-[100] bg-slate-900/90 backdrop-blur-xl flex items-center justify-center p-4 md:p-10 cursor-zoom-out"
+                    >
+                        <m.div
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.9, opacity: 0 }}
+                            className="relative max-w-[90vw] max-h-[90vh] rounded-[3rem] overflow-hidden shadow-2xl border-4 border-white/20 flex items-center justify-center bg-slate-900"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <img
+                                src={displayProfile.profileImageUrl || "/doctor-avatar.png"}
+                                alt="Dr. Profile Expanded"
+                                className="max-w-full max-h-[90vh] object-contain"
+                            />
+                            <button
+                                onClick={() => setIsImageExpanded(false)}
+                                className="absolute top-6 right-6 p-4 bg-black/40 hover:bg-black/60 backdrop-blur-md rounded-2xl text-white transition-colors"
+                            >
+                                <ChevronRight className="w-6 h-6 rotate-180" />
+                            </button>
+                        </m.div>
+                    </m.div>
+                )}
+            </AP>
+
+            {/* Header Section */}
+            <header className="flex flex-col md:flex-row md:items-start justify-between gap-6">
+                <div className="flex flex-col md:flex-row gap-6">
+                    <div className="relative group shrink-0">
+                        {isLoadingProfile && !userProfile ? (
+                            <div className="w-28 h-28 md:w-32 md:h-32 rounded-[2.5rem] bg-slate-100 animate-pulse border-4 border-white shadow-xl" />
+                        ) : (
+                            <m.div
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                onClick={() => setIsImageExpanded(true)}
+                                className="w-28 h-28 md:w-32 md:h-32 rounded-[2.5rem] overflow-hidden border-4 border-white shadow-2xl bg-white flex items-center justify-center cursor-zoom-in relative"
+                            >
+                                {displayProfile.profileImageUrl ? (
+                                    <img
+                                        src={displayProfile.profileImageUrl}
+                                        alt="Dr. Profile"
+                                        className="w-full h-full object-contain"
+                                    />
+                                ) : (
+                                    <img
+                                        src="/doctor-avatar.png"
+                                        alt="Dr. Profile"
+                                        className="w-full h-full object-contain opacity-50"
+                                    />
+                                )}
+                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                                    <Search className="w-8 h-8 text-white drop-shadow-md" />
+                                </div>
+                            </m.div>
+                        )}
+                        <div className={`absolute -bottom-1 -right-1 w-8 h-8 border-4 border-white rounded-full ${isLoadingProfile ? 'bg-amber-400 animate-pulse' : 'bg-green-500 shadow-lg shadow-green-200'}`} />
+                    </div>
+                    <div className="space-y-4">
+                        {isLoadingProfile && !userProfile ? (
+                            <div className="space-y-3">
+                                <div className="h-10 w-64 bg-slate-100 animate-pulse rounded-2xl" />
+                                <div className="h-6 w-48 bg-slate-100 animate-pulse rounded-xl" />
+                            </div>
+                        ) : (
+                            <>
+                                <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight leading-tight">
+                                    {fullName}
+                                </h2>
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-slate-500 font-medium text-sm">
+                                    <span className="text-alteha-violet font-bold">{specialtyNames}</span>
+                                    <span className="w-1 h-1 rounded-full bg-slate-300 hidden md:block" />
+                                    <div className="flex items-center gap-1.5 text-slate-400 group">
+                                        <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                                        <span className="font-bold text-slate-900">{rating.toFixed(1)}</span>
+                                        <Link href="/dashboard/specialist/reviews" className="hover:text-alteha-violet transition-colors">
+                                            (128 reseñas)
+                                        </Link>
+                                    </div>
+                                    <span className="w-1.5 h-1.5 rounded-full bg-slate-300 hidden md:block" />
+                                    <div className="flex items-center gap-1.5 text-slate-400">
+                                        <Calendar className="w-4 h-4" />
+                                        <span>Miembro desde: <span className="text-slate-900 font-bold">{formattedDate}</span></span>
+                                    </div>
+                                </div>
+                            </>
+                        )}
+
+                        {/* Profile Links */}
+                        <div className="flex flex-wrap items-center gap-3 mt-4">
+                            <Link
+                                href="/dashboard/specialist/clinics"
+                                className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-100 shadow-sm hover:border-alteha-turquoise hover:shadow-md rounded-xl text-slate-600 font-bold text-[11px] uppercase tracking-wider transition-all group"
+                            >
+                                <Building2 className="w-3.5 h-3.5 text-alteha-turquoise" />
+                                <span>Clínicas Asociadas</span>
+                                <ChevronRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
+                            </Link>
+                            {displayProfile.medicalLicenseDocumentUrl && (
+                                <a
+                                    href={displayProfile.medicalLicenseDocumentUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-2 px-3 py-1.5 bg-alteha-violet/5 hover:bg-alteha-violet/10 rounded-xl text-alteha-violet font-bold text-[11px] uppercase tracking-wider transition-all group"
+                                >
+                                    <FileCheck className="w-3.5 h-3.5" />
+                                    <span>Licencia Médica</span>
+                                    <ExternalLink className="w-3 h-3" />
+                                </a>
+                            )}
                         </div>
                     </div>
                 </div>

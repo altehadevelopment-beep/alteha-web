@@ -34,7 +34,9 @@ export default function TermsPage() {
                 className="max-w-3xl mx-auto bg-white border border-slate-100 shadow-2xl p-12 md:p-16 rounded-[2rem] print:shadow-none print:border-none print:p-0"
             >
                 <div className="flex items-center gap-6 mb-10">
-                    <Logo className="w-16 h-16 drop-shadow-md" />
+                    <Link href="/">
+                        <Logo className="w-16 h-16 drop-shadow-md hover:scale-105 transition-transform duration-300" />
+                    </Link>
                     <div className="h-12 w-px bg-slate-200" />
                     <div>
                         <h1 className="text-4xl font-black tracking-tight text-slate-900">Términos y Condiciones</h1>

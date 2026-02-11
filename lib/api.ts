@@ -30,6 +30,36 @@ export interface Clinic {
     phone: string;
     rating: number;
     status: string;
+    address?: string;
+    latitude?: number;
+    longitude?: number;
+    logoUrl?: string;
+    identificationType?: string;
+    identificationNumber?: string;
+    healthLicenseNumber?: string;
+    emergencyPhone?: string;
+    website?: string;
+    category?: string;
+    operatingHours?: string;
+    accreditations?: string;
+    totalOperatingRooms?: number;
+    bedsCount?: number;
+    hasIcu?: boolean;
+    hasEmergency?: boolean;
+    hasPharmacy?: boolean;
+    hasLaboratory?: boolean;
+    hasImaging?: boolean;
+    hasAmbulance?: boolean;
+    hasParkingAvailable?: boolean;
+    isWheelchairAccessible?: boolean;
+    foundedYear?: number;
+    contactPersonName?: string;
+    contactPersonEmail?: string;
+    contactPersonPhone?: string;
+    totalReviews?: number;
+    verifiedAt?: string;
+    createdAt?: string;
+    updatedAt?: string;
 }
 
 export interface DoctorRegistration {
@@ -44,6 +74,7 @@ export interface DoctorRegistration {
     isIndependent: boolean;
     specialtyIds: number[];
     preferredClinicIds: number[];
+    status?: 'PENDING' | 'ACTIVE';
 }
 
 // Role Mapping
@@ -184,10 +215,12 @@ export interface ActorProfile {
     phone: string;
     profileImageUrl: string | null;
     medicalLicenseNumber?: string;
+    medicalLicenseDocumentUrl?: string | null;
     identificationType: string;
     identificationNumber: string;
     isIndependent?: boolean;
     status: string;
+    createdAt?: string;
     specialties?: Array<{
         id: number;
         name: string | null;
@@ -196,6 +229,7 @@ export interface ActorProfile {
     preferredClinics?: Array<{
         id: number;
         name: string | null;
+        logoUrl?: string | null;
     }>;
 }
 
