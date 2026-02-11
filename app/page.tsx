@@ -1,113 +1,156 @@
-import Image from 'next/image'
+import Link from 'next/link'
+import {
+  ArrowRight,
+  Stethoscope,
+  Building2,
+  ShieldCheck,
+  Truck,
+  Instagram,
+  Twitter,
+  Linkedin,
+  Github,
+  CreditCard,
+  Wallet
+} from 'lucide-react'
+import { Logo } from '@/components/ui/Logo'
 
 export default function Home() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-between p-24">
-      <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm lg:flex">
-        <p className="fixed left-0 top-0 flex w-full justify-center border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl dark:border-neutral-800 dark:bg-zinc-800/30 dark:from-inherit lg:static lg:w-auto  lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-zinc-800/30">
-          Get started by editing&nbsp;
-          <code className="font-mono font-bold">app/page.tsx</code>
+    <main className="flex min-h-screen flex-col items-center justify-between p-12 md:p-24 bg-slate-50 relative overflow-hidden font-outfit">
+
+      {/* Background Gradients */}
+      <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0">
+        <div className="absolute -top-[10%] -left-[10%] w-[50%] h-[50%] bg-alteha-turquoise/20 rounded-full blur-[120px]" />
+        <div className="absolute top-[20%] right-[10%] w-[40%] h-[40%] bg-alteha-violet/20 rounded-full blur-[120px]" />
+      </div>
+
+      {/* Floating Social Links */}
+      <div className="fixed left-6 top-1/2 -translate-y-1/2 z-50 hidden lg:flex flex-col gap-6">
+        <a href="#" className="p-3 bg-white/80 backdrop-blur-md rounded-full shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all text-slate-600 hover:text-alteha-violet border border-white/50 group">
+          <Instagram className="w-5 h-5 group-hover:scale-110 transition-transform" />
+        </a>
+        <a href="#" className="p-3 bg-white/80 backdrop-blur-md rounded-full shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all text-slate-600 hover:text-alteha-turquoise border border-white/50 group">
+          <Twitter className="w-5 h-5 group-hover:scale-110 transition-transform" />
+        </a>
+        <a href="#" className="p-3 bg-white/80 backdrop-blur-md rounded-full shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all text-slate-600 hover:text-blue-600 border border-white/50 group">
+          <Linkedin className="w-5 h-5 group-hover:scale-110 transition-transform" />
+        </a>
+      </div>
+
+      <div className="z-10 text-center max-w-4xl flex flex-col items-center my-auto">
+        <Logo className="w-32 h-32 mb-8 animate-fade-in-up drop-shadow-xl" />
+
+        <div className="inline-block mb-6 px-4 py-1.5 rounded-full bg-white border border-slate-200 text-sm font-medium text-slate-600 shadow-sm">
+          Portal de Subastas Médicas Invertidas
+        </div>
+
+        <h1 className="text-5xl md:text-7xl font-black text-slate-900 mb-6 leading-tight">
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-alteha-turquoise to-alteha-violet animate-gradient bg-[length:200%_auto] tracking-[0.05em]">
+            ALTEHA
+          </span>
+          <br />
+          <span className="tracking-tighter italic text-slate-400 text-4xl md:text-5xl">Ecosistema de Salud</span>
+        </h1>
+
+        <p className="text-xl text-slate-600 mb-12 leading-relaxed max-w-2xl">
+          Conectamos a médicos especialistas, clínicas y aseguradoras en un entorno seguro, eficiente y transparente.
         </p>
-        <div className="fixed bottom-0 left-0 flex h-48 w-full items-end justify-center bg-gradient-to-t from-white via-white dark:from-black dark:via-black lg:static lg:h-auto lg:w-auto lg:bg-none">
-          <a
-            className="pointer-events-none flex place-items-center gap-2 p-8 lg:pointer-events-auto lg:p-0"
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            By{' '}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className="dark:invert"
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
+
+        <div className="flex flex-col items-center gap-6 w-full">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full px-4">
+            <Link
+              href="/login?role=specialist"
+              className="group relative px-6 py-10 bg-slate-900 text-white rounded-3xl font-semibold overflow-hidden shadow-2xl shadow-slate-900/20 hover:shadow-slate-900/40 transition-all hover:-translate-y-1 text-center flex flex-col items-center justify-center gap-4"
+            >
+              <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-alteha-turquoise/80 via-alteha-violet/80 to-alteha-turquoise/80 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-[length:200%_auto] animate-gradient" />
+              <Stethoscope className="w-12 h-12 relative z-10 text-alteha-turquoise group-hover:text-white transition-colors duration-300" />
+              <span className="relative flex items-center gap-2 text-base z-10">
+                Médico Especialista
+              </span>
+            </Link>
+
+            <Link
+              href="/login?role=insurance"
+              className="group relative px-6 py-10 bg-white text-slate-700 border border-slate-200 rounded-3xl font-semibold overflow-hidden hover:border-alteha-turquoise/50 hover:text-alteha-turquoise transition-all hover:-translate-y-1 text-center flex flex-col items-center justify-center gap-4 shadow-xl shadow-slate-200/50 hover:shadow-slate-300/60"
+            >
+              <ShieldCheck className="w-12 h-12 text-slate-400 group-hover:text-alteha-turquoise transition-colors duration-300" />
+              <span className="relative flex items-center gap-2 text-base">
+                Empresa de Seguros
+              </span>
+            </Link>
+
+            <Link
+              href="/login?role=clinic"
+              className="group relative px-6 py-10 bg-white text-slate-700 border border-slate-200 rounded-3xl font-semibold overflow-hidden hover:border-alteha-violet/50 hover:text-alteha-violet transition-all hover:-translate-y-1 text-center flex flex-col items-center justify-center gap-4 shadow-xl shadow-slate-200/50 hover:shadow-slate-300/60"
+            >
+              <Building2 className="w-12 h-12 text-slate-400 group-hover:text-alteha-violet transition-colors duration-300" />
+              <span className="relative flex items-center gap-2 text-base">
+                Clínica
+              </span>
+            </Link>
+
+            <Link
+              href="/login?role=provider"
+              className="group relative px-6 py-10 bg-white text-slate-700 border border-slate-200 rounded-3xl font-semibold overflow-hidden hover:border-blue-400/50 hover:text-blue-500 transition-all hover:-translate-y-1 text-center flex flex-col items-center justify-center gap-4 shadow-xl shadow-slate-200/50 hover:shadow-slate-300/60"
+            >
+              <Truck className="w-12 h-12 text-slate-400 group-hover:text-blue-500 transition-colors duration-300" />
+              <span className="relative flex items-center gap-2 text-base">
+                Proveedor de Insumos
+              </span>
+            </Link>
+          </div>
         </div>
       </div>
 
-      <div className="relative flex place-items-center before:absolute before:h-[300px] before:w-[480px] before:-translate-x-1/2 before:rounded-full before:bg-gradient-radial before:from-white before:to-transparent before:blur-2xl before:content-[''] after:absolute after:-z-20 after:h-[180px] after:w-[240px] after:translate-x-1/3 after:bg-gradient-conic after:from-sky-200 after:via-blue-200 after:blur-2xl after:content-[''] before:dark:bg-gradient-to-br before:dark:from-transparent before:dark:to-blue-700 before:dark:opacity-10 after:dark:from-sky-900 after:dark:via-[#0141ff] after:dark:opacity-40 before:lg:h-[360px] z-[-1]">
-        <Image
-          className="relative dark:drop-shadow-[0_0_0.3rem_#ffffff70] dark:invert"
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
-      </div>
+      {/* Combined Footer with Partner Logos */}
+      <footer className="z-10 w-full mt-20 md:mt-0 pt-12 border-t border-slate-200/60 flex flex-col items-center gap-8 bg-white/40 backdrop-blur-sm rounded-t-[3rem] p-12">
+        <div className="flex flex-col items-center gap-6">
+          <p className="text-xs font-bold text-slate-400 tracking-[0.4em] uppercase">Nuestra Red de Pagos y Seguridad</p>
+          <div className="flex flex-wrap justify-center items-center gap-12 md:gap-24 opacity-80 hover:opacity-100 transition-opacity duration-500">
+            {/* Binance Logo High-Fi */}
+            <div className="flex items-center gap-3 group cursor-pointer grayscale opacity-70 hover:grayscale-0 hover:opacity-100 transition-all duration-500">
+              <div className="w-10 h-10 bg-[#F3BA2F] rounded-lg flex items-center justify-center shadow-lg group-hover:scale-110 group-hover:rotate-12 transition-all duration-300">
+                <div className="w-6 h-6 border-4 border-black rotate-45 flex items-center justify-center">
+                  <div className="w-2 h-2 bg-black" />
+                </div>
+              </div>
+              <span className="font-bold text-slate-800 text-2xl tracking-tighter">BINANCE</span>
+            </div>
 
-      <div className="mb-32 grid text-center lg:max-w-5xl lg:w-full lg:mb-0 lg:grid-cols-4 lg:text-left">
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Docs{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Find in-depth information about Next.js features and API.
-          </p>
-        </a>
+            {/* Visa Logo High-Fi */}
+            <div className="flex items-center gap-0 group cursor-pointer -translate-y-1 grayscale opacity-70 hover:grayscale-0 hover:opacity-100 transition-all duration-500">
+              <span className="text-[#1A1F71] text-4xl font-black italic tracking-tighter flex items-baseline">
+                V<span className="text-alteha-turquoise translate-y-[-2px] ml-[-2px]">I</span>SA
+              </span>
+            </div>
 
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Learn{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Learn about Next.js in an interactive course with&nbsp;quizzes!
-          </p>
-        </a>
+            {/* MasterCard Logo High-Fi */}
+            <div className="flex items-center gap-[-10px] group cursor-pointer grayscale opacity-70 hover:grayscale-0 hover:opacity-100 transition-all duration-500">
+              <div className="relative flex items-center h-10 w-16 group-hover:scale-110 transition-transform">
+                <div className="absolute left-0 w-10 h-10 bg-[#EB001B] rounded-full mix-blend-multiply" />
+                <div className="absolute right-0 w-10 h-10 bg-[#F79E1B] rounded-full mix-blend-multiply" />
+              </div>
+            </div>
 
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Templates{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Explore the Next.js 13 playground.
-          </p>
-        </a>
+            {/* GuiaPay Logo High-Fi */}
+            <div className="flex items-center gap-2 group cursor-pointer grayscale opacity-70 hover:grayscale-0 hover:opacity-100 transition-all duration-500">
+              <div className="bg-slate-900 p-2.5 rounded-2xl group-hover:scale-110 transition-all duration-300 shadow-xl group-hover:shadow-alteha-violet/20 border border-white/10">
+                <Logo className="w-7 h-7 invert" />
+              </div>
+              <span className="font-bold text-slate-900 text-2xl tracking-tight italic">Guía<span className="text-alteha-turquoise">pay</span></span>
+            </div>
+          </div>
+        </div>
 
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Deploy{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
-      </div>
+        <div className="flex flex-col md:flex-row justify-between items-center w-full max-w-6xl gap-6 pt-8 border-t border-slate-100 text-slate-400 text-sm">
+          <p className="font-medium">&copy; {new Date().getFullYear()} ALTEHA Ecosistema de Salud. Todos los derechos reservados.</p>
+          <div className="flex gap-10 font-semibold text-[10px] uppercase tracking-widest">
+            <Link href="/privacy" className="hover:text-alteha-turquoise transition-colors">Privacidad</Link>
+            <Link href="/terms" className="hover:text-alteha-violet transition-colors">Términos</Link>
+            <Link href="/support" className="hover:text-blue-500 transition-colors">Soporte</Link>
+          </div>
+        </div>
+      </footer>
     </main>
   )
 }

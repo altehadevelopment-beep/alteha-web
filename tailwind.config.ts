@@ -8,11 +8,17 @@ const config: Config = {
   ],
   theme: {
     extend: {
-      backgroundImage: {
-        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
-        'gradient-conic':
-          'conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))',
+      colors: {
+        alteha: {
+          turquoise: '#18D19A',
+          violet: '#6A4DFE',
+          gray: '#2C2E33',
+          bg: '#f8fafc',
+        }
       },
+      backgroundImage: {
+        'alteha-gradient': 'linear-gradient(135deg, #18D19A 0%, #6A4DFE 100%)',
+      }
     },
   },
   plugins: [],
