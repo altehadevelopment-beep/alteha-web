@@ -81,8 +81,8 @@ export interface DoctorRegistration {
 const roleMapping: Record<string, string> = {
     'specialist': 'DOCTOR',
     'clinic': 'CLINIC',
-    'insurance': 'INSURANCE',
-    'provider': 'PROVIDER',
+    'insurance': 'INSURANCE_COMPANY',
+    'provider': 'PHARMACY',
     'pharmacy': 'PHARMACY'
 };
 
@@ -208,16 +208,29 @@ export interface PharmacyRegistration {
 
 export interface ActorProfile {
     id: number;
-    firstName: string;
-    lastName: string;
+    firstName?: string;
+    lastName?: string;
     fullName: string | null;
     email: string;
     phone: string;
     profileImageUrl: string | null;
-    medicalLicenseNumber?: string;
-    medicalLicenseDocumentUrl?: string | null;
+    logoUrl?: string | null;
+    commercialName?: string;
+    legalName?: string;
     identificationType: string;
     identificationNumber: string;
+    insuranceLicenseNumber?: string;
+    healthLicenseNumber?: string;
+    pharmacyLicenseNumber?: string;
+    pharmacyType?: string;
+    address?: string;
+    latitude?: number;
+    longitude?: number;
+    name?: string;
+    website?: string | null;
+    contactPersonName?: string;
+    contactPersonEmail?: string | null;
+    contactPersonPhone?: string | null;
     isIndependent?: boolean;
     status: string;
     createdAt?: string;

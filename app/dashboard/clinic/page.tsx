@@ -13,33 +13,52 @@ import {
     Gavel,
     Package,
     Building2,
-    Star
+    Star,
+    Edit3
 } from 'lucide-react';
 import Link from 'next/link';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function ClinicDashboard() {
+    const { userProfile, isLoadingProfile } = useAuth();
+
+    const displayProfile = userProfile || {
+        name: 'Cargando...',
+        legalName: 'Cargando...',
+        logoUrl: null,
+        status: 'PENDING'
+    };
+
+    const clinicName = displayProfile.name || displayProfile.commercialName || displayProfile.legalName || 'Clínica';
+
     return (
         <div className="space-y-10 font-outfit pb-20">
             {/* Header section with profile summary */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-emerald-50/50 p-10 rounded-[3rem] border border-emerald-100/50">
                 <div className="flex items-center gap-6">
-                    <div className="w-24 h-24 rounded-3xl overflow-hidden border-4 border-white shadow-xl bg-white p-2">
-                        <Building2 className="w-full h-full text-emerald-600" />
+                    <div className="w-24 h-24 rounded-3xl overflow-hidden border-4 border-white shadow-xl bg-white p-2 flex items-center justify-center">
+                        {displayProfile.logoUrl ? (
+                            <img src={displayProfile.logoUrl} alt="Logo" className="w-full h-full object-contain" />
+                        ) : (
+                            <Building2 className="w-full h-full text-emerald-600 opacity-20" />
+                        )}
                     </div>
                     <div>
                         <div className="flex items-center gap-3">
-                            <h2 className="text-3xl font-black text-slate-900 tracking-tight">Clínica Metropolitana</h2>
-                            <div className="px-3 py-1 bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest rounded-full">
-                                Verificada
+                            <h2 className="text-3xl font-black text-slate-900 tracking-tight">
+                                {isLoadingProfile && !userProfile ? 'Cargando...' : clinicName}
+                            </h2>
+                            <div className={`px-3 py-1 text-white text-[10px] font-black uppercase tracking-widest rounded-full ${displayProfile.status === 'ACTIVE' ? 'bg-emerald-500' : 'bg-amber-500'}`}>
+                                {displayProfile.status}
                             </div>
                         </div>
                         <div className="flex items-center gap-3 mt-1 text-slate-500 font-medium">
-                            <span className="text-emerald-600">Centro Hospitalar Especializado</span>
+                            <span className="text-emerald-600">Centro Hospitalario</span>
                             <span className="w-1 h-1 rounded-full bg-slate-300" />
                             <Link href="/dashboard/clinic/score" className="flex items-center gap-1.5 text-slate-400 hover:text-emerald-600 transition-colors">
                                 <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                                <span className="font-bold text-slate-900">4.8</span>
-                                <span className="text-xs font-medium">(212 valoraciones)</span>
+                                <span className="font-bold text-slate-900">5.0</span>
+                                <span className="text-xs font-medium">(Socio Verificado)</span>
                             </Link>
                         </div>
                     </div>
@@ -48,10 +67,10 @@ export default function ClinicDashboard() {
                     <button className="p-4 bg-white rounded-2xl shadow-sm border border-slate-100 text-slate-400 hover:text-emerald-600 transition-all">
                         <Bell className="w-6 h-6" />
                     </button>
-                    <Link href="/dashboard/clinic/auctions/new">
+                    <Link href="/dashboard/clinic/profile">
                         <button className="flex items-center gap-3 px-8 py-4 bg-slate-900 text-white rounded-2xl font-black hover:scale-105 transition-all shadow-xl shadow-slate-900/20">
-                            <Plus className="w-5 h-5 text-emerald-400" />
-                            Nueva Subasta
+                            <Edit3 className="w-5 h-5 text-emerald-400" />
+                            Editar Perfil
                         </button>
                     </Link>
                 </div>

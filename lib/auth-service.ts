@@ -1,7 +1,7 @@
 
 import { cookies } from 'next/headers';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://qa.alteha.com:3232/api';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://alteha.chanceaapp.com:3232/api';
 const ADMIN_USER = process.env.NEXT_PUBLIC_ADMIN_USER || 'admin';
 const ADMIN_PASS = process.env.NEXT_PUBLIC_ADMIN_PASS || 'admin';
 

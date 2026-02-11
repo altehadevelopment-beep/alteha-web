@@ -14,24 +14,43 @@ import {
     DollarSign,
     Clock,
     FileText,
-    CheckCircle
+    CheckCircle,
+    Edit3
 } from 'lucide-react';
 import Link from 'next/link';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function ProviderDashboard() {
+    const { userProfile, isLoadingProfile } = useAuth();
+
+    const displayProfile = userProfile || {
+        name: 'Cargando...',
+        legalName: 'Cargando...',
+        logoUrl: null,
+        status: 'PENDING'
+    };
+
+    const providerName = displayProfile.name || displayProfile.commercialName || displayProfile.legalName || 'Proveedor';
+
     return (
         <div className="space-y-10 font-outfit pb-20">
             {/* Header section with company summary */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-indigo-50/50 p-10 rounded-[3rem] border border-indigo-100/50">
                 <div className="flex items-center gap-6">
-                    <div className="w-24 h-24 rounded-3xl overflow-hidden border-4 border-white shadow-xl bg-white p-3">
-                        <Truck className="w-full h-full text-indigo-600" />
+                    <div className="w-24 h-24 rounded-3xl overflow-hidden border-4 border-white shadow-xl bg-white p-3 flex items-center justify-center">
+                        {displayProfile.logoUrl ? (
+                            <img src={displayProfile.logoUrl} alt="Logo" className="w-full h-full object-contain" />
+                        ) : (
+                            <Truck className="w-full h-full text-indigo-600 opacity-20" />
+                        )}
                     </div>
                     <div>
                         <div className="flex items-center gap-3">
-                            <h2 className="text-3xl font-black text-slate-900 tracking-tight">MedSupply Corp</h2>
-                            <div className="px-3 py-1 bg-indigo-600 text-white text-[10px] font-black uppercase tracking-widest rounded-full">
-                                Certificado
+                            <h2 className="text-3xl font-black text-slate-900 tracking-tight">
+                                {isLoadingProfile && !userProfile ? 'Cargando...' : providerName}
+                            </h2>
+                            <div className={`px-3 py-1 text-white text-[10px] font-black uppercase tracking-widest rounded-full ${displayProfile.status === 'ACTIVE' ? 'bg-indigo-600' : 'bg-amber-500'}`}>
+                                {displayProfile.status}
                             </div>
                         </div>
                         <div className="flex items-center gap-3 mt-1 text-slate-500 font-medium">
@@ -39,8 +58,8 @@ export default function ProviderDashboard() {
                             <span className="w-1 h-1 rounded-full bg-slate-300" />
                             <div className="flex items-center gap-1.5">
                                 <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                                <span className="font-bold text-slate-900">4.9</span>
-                                <span className="text-xs font-medium text-slate-400">(156 valoraciones)</span>
+                                <span className="font-bold text-slate-900">5.0</span>
+                                <span className="text-xs font-medium text-slate-400">(Socio Verificado)</span>
                             </div>
                         </div>
                     </div>
@@ -49,10 +68,10 @@ export default function ProviderDashboard() {
                     <button className="p-4 bg-white rounded-2xl shadow-sm border border-slate-100 text-slate-400 hover:text-indigo-600 transition-all">
                         <Bell className="w-6 h-6" />
                     </button>
-                    <Link href="/dashboard/provider/catalog">
-                        <button className="flex items-center gap-3 px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black hover:scale-105 transition-all shadow-xl shadow-indigo-600/20">
-                            <Plus className="w-5 h-5" />
-                            Agregar Producto
+                    <Link href="/dashboard/provider/profile">
+                        <button className="flex items-center gap-3 px-8 py-4 bg-slate-900 text-white rounded-2xl font-black hover:scale-105 transition-all shadow-xl shadow-slate-900/20">
+                            <Edit3 className="w-5 h-5 text-indigo-400" />
+                            Editar Perfil
                         </button>
                     </Link>
                 </div>

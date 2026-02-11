@@ -18,21 +18,39 @@ import {
     Clock
 } from 'lucide-react';
 import Link from 'next/link';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function InsuranceDashboard() {
+    const { userProfile, isLoadingProfile } = useAuth();
+
+    const displayProfile = userProfile || {
+        commercialName: 'Cargando...',
+        legalName: 'Cargando...',
+        logoUrl: null,
+        status: 'PENDING'
+    };
+
+    const rating = 5.0; // Default or from profile if available
+
     return (
         <div className="space-y-10 font-outfit pb-20">
             {/* Header section with company summary */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-violet-50/50 p-10 rounded-[3rem] border border-violet-100/50">
                 <div className="flex items-center gap-6">
-                    <div className="w-24 h-24 rounded-3xl overflow-hidden border-4 border-white shadow-xl bg-white p-3">
-                        <ShieldCheck className="w-full h-full text-alteha-violet" />
+                    <div className="w-24 h-24 rounded-3xl overflow-hidden border-4 border-white shadow-xl bg-white p-3 flex items-center justify-center">
+                        {displayProfile.logoUrl ? (
+                            <img src={displayProfile.logoUrl} alt="Logo" className="w-full h-full object-contain" />
+                        ) : (
+                            <ShieldCheck className="w-full h-full text-alteha-violet opacity-20" />
+                        )}
                     </div>
                     <div>
                         <div className="flex items-center gap-3">
-                            <h2 className="text-3xl font-black text-slate-900 tracking-tight">Seguros Metropolitanos</h2>
+                            <h2 className="text-3xl font-black text-slate-900 tracking-tight">
+                                {isLoadingProfile && !userProfile ? 'Cargando...' : (displayProfile.commercialName || displayProfile.legalName)}
+                            </h2>
                             <div className="px-3 py-1 bg-alteha-violet text-white text-[10px] font-black uppercase tracking-widest rounded-full">
-                                Premium
+                                {displayProfile.status}
                             </div>
                         </div>
                         <div className="flex items-center gap-3 mt-1 text-slate-500 font-medium">
@@ -40,8 +58,8 @@ export default function InsuranceDashboard() {
                             <span className="w-1 h-1 rounded-full bg-slate-300" />
                             <div className="flex items-center gap-1.5">
                                 <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                                <span className="font-bold text-slate-900">4.7</span>
-                                <span className="text-xs font-medium text-slate-400">(89 valoraciones)</span>
+                                <span className="font-bold text-slate-900">{rating.toFixed(1)}</span>
+                                <span className="text-xs font-medium text-slate-400">(Socio Verificado)</span>
                             </div>
                         </div>
                     </div>
@@ -50,10 +68,9 @@ export default function InsuranceDashboard() {
                     <button className="p-4 bg-white rounded-2xl shadow-sm border border-slate-100 text-slate-400 hover:text-alteha-violet transition-all">
                         <Bell className="w-6 h-6" />
                     </button>
-                    <Link href="/dashboard/insurance/auctions/new">
-                        <button className="flex items-center gap-3 px-8 py-4 bg-alteha-violet text-white rounded-2xl font-black hover:scale-105 transition-all shadow-xl shadow-alteha-violet/20">
-                            <Plus className="w-5 h-5" />
-                            Nueva Subasta
+                    <Link href="/dashboard/insurance/profile">
+                        <button className="flex items-center gap-3 px-8 py-4 bg-slate-900 text-white rounded-2xl font-black hover:scale-105 transition-all shadow-xl shadow-slate-200">
+                            Editar Perfil
                         </button>
                     </Link>
                 </div>
