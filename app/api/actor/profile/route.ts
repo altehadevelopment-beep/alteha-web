@@ -33,13 +33,16 @@ export async function GET(request: NextRequest) {
         console.log(`[API Proxy] GET /actor/profile?role=${role} - Status: ${response.status}`);
 
         if (!response.ok) {
-            const errorText = await response.text();
-            console.error(`[API Proxy] Backend error:`, errorText);
-            return NextResponse.json(JSON.parse(errorText || '{}'), { status: response.status });
+            const errorData = await response.json().catch(() => ({}));
+            return NextResponse.json(errorData, { status: response.status });
         }
 
         const data = await response.json();
-        return NextResponse.json(data);
+        return NextResponse.json({
+            code: '00',
+            message: 'Success',
+            data: data
+        });
     } catch (error) {
         console.error('Profile fetch error:', error);
         return NextResponse.json({

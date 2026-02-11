@@ -40,17 +40,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }, [router]);
 
     const fetchProfile = useCallback(async (role: string) => {
-        console.log(`[AuthContext] Fetching profile for role: ${role}`);
         setIsLoadingProfile(true);
         try {
             const { getProfile } = await import('@/lib/api');
             const result = await getProfile(role);
-            console.log(`[AuthContext] Profile result:`, result);
             if (result.code === '00') {
                 setUserProfile(result.data);
             }
         } catch (error) {
-            console.error('[AuthContext] Failed to fetch profile:', error);
+            console.error('Failed to fetch profile:', error);
         } finally {
             setIsLoadingProfile(false);
         }
