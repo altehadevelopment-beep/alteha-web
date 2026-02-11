@@ -9,6 +9,8 @@ interface AuthContextType {
     login: (username: string, password: string, role?: string, captchaToken?: string) => Promise<AuthResponse>;
     logout: () => void;
     token: string | null;
+    userProfile: any | null;
+    isLoadingProfile: boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -16,11 +18,15 @@ const AuthContext = createContext<AuthContextType>({
     login: async () => ({ code: '', message: '' }),
     logout: () => { },
     token: null,
+    userProfile: null,
+    isLoadingProfile: false,
 });
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const router = useRouter();
     const [token, setToken] = useState<string | null>(null);
+    const [userProfile, setUserProfile] = useState<any | null>(null);
+    const [isLoadingProfile, setIsLoadingProfile] = useState(false);
     const pathname = usePathname();
     const logoutTimerRef = useRef<NodeJS.Timeout | null>(null);
     const SESSION_TIMEOUT = process.env.NEXT_PUBLIC_SESSION_TIMEOUT ? parseInt(process.env.NEXT_PUBLIC_SESSION_TIMEOUT) : 600000; // 10 mins
@@ -28,9 +34,27 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const logout = useCallback(() => {
         clearToken();
         setToken(null);
+        setUserProfile(null);
         if (logoutTimerRef.current) clearTimeout(logoutTimerRef.current);
         router.push('/login');
     }, [router]);
+
+    const fetchProfile = useCallback(async (role: string) => {
+        console.log(`[AuthContext] Fetching profile for role: ${role}`);
+        setIsLoadingProfile(true);
+        try {
+            const { getProfile } = await import('@/lib/api');
+            const result = await getProfile(role);
+            console.log(`[AuthContext] Profile result:`, result);
+            if (result.code === '00') {
+                setUserProfile(result.data);
+            }
+        } catch (error) {
+            console.error('[AuthContext] Failed to fetch profile:', error);
+        } finally {
+            setIsLoadingProfile(false);
+        }
+    }, []);
 
     const resetTimer = useCallback(() => {
         if (logoutTimerRef.current) clearTimeout(logoutTimerRef.current);
@@ -45,8 +69,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         if (storedToken) {
             setToken(storedToken);
             resetTimer();
+            // Infer role from path if possible, or wait for explicit login
+            // For now, if we have a token and we are in a dashboard, fetch profile
+            const segments = pathname.split('/');
+            if (segments.includes('dashboard')) {
+                const role = segments[segments.indexOf('dashboard') + 1];
+                if (role) {
+                    const apiRole = role === 'specialist' ? 'DOCTOR' : role.toUpperCase();
+                    fetchProfile(apiRole);
+                }
+            }
         }
-    }, []);
+    }, [pathname, fetchProfile, resetTimer]);
 
     // Activity Listeners
     useEffect(() => {
@@ -69,6 +103,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 const newToken = result.data.id_token;
                 storeToken(newToken);
                 setToken(newToken);
+                const apiRole = role === 'specialist' ? 'DOCTOR' : role.toUpperCase();
+                await fetchProfile(apiRole);
                 resetTimer();
             }
 
@@ -80,7 +116,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     return (
-        <AuthContext.Provider value={{ isAuthenticated: !!token, login, logout, token }}>
+        <AuthContext.Provider value={{ isAuthenticated: !!token, login, logout, token, userProfile, isLoadingProfile }}>
             {children}
         </AuthContext.Provider>
     );

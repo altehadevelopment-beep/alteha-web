@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import { motion as m, AnimatePresence as AP } from 'framer-motion';
 import {
     Bell,
@@ -61,6 +62,7 @@ const AUCTIONS = [
 ];
 
 export default function SpecialistDashboard() {
+    const { userProfile, isLoadingProfile } = useAuth();
     const [currentAd, setCurrentAd] = useState(0);
 
     useEffect(() => {
@@ -70,25 +72,51 @@ export default function SpecialistDashboard() {
         return () => clearInterval(timer);
     }, []);
 
+    // Placeholder data while loading or if profile fails
+    const displayProfile = userProfile || {
+        firstName: '...',
+        lastName: 'Cargando',
+        specialties: [{ name: 'Especialista' }],
+        profileImageUrl: null
+    };
+
+    const fullName = displayProfile.firstName && displayProfile.lastName
+        ? `Dr. ${displayProfile.firstName} ${displayProfile.lastName}`
+        : 'Cargando perfil...';
+
+    const specialtyName = displayProfile.specialties?.[0]?.name || 'Especialista';
+
     return (
         <div className="space-y-10 font-outfit">
             {/* Header Section */}
             <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div className="flex items-center gap-5">
                     <div className="relative">
-                        <div className="w-20 h-20 rounded-3xl overflow-hidden border-4 border-white shadow-xl">
-                            <img
-                                src="/doctor-avatar.png"
-                                alt="Dr. Profile"
-                                className="w-full h-full object-cover bg-slate-100"
-                            />
+                        <div className="w-20 h-20 rounded-3xl overflow-hidden border-4 border-white shadow-xl bg-slate-100 flex items-center justify-center">
+                            {displayProfile.profileImageUrl ? (
+                                <img
+                                    src={displayProfile.profileImageUrl}
+                                    alt="Dr. Profile"
+                                    className="w-full h-full object-cover"
+                                />
+                            ) : (
+                                <img
+                                    src="/doctor-avatar.png"
+                                    alt="Dr. Profile"
+                                    className="w-full h-full object-cover opacity-50"
+                                />
+                            )}
                         </div>
-                        <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 border-2 border-white rounded-full" />
+                        <div className={`absolute -bottom-1 -right-1 w-6 h-6 border-2 border-white rounded-full ${isLoadingProfile ? 'bg-amber-400 animate-pulse' : 'bg-green-500'}`} />
                     </div>
                     <div>
-                        <h2 className="text-2xl font-black text-slate-900 tracking-tight">Dr. Alejandro Rodríguez</h2>
+                        <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+                            {isLoadingProfile ? (
+                                <span className="animate-pulse">Cargando...</span>
+                            ) : fullName}
+                        </h2>
                         <div className="flex items-center gap-3 mt-1 text-slate-500 font-medium">
-                            <span className="text-alteha-violet">Cirujano Traumatólogo</span>
+                            <span className="text-alteha-violet">{specialtyName}</span>
                             <span className="w-1 h-1 rounded-full bg-slate-300" />
                             <div className="flex items-center gap-1.5 text-slate-400 group">
                                 <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />

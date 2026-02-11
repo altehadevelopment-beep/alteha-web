@@ -17,9 +17,17 @@ import {
 import Link from 'next/link';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function EditProfilePage() {
+    const { userProfile, isLoadingProfile } = useAuth();
     const [activeTab, setActiveTab] = useState('academic');
+
+    const displayProfile = userProfile || {};
+    const fullName = displayProfile.firstName && displayProfile.lastName
+        ? `Dr. ${displayProfile.firstName} ${displayProfile.lastName}`
+        : '';
+    const specialtyName = displayProfile.specialties?.[0]?.name || '';
 
     return (
         <div className="space-y-10 font-outfit max-w-4xl mx-auto pb-20">
@@ -43,18 +51,38 @@ export default function EditProfilePage() {
             <section className="bg-white p-10 rounded-[3rem] shadow-xl shadow-slate-200/50 border border-slate-100">
                 <div className="flex flex-col md:flex-row items-center gap-10">
                     <div className="relative group">
-                        <div className="w-32 h-32 rounded-[2.5rem] overflow-hidden border-4 border-slate-50 shadow-inner">
-                            <img src="/doctor-avatar.png" alt="Profile" className="w-full h-full object-cover" />
+                        <div className="w-32 h-32 rounded-[2.5rem] overflow-hidden border-4 border-slate-50 shadow-inner bg-slate-100 flex items-center justify-center">
+                            {displayProfile.profileImageUrl ? (
+                                <img src={displayProfile.profileImageUrl} alt="Profile" className="w-full h-full object-cover" />
+                            ) : (
+                                <img src="/doctor-avatar.png" alt="Profile" className="w-full h-full object-cover opacity-50" />
+                            )}
                         </div>
                         <button className="absolute -bottom-2 -right-2 p-3 bg-alteha-violet text-white rounded-2xl shadow-lg group-hover:scale-110 transition-transform">
                             <Upload className="w-4 h-4" />
                         </button>
                     </div>
                     <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
-                        <Input label="Nombre Completo" defaultValue="Dr. Alejandro Rodríguez" />
-                        <Input label="Especialidad Principal" defaultValue="Cirujano Traumatólogo" />
-                        <Input label="Correo Electrónico" defaultValue="a.rodriguez@hospital.com" />
-                        <Input label="Teléfono de Contacto" defaultValue="+58 412 1234567" />
+                        <Input
+                            label="Nombre Completo"
+                            defaultValue={fullName}
+                            placeholder={isLoadingProfile ? "Cargando..." : "Nombre completo"}
+                        />
+                        <Input
+                            label="Especialidad Principal"
+                            defaultValue={specialtyName}
+                            placeholder={isLoadingProfile ? "Cargando..." : "Especialidad"}
+                        />
+                        <Input
+                            label="Correo Electrónico"
+                            defaultValue={displayProfile.email}
+                            placeholder={isLoadingProfile ? "Cargando..." : "Email"}
+                        />
+                        <Input
+                            label="Teléfono de Contacto"
+                            defaultValue={displayProfile.phone}
+                            placeholder={isLoadingProfile ? "Cargando..." : "Teléfono"}
+                        />
                     </div>
                 </div>
             </section>

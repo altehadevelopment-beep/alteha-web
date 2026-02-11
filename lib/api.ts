@@ -175,6 +175,31 @@ export interface PharmacyRegistration {
     website?: string;
 }
 
+export interface ActorProfile {
+    id: number;
+    firstName: string;
+    lastName: string;
+    fullName: string | null;
+    email: string;
+    phone: string;
+    profileImageUrl: string | null;
+    medicalLicenseNumber?: string;
+    identificationType: string;
+    identificationNumber: string;
+    isIndependent?: boolean;
+    status: string;
+    specialties?: Array<{
+        id: number;
+        name: string | null;
+        code: string | null;
+    }>;
+    preferredClinics?: Array<{
+        id: number;
+        name: string | null;
+    }>;
+}
+
+
 
 // Register Doctor
 export async function registerDoctor(
@@ -278,6 +303,21 @@ export async function registerPharmacy(
     });
     return response.json();
 }
+
+// Get User Profile
+export async function getProfile(role: string = 'DOCTOR'): Promise<ApiResponse<ActorProfile>> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+
+    const response = await fetch(`/api/actor/profile?role=${role}`, {
+        method: 'GET',
+        headers: {
+            'X-Alteha-Token': token
+        }
+    });
+    return response.json();
+}
+
 
 
 // Helper to get stored token
