@@ -80,6 +80,11 @@ export function DashboardSidebar() {
     if (isInsurance) menuItems = insuranceItems;
     if (isProvider) menuItems = providerItems;
 
+    const dashboardHref = isClinic ? '/dashboard/clinic' :
+        isInsurance ? '/dashboard/insurance' :
+            isProvider ? '/dashboard/provider' :
+                '/dashboard/specialist';
+
     const settingsHref = isClinic ? '/dashboard/clinic/settings' :
         isInsurance ? '/dashboard/insurance/settings' :
             isProvider ? '/dashboard/provider/settings' :
@@ -105,7 +110,7 @@ export function DashboardSidebar() {
                 isOpen ? "translate-x-0" : "-translate-x-full"
             )}>
                 <div className="flex flex-col h-full p-6">
-                    <Link href="/" className="flex items-center gap-3 mb-10 px-2 group cursor-pointer">
+                    <Link href={dashboardHref} className="flex items-center gap-3 mb-10 px-2 group cursor-pointer">
                         <Logo className="w-10 h-10 group-hover:scale-105 transition-transform" />
                         <span className="font-black text-2xl tracking-[0.05em] text-slate-800">ALTEHA</span>
                     </Link>

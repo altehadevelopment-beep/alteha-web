@@ -12,7 +12,9 @@ import {
     Award,
     BookOpen,
     FileCheck,
-    Briefcase
+    Briefcase,
+    CreditCard,
+    Wallet
 } from 'lucide-react';
 import Link from 'next/link';
 import { Input } from '@/components/ui/Input';
@@ -113,6 +115,18 @@ export default function EditProfilePage() {
                     icon={Briefcase}
                     label="Experiencia"
                 />
+                <TabButton
+                    active={activeTab === 'collection'}
+                    onClick={() => setActiveTab('collection')}
+                    icon={Wallet}
+                    label="Métodos de cobro"
+                />
+                <TabButton
+                    active={activeTab === 'payment'}
+                    onClick={() => setActiveTab('payment')}
+                    icon={CreditCard}
+                    label="Métodos de pago"
+                />
             </div>
 
             {/* Dynamic Section Content */}
@@ -156,6 +170,44 @@ export default function EditProfilePage() {
                             <Button variant="outline" className="mt-6 border-slate-200 text-slate-600 rounded-xl">
                                 Agregar Experiencia
                             </Button>
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'collection' && (
+                    <div className="space-y-6">
+                        <CredentialGroup
+                            title="Cuentas Bancarias para Cobros"
+                            subtitle="Donde recibirás tus pagos por servicios prestados"
+                            items={[]}
+                        />
+                        <div className="bg-alteha-turquoise/5 border border-alteha-turquoise/20 p-8 rounded-[2.5rem]">
+                            <h4 className="font-bold text-slate-900 mb-2 flex items-center gap-2">
+                                <Wallet className="w-5 h-5 text-alteha-turquoise" />
+                                Información de Cobro
+                            </h4>
+                            <p className="text-slate-500 text-sm leading-relaxed">
+                                Agrega las cuentas bancarias nacionales o internacionales donde deseas que ALTEHA liquide tus honorarios médicos después de cada procedimiento exitoso.
+                            </p>
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'payment' && (
+                    <div className="space-y-6">
+                        <CredentialGroup
+                            title="Tarjetas y Métodos de Pago"
+                            subtitle="Configura cómo pagarás suscripciones o servicios adicionales"
+                            items={[]}
+                        />
+                        <div className="bg-slate-900 p-8 rounded-[2.5rem] text-white">
+                            <h4 className="font-bold mb-2 flex items-center gap-2">
+                                <CreditCard className="w-5 h-5 text-alteha-turquoise" />
+                                Pagos Seguros
+                            </h4>
+                            <p className="text-slate-300 text-sm leading-relaxed">
+                                Mantén un método de pago activo para servicios premium o reactivación de cuenta si es necesario. ALTEHA protege tus datos financieros con los más altos estándares de seguridad.
+                            </p>
                         </div>
                     </div>
                 )}

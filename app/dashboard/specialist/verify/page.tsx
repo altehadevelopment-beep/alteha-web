@@ -21,8 +21,9 @@ import { Button } from '@/components/ui/Button';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Logo } from '@/components/ui/Logo';
+import { submitIdentityCompliance } from '@/lib/api';
 
-type VerificationStep = 'selection' | 'document' | 'liveness' | 'success';
+type VerificationStep = 'selection' | 'document' | 'liveness' | 'loading' | 'success';
 
 export default function SpecialistVerifyPage() {
     const router = useRouter();
@@ -35,10 +36,15 @@ export default function SpecialistVerifyPage() {
     const [modelsLoaded, setModelsLoaded] = useState(false);
     const [motionAccumulator, setMotionAccumulator] = useState(0);
     const [faceDetected, setFaceDetected] = useState(false);
+    const [recording, setRecording] = useState(false);
+    const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
 
     // Camera Refs
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const chunksRef = useRef<Blob[]>([]);
+    const videoResolverRef = useRef<((blob: Blob) => void) | null>(null);
     const loadingModelsRef = useRef(false);
 
     const setVideoRef = React.useCallback((el: HTMLVideoElement | null) => {
@@ -85,6 +91,10 @@ export default function SpecialistVerifyPage() {
             });
             setStream(mediaStream);
             setIsCameraActive(true);
+
+            if (step === 'liveness') {
+                startRecording(mediaStream);
+            }
         } catch (err) {
             console.error("Error accessing camera:", err);
             alert("No se pudo acceder a la cámara. Por favor verifica los permisos.");
@@ -93,11 +103,45 @@ export default function SpecialistVerifyPage() {
     };
 
     const stopCamera = () => {
+        if (recording) {
+            stopRecording();
+        }
         if (stream) {
             stream.getTracks().forEach(track => track.stop());
             setStream(null);
         }
         setIsCameraActive(false);
+    };
+
+    const startRecording = (stream: MediaStream) => {
+        chunksRef.current = [];
+        let mimeType = 'video/mp4';
+        if (!MediaRecorder.isTypeSupported(mimeType)) {
+            mimeType = 'video/webm';
+        }
+
+        const recorder = new MediaRecorder(stream, { mimeType });
+        recorder.ondataavailable = (e) => {
+            if (e.data.size > 0) chunksRef.current.push(e.data);
+        };
+        recorder.onstop = () => {
+            const blob = new Blob(chunksRef.current, { type: mimeType });
+            setVideoBlob(blob);
+            if (videoResolverRef.current) {
+                videoResolverRef.current(blob);
+                videoResolverRef.current = null;
+            }
+        };
+        recorder.start();
+        mediaRecorderRef.current = recorder;
+        setRecording(true);
+    };
+
+    const stopRecording = () => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+            mediaRecorderRef.current.stop();
+        }
+        setRecording(false);
     };
 
     // Manual Linking - Handled by setVideoRef callback now
@@ -118,10 +162,59 @@ export default function SpecialistVerifyPage() {
         }
     };
 
-    const handleNext = () => {
+    const handleNext = async () => {
         if (step === 'selection') setStep('document');
         else if (step === 'document') setStep('liveness');
-        else if (step === 'liveness') setStep('success');
+        else if (step === 'liveness') {
+            await handleSubmitCompliance();
+        }
+        else if (step === 'success') setStep('success'); // Should not happen but for safety
+    };
+
+    const handleSubmitCompliance = async () => {
+        let currentVideoBlob = videoBlob;
+
+        // If still recording, stop and wait for the blob
+        if (!currentVideoBlob && recording) {
+            currentVideoBlob = await new Promise<Blob>((resolve) => {
+                videoResolverRef.current = resolve;
+                stopCamera();
+            });
+        }
+
+        if (!docImage || !currentVideoBlob) {
+            alert('Faltan datos para la verificación. Por favor captura tu documento y realiza la prueba de vida.');
+            return;
+        }
+
+        setStep('loading');
+        try {
+            // Convert base64 docImage to Blob
+            const response = await fetch(docImage);
+            const docBlob = await response.blob();
+
+            const formData = new FormData();
+            formData.append('documentImage', new File([docBlob], `document_${docType}.jpg`, { type: 'image/jpeg' }));
+            formData.append('verificationVideo', new File([currentVideoBlob], 'verification_video.mp4', { type: 'video/mp4' }));
+
+            const result = await submitIdentityCompliance(
+                'DOCTOR',
+                docType.toUpperCase(),
+                94, // Using the percentage from the user's example
+                formData
+            );
+
+            if (result.code === '00') {
+                setStep('success');
+            } else {
+                alert(`Error: ${result.message}`);
+                setStep('liveness');
+            }
+        } catch (err) {
+            console.error('Error submitting compliance:', err);
+            alert('Error al enviar la verificación');
+            setStep('liveness');
+        }
     };
 
     const handleBack = () => {
@@ -141,6 +234,26 @@ export default function SpecialistVerifyPage() {
                 </div>
                 <h2 className="text-3xl font-black text-slate-900 tracking-tight mb-2">Selecciona tu Documento</h2>
                 <p className="text-slate-500 font-medium">Elige el tipo de identificación que deseas verificar.</p>
+            </div>
+
+            {/* Verification Guide Icon */}
+            <div className="relative group max-w-[240px] mx-auto">
+                <div className="absolute -inset-2 bg-gradient-to-r from-alteha-turquoise/20 to-alteha-violet/20 rounded-full blur-xl opacity-50 group-hover:opacity-100 transition duration-1000"></div>
+                <div className="relative bg-white/50 backdrop-blur-md rounded-[3rem] p-6 border border-white/80 shadow-inner flex flex-col items-center gap-4">
+                    <img
+                        src="/images/id_verification_icon.png"
+                        alt="Guía de verificación de identidad"
+                        className="w-32 h-32 object-contain"
+                    />
+                    <div className="text-center">
+                        <p className="text-slate-900 text-xs font-black uppercase tracking-wider mb-1">
+                            Instrucción de Captura
+                        </p>
+                        <p className="text-slate-500 text-[10px] font-medium leading-tight">
+                            Sostén tu documento al lado de tu rostro como se muestra en el icono
+                        </p>
+                    </div>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -500,7 +613,10 @@ export default function SpecialistVerifyPage() {
                     </Button>
                     {!livenessCaptured && (
                         <button
-                            onClick={() => setLivenessCaptured(true)}
+                            onClick={() => {
+                                setLivenessCaptured(true);
+                                stopCamera();
+                            }}
                             className="text-[10px] text-slate-400 font-bold hover:text-slate-600 transition-colors uppercase tracking-widest"
                         >
                             ¿Problemas con la detección? Saltarme
@@ -590,6 +706,13 @@ export default function SpecialistVerifyPage() {
                         {step === 'selection' && renderSelection()}
                         {step === 'document' && renderDocumentCapture()}
                         {step === 'liveness' && renderLiveness()}
+                        {step === 'loading' && (
+                            <div className="text-center space-y-6">
+                                <div className="w-20 h-20 border-4 border-alteha-violet border-t-transparent rounded-full animate-spin mx-auto" />
+                                <h3 className="text-2xl font-black text-slate-900">Enviando tu Verificación...</h3>
+                                <p className="text-slate-500 font-medium italic">"Analizando datos de identidad y biometría en tiempo real"</p>
+                            </div>
+                        )}
                         {step === 'success' && renderSuccess()}
                     </AnimatePresence>
                 </div>

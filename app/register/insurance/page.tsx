@@ -38,6 +38,20 @@ import {
     verifyEmailToken
 } from '@/lib/api';
 
+// Error Code Mapping
+const getErrorMessage = (code: string): string => {
+    const errorMessages: Record<string, string> = {
+        'AUTH_002': 'Este correo electrónico ya está registrado. Intenta iniciar sesión.',
+        'AUTH_003': 'Este número de teléfono ya está registrado.',
+        'VAL_001': 'El código de verificación es inválido o ha expirado.',
+        'VAL_002': 'Este número de identificación ya está registrado.',
+        'VAL_003': 'Este número de licencia de seguros ya está registrado.',
+        'VAL_004': 'Error de validación. Verifica los datos ingresados.',
+        'ERROR': 'Error de conexión con el servidor.'
+    };
+    return errorMessages[code] || 'Error en el registro. Intenta de nuevo.';
+};
+
 // --- Constants ---
 const IDENTIFICATION_TYPES = [
     { id: 'RIF', label: 'RIF' },
@@ -365,7 +379,7 @@ export default function InsuranceRegistrationPage() {
             const data = await response.json();
 
             if (!response.ok || (data.code !== '00' && data.code !== 200)) {
-                throw new Error(data.message || 'Error en el registro');
+                throw new Error(getErrorMessage(data.code) || data.message || 'Error en el registro');
             }
 
             toast.success('¡Registro exitoso!');

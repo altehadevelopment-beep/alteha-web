@@ -69,7 +69,7 @@ export default function PharmacyRegistrationPage() {
         legalName: '',
         pharmacyLicenseNumber: '',
         pharmacyType: 'RETAIL',
-        identificationType: 'RIF',
+        identificationType: 'RIF', // Assuming 'RIF' is still a valid default from the union type
         identificationNumber: '',
         address: '',
         latitude: 10.4806,
@@ -277,6 +277,18 @@ export default function PharmacyRegistrationPage() {
 
     const isPasswordValid = Object.values(passwordChecks).every(Boolean);
 
+    // Error Code Mapping
+    const getErrorMessage = (code: string): string => {
+        const errorMessages: Record<string, string> = {
+            'AUTH_002': 'Este correo electrónico ya está registrado.',
+            'AUTH_003': 'Este número de teléfono ya está registrado.',
+            'VAL_002': 'Este número de identificación ya está registrado.',
+            'VAL_003': 'Este número de licencia ya está registrado.',
+            'ERROR': 'Error de conexión con el servidor.'
+        };
+        return errorMessages[code] || 'Error en el registro. Intenta de nuevo.';
+    };
+
     // Step Validation
     const canProceedStep1 = formData.address && formData.latitude && formData.longitude;
     const canProceedStep2 = formData.name && formData.legalName && formData.pharmacyLicenseNumber && formData.identificationNumber;
@@ -307,7 +319,7 @@ export default function PharmacyRegistrationPage() {
                 setStep(6);
                 toast.success('¡Registro exitoso!');
             } else {
-                setError(result.message || 'Error en el registro');
+                setError(getErrorMessage(result.code));
             }
         } catch (err) {
             setError('Error de conexión al procesar el registro');
@@ -429,6 +441,7 @@ export default function PharmacyRegistrationPage() {
                                     <select className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-indigo-500 font-medium text-slate-600" value={formData.identificationType} onChange={e => updateFormData('identificationType', e.target.value)}>
                                         <option value="RIF">RIF</option>
                                         <option value="CEDULA">Cédula</option>
+                                        <option value="PASAPORTE">Pasaporte</option>
                                     </select>
                                 </div>
                                 <Input label="Número Identificación" placeholder="J-12345678-0" value={formData.identificationNumber} onChange={e => updateFormData('identificationNumber', e.target.value)} />

@@ -389,7 +389,7 @@ export default function ClinicRegistrationPage() {
                     phone: formData.phone,
                     name: formData.name,
                     legalName: formData.legalName,
-                    identificationType: formData.identificationType as 'CEDULA' | 'PASSPORT' | 'RIF',
+                    identificationType: formData.identificationType as 'CEDULA' | 'PASAPORTE' | 'RIF',
                     identificationNumber: formData.identificationNumber,
                     website: formData.website || undefined,
                     healthLicenseNumber: formData.healthLicenseNumber,
@@ -562,7 +562,7 @@ export default function ClinicRegistrationPage() {
                                     >
                                         <option value="RIF">RIF</option>
                                         <option value="CEDULA">Cédula</option>
-                                        <option value="PASSPORT">Pasaporte</option>
+                                        <option value="PASAPORTE">Pasaporte</option>
                                     </select>
                                 </div>
                                 <Input

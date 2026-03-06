@@ -11,6 +11,7 @@ interface AuthContextType {
     token: string | null;
     userProfile: any | null;
     isLoadingProfile: boolean;
+    isInitializing: boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -20,6 +21,7 @@ const AuthContext = createContext<AuthContextType>({
     token: null,
     userProfile: null,
     isLoadingProfile: false,
+    isInitializing: true,
 });
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
@@ -27,6 +29,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const [token, setToken] = useState<string | null>(null);
     const [userProfile, setUserProfile] = useState<any | null>(null);
     const [isLoadingProfile, setIsLoadingProfile] = useState(false);
+    const [isInitializing, setIsInitializing] = useState(true);
     const pathname = usePathname();
     const logoutTimerRef = useRef<NodeJS.Timeout | null>(null);
     const SESSION_TIMEOUT = process.env.NEXT_PUBLIC_SESSION_TIMEOUT ? parseInt(process.env.NEXT_PUBLIC_SESSION_TIMEOUT) : 600000; // 10 mins
@@ -36,7 +39,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setToken(null);
         setUserProfile(null);
         if (logoutTimerRef.current) clearTimeout(logoutTimerRef.current);
-        router.push('/login');
+        router.replace('/login');
     }, [router]);
 
     const fetchProfile = useCallback(async (role: string) => {
@@ -72,11 +75,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             if (segments.includes('dashboard')) {
                 const role = segments[segments.indexOf('dashboard') + 1];
                 if (role) {
-                    const apiRole = role === 'specialist' ? 'DOCTOR' : (role === 'insurance' ? 'INSURANCE_COMPANY' : (role === 'provider' ? 'PHARMACY' : role.toUpperCase()));
+                    const apiRole = role === 'specialist' ? 'DOCTOR' : (role === 'insurance' ? 'INSURANCE_COMPANY' : (role === 'provider' ? 'PHARMACY' : (role === 'health-fund' ? 'HEALTH_FUND' : role.toUpperCase())));
                     fetchProfile(apiRole);
                 }
             }
         }
+        setIsInitializing(false);
     }, [pathname, fetchProfile, resetTimer]);
 
     // Activity Listeners
@@ -113,7 +117,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     return (
-        <AuthContext.Provider value={{ isAuthenticated: !!token, login, logout, token, userProfile, isLoadingProfile }}>
+        <AuthContext.Provider value={{ isAuthenticated: !!token, login, logout, token, userProfile, isLoadingProfile, isInitializing }}>
             {children}
         </AuthContext.Provider>
     );

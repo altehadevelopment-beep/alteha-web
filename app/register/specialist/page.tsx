@@ -23,6 +23,7 @@ import {
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Logo } from '@/components/ui/Logo';
+import { Select } from '@/components/ui/Select';
 import Link from 'next/link';
 import { PuzzleCaptcha } from '@/components/ui/PuzzleCaptcha';
 import {
@@ -33,9 +34,15 @@ import {
     getSpecialties,
     getClinics,
     registerDoctor,
+    checkDoctorExists,
     type Specialty,
     type Clinic
 } from '@/lib/api';
+
+const IDENTIFICATION_TYPES = [
+    { id: 'CEDULA', label: 'Cédula' },
+    { id: 'RIF', label: 'RIF' }
+];
 
 export default function DoctorRegistrationPage() {
     const [step, setStep] = useState(1);
@@ -53,7 +60,7 @@ export default function DoctorRegistrationPage() {
         identificationType: 'CEDULA',
         identificationNumber: '',
         medicalLicenseNumber: '',
-        isIndependent: true,
+        isIndependent: false,
         specialtyIds: [] as number[],
         preferredClinicIds: [] as number[]
     });
@@ -75,9 +82,15 @@ export default function DoctorRegistrationPage() {
     const MAX_RESEND_ATTEMPTS = 3;
     const COUNTDOWN_SECONDS = 150; // 2:30 minutes
 
+    // ID Validation State
+    const [isCheckingId, setIsCheckingId] = useState(false);
+    const [idError, setIdError] = useState('');
+
     // Lists from API
     const [specialties, setSpecialties] = useState<Specialty[]>([]);
     const [clinics, setClinics] = useState<Clinic[]>([]);
+    const [stateFilter, setStateFilter] = useState('');
+    const [cityFilter, setCityFilter] = useState('');
 
     // File uploads
     const [profileImage, setProfileImage] = useState<File | null>(null);
@@ -311,6 +324,28 @@ export default function DoctorRegistrationPage() {
         return phoneRegex.test(phone);
     };
 
+    // Check if ID exists
+    const handleIdentificationCheck = async (value: string) => {
+        if (!value || value.length < 5) {
+            setIdError('');
+            return;
+        }
+
+        setIsCheckingId(true);
+        setIdError('');
+
+        try {
+            const exists = await checkDoctorExists(value);
+            if (exists) {
+                setIdError('Este documento ya se encuentra registrado');
+            }
+        } catch (err) {
+            console.error('Error checking ID:', err);
+        } finally {
+            setIsCheckingId(false);
+        }
+    };
+
     // Submit Registration
     const handleSubmit = async () => {
         setLoading(true);
@@ -329,7 +364,7 @@ export default function DoctorRegistrationPage() {
                     phone: formData.phone,
                     firstName: formData.firstName,
                     lastName: formData.lastName,
-                    identificationType: formData.identificationType as 'CEDULA' | 'PASSPORT' | 'RIF',
+                    identificationType: formData.identificationType as 'CEDULA' | 'PASAPORTE' | 'RIF',
                     identificationNumber: formData.identificationNumber,
                     medicalLicenseNumber: formData.medicalLicenseNumber,
                     isIndependent: formData.isIndependent,
@@ -353,7 +388,7 @@ export default function DoctorRegistrationPage() {
         setLoading(false);
     };
 
-    const canProceedStep1 = formData.firstName && formData.lastName && formData.identificationType && formData.identificationNumber;
+    const canProceedStep1 = formData.firstName && formData.lastName && formData.identificationType && formData.identificationNumber && !idError && !isCheckingId;
     const canProceedStep2 = emailVerified && phoneVerified;
     const canProceedStep3 = isPasswordValid;
     const canProceedStep4 = formData.specialtyIds.length > 0 && formData.medicalLicenseNumber;
@@ -454,26 +489,39 @@ export default function DoctorRegistrationPage() {
                                 />
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="space-y-2">
-                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest px-1">Tipo de Documento</label>
-                                    <select
-                                        className="w-full bg-slate-50 rounded-2xl p-4 border border-slate-100 outline-none focus:border-alteha-turquoise/50 transition-all font-medium text-slate-600"
-                                        value={formData.identificationType}
-                                        onChange={(e) => updateFormData('identificationType', e.target.value)}
-                                    >
-                                        <option value="CEDULA">Cédula</option>
-                                        <option value="PASSPORT">Pasaporte</option>
-                                        <option value="RIF">RIF</option>
-                                    </select>
-                                </div>
-                                <Input
-                                    label="Número de Documento"
-                                    value={formData.identificationNumber}
-                                    onChange={(e) => updateFormData('identificationNumber', e.target.value.slice(0, 20))}
-                                    placeholder="12345678"
-                                    maxLength={20}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
+                                <Select
+                                    label="Tipo de Documento"
+                                    options={IDENTIFICATION_TYPES}
+                                    value={formData.identificationType}
+                                    onChange={(val) => updateFormData('identificationType', val)}
                                 />
+                                <div className="relative">
+                                    <Input
+                                        label="Número de Documento"
+                                        value={formData.identificationNumber}
+                                        onChange={(e) => {
+                                            const val = e.target.value.slice(0, 20);
+                                            updateFormData('identificationNumber', val);
+                                            if (idError) setIdError('');
+                                        }}
+                                        onBlur={(e) => handleIdentificationCheck(e.target.value)}
+                                        placeholder="12345678"
+                                        maxLength={20}
+                                        className={idError ? 'border-red-500' : ''}
+                                    />
+                                    {isCheckingId && (
+                                        <div className="absolute right-4 top-[2.4rem]">
+                                            <Loader2 className="w-5 h-5 text-alteha-turquoise animate-spin" />
+                                        </div>
+                                    )}
+                                    {idError && (
+                                        <p className="absolute -bottom-5 left-1 text-[10px] font-bold text-red-500 flex items-center gap-1">
+                                            <X className="w-3 h-3" />
+                                            {idError}
+                                        </p>
+                                    )}
+                                </div>
                             </div>
 
                             <div className="flex justify-end pt-4">
@@ -798,6 +846,70 @@ export default function DoctorRegistrationPage() {
                                 </div>
                             </div>
 
+                            {!formData.isIndependent && (
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-between gap-3 mb-2">
+                                        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest px-1">Clínicas Preferidas</h3>
+                                        <div className="flex gap-2">
+                                            <select
+                                                className="text-xs bg-slate-100 rounded-lg px-2 py-1 outline-none text-slate-600 font-bold border border-slate-200 focus:border-alteha-turquoise/50"
+                                                value={stateFilter}
+                                                onChange={(e) => {
+                                                    setStateFilter(e.target.value);
+                                                    setCityFilter(''); // Reset city when state changes
+                                                }}
+                                            >
+                                                <option value="">Todos los Estados</option>
+                                                {Array.from(new Set(clinics.map(c => c.stateProvinceName).filter(Boolean))).map(state => (
+                                                    <option key={state} value={state!}>{state}</option>
+                                                ))}
+                                            </select>
+                                            <select
+                                                className="text-xs bg-slate-100 rounded-lg px-2 py-1 outline-none text-slate-600 font-bold border border-slate-200 focus:border-alteha-turquoise/50"
+                                                value={cityFilter}
+                                                onChange={(e) => setCityFilter(e.target.value)}
+                                                disabled={!stateFilter}
+                                            >
+                                                <option value="">Todas las Ciudades</option>
+                                                {Array.from(new Set(clinics.filter(c => c.stateProvinceName === stateFilter).map(c => c.cityName).filter(Boolean))).map(city => (
+                                                    <option key={city} value={city!}>{city}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto p-2 bg-slate-50/50 rounded-2xl border border-slate-100">
+                                        {clinics
+                                            .filter(clinic => {
+                                                const matchesState = !stateFilter || clinic.stateProvinceName === stateFilter;
+                                                const matchesCity = !cityFilter || clinic.cityName === cityFilter;
+                                                return matchesState && matchesCity;
+                                            })
+                                            .map((clinic) => (
+                                                <button
+                                                    key={clinic.id}
+                                                    onClick={() => toggleClinic(clinic.id)}
+                                                    className={`px-4 py-2 rounded-xl font-bold text-sm transition-all flex items-center gap-2 ${formData.preferredClinicIds.includes(clinic.id)
+                                                        ? 'bg-alteha-violet text-white shadow-md shadow-alteha-violet/20'
+                                                        : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-100'
+                                                        }`}
+                                                >
+                                                    {clinic.name}
+                                                    <span className="text-[10px] opacity-50 font-normal">
+                                                        {clinic.cityName ? `(${clinic.cityName})` : ''}
+                                                    </span>
+                                                </button>
+                                            ))}
+                                        {clinics.filter(clinic => {
+                                            const matchesState = !stateFilter || clinic.stateProvinceName === stateFilter;
+                                            const matchesCity = !cityFilter || clinic.cityName === cityFilter;
+                                            return matchesState && matchesCity;
+                                        }).length === 0 && (
+                                                <p className="text-sm text-slate-400 p-4 text-center w-full italic">No se encontraron clínicas con estos filtros.</p>
+                                            )}
+                                    </div>
+                                </div>
+                            )}
+
                             <div className="p-4 bg-slate-50 rounded-2xl">
                                 <label className="flex items-center gap-4 cursor-pointer">
                                     <input
@@ -812,26 +924,6 @@ export default function DoctorRegistrationPage() {
                                     </div>
                                 </label>
                             </div>
-
-                            {!formData.isIndependent && (
-                                <div className="space-y-3">
-                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest px-1">Clínicas Preferidas</label>
-                                    <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto p-2">
-                                        {clinics.map((clinic) => (
-                                            <button
-                                                key={clinic.id}
-                                                onClick={() => toggleClinic(clinic.id)}
-                                                className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${formData.preferredClinicIds.includes(clinic.id)
-                                                    ? 'bg-alteha-violet text-white'
-                                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                                                    }`}
-                                            >
-                                                {clinic.name}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
 
                             <div className="flex justify-between pt-4">
                                 <button onClick={() => setStep(3)} className="px-8 py-4 rounded-2xl border border-slate-200 text-slate-500 font-bold hover:bg-slate-50 transition-all">

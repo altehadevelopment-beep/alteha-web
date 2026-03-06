@@ -10,7 +10,8 @@ import {
   Linkedin,
   Github,
   CreditCard,
-  Wallet
+  Wallet,
+  Activity
 } from 'lucide-react'
 import { Logo } from '@/components/ui/Logo'
 
@@ -98,6 +99,16 @@ export default function Home() {
               <Truck className="w-12 h-12 text-slate-400 group-hover:text-blue-500 transition-colors duration-300" />
               <span className="relative flex items-center gap-2 text-base">
                 Proveedor de Insumos
+              </span>
+            </Link>
+
+            <Link
+              href="/login?role=health-fund"
+              className="group relative px-6 py-10 bg-white text-slate-700 border border-slate-200 rounded-3xl font-semibold overflow-hidden hover:border-rose-400/50 hover:text-rose-500 transition-all hover:-translate-y-1 text-center flex flex-col items-center justify-center gap-4 shadow-xl shadow-slate-200/50 hover:shadow-slate-300/60 sm:col-span-2 lg:col-span-1"
+            >
+              <Activity className="w-12 h-12 text-slate-400 group-hover:text-rose-500 transition-colors duration-300" />
+              <span className="relative flex items-center gap-2 text-base">
+                Fondo Administrado
               </span>
             </Link>
           </div>

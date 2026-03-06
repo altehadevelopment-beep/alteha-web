@@ -15,13 +15,18 @@ import {
     ShieldCheck,
     Star,
     DollarSign,
-    Clock
+    Clock,
+    ArrowRight
 } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
+import { getMyAuctions, type Auction } from '@/lib/api';
+import { useState, useEffect } from 'react';
 
 export default function InsuranceDashboard() {
     const { userProfile, isLoadingProfile } = useAuth();
+    const [recentAuctions, setRecentAuctions] = useState<Auction[]>([]);
+    const [isLoadingAuctions, setIsLoadingAuctions] = useState(true);
 
     const displayProfile = userProfile || {
         commercialName: 'Cargando...',
@@ -29,6 +34,23 @@ export default function InsuranceDashboard() {
         logoUrl: null,
         status: 'PENDING'
     };
+
+    useEffect(() => {
+        const loadRecent = async () => {
+            setIsLoadingAuctions(true);
+            try {
+                const result = await getMyAuctions(undefined, 0, 3);
+                if (result.code === '00') {
+                    setRecentAuctions(result.data || []);
+                }
+            } catch (err) {
+                console.error('Error loading recent auctions:', err);
+            } finally {
+                setIsLoadingAuctions(false);
+            }
+        };
+        loadRecent();
+    }, []);
 
     const rating = 5.0; // Default or from profile if available
 
@@ -78,11 +100,35 @@ export default function InsuranceDashboard() {
 
             {/* Quick Stats */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <StatCard label="Subastas Abiertas" value="8" icon={Gavel} trend="+2 esta semana" color="text-alteha-violet" />
+                <StatCard label="Subastas Abiertas" value={isLoadingAuctions ? '...' : recentAuctions.filter(a => a.status === 'ACTIVE').length.toString()} icon={Gavel} trend="Tiempo Real" color="text-alteha-violet" />
                 <StatCard label="Ahorro en Siniestros" value="$128k" icon={TrendingDown} trend="22% vs mes anterior" color="text-emerald-600" />
-                <StatCard label="Órdenes Emitidas" value="34" icon={FileText} trend="5 pendientes" color="text-blue-600" />
+                <StatCard label="Subastas Draft" value={isLoadingAuctions ? '...' : recentAuctions.filter(a => a.status === 'DRAFT').length.toString()} icon={FileText} trend="Pendientes" color="text-blue-600" />
                 <StatCard label="Médicos Conectados" value="156" icon={Users} trend="+12 este mes" color="text-amber-600" />
             </div>
+
+            {/* Patients Link */}
+            <motion.div
+                whileHover={{ scale: 1.01 }}
+                className="bg-slate-900 text-white p-10 rounded-[3rem] shadow-2xl flex flex-col md:flex-row items-center justify-between gap-8"
+            >
+                <div className="space-y-4">
+                    <div className="flex items-center gap-3">
+                        <div className="p-3 bg-white/10 rounded-2xl">
+                            <Users className="w-8 h-8 text-alteha-turquoise" />
+                        </div>
+                        <h3 className="text-3xl font-black tracking-tight">Gestión de Pacientes</h3>
+                    </div>
+                    <p className="text-slate-400 font-medium text-lg max-w-xl">
+                        Registra nuevos beneficiarios, busca por su documento de identidad y mantén sus perfiles médicos actualizados.
+                    </p>
+                </div>
+                <Link href="/dashboard/insurance/patients">
+                    <button className="px-10 py-5 bg-alteha-turquoise text-slate-900 rounded-[1.5rem] font-black hover:scale-105 transition-all shadow-xl shadow-alteha-turquoise/20 flex items-center gap-3 w-full md:w-auto justify-center">
+                        Administrar Pacientes
+                        <ArrowRight className="w-5 h-5" />
+                    </button>
+                </Link>
+            </motion.div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
                 {/* Active Auctions List */}
@@ -93,30 +139,28 @@ export default function InsuranceDashboard() {
                     </div>
 
                     <div className="space-y-4">
-                        <AuctionItem
-                            title="Cirugía de Rodilla - Caso #4521"
-                            status="En Puja"
-                            bids={12}
-                            bestBid="$2,800"
-                            timeLeft="4h 30m"
-                            savings="15%"
-                        />
-                        <AuctionItem
-                            title="Imagenología Mensual - Lote Mayo"
-                            status="Esperando"
-                            bids={3}
-                            bestBid="$8,200"
-                            timeLeft="2d 6h"
-                            savings="8%"
-                        />
-                        <AuctionItem
-                            title="Procedimiento Cardiológico #7899"
-                            status="Finalizando"
-                            bids={18}
-                            bestBid="$5,100"
-                            timeLeft="1h 15m"
-                            savings="28%"
-                        />
+                        {isLoadingAuctions ? (
+                            <div className="flex justify-center py-20">
+                                <Loader2 className="w-8 h-8 text-alteha-violet animate-spin" />
+                            </div>
+                        ) : recentAuctions.length === 0 ? (
+                            <div className="bg-white p-12 rounded-[2.5rem] border border-dashed border-slate-200 text-center">
+                                <p className="text-slate-400 font-bold">No hay subastas recientes</p>
+                            </div>
+                        ) : (
+                            recentAuctions.map(auction => (
+                                <AuctionItem
+                                    key={auction.id}
+                                    id={auction.auctionNumber}
+                                    title={auction.title}
+                                    status={auction.status}
+                                    bids={auction.totalBids || 0}
+                                    bestBid={auction.currentLowestBid ? `$${auction.currentLowestBid.toLocaleString()}` : 'N/A'}
+                                    timeLeft={new Date(auction.endDate).toLocaleDateString()}
+                                    savings="-"
+                                />
+                            ))
+                        )}
                     </div>
                 </div>
 
@@ -161,7 +205,7 @@ function StatCard({ label, value, icon: Icon, trend, color }: any) {
     );
 }
 
-function AuctionItem({ title, status, bids, bestBid, timeLeft, savings }: any) {
+function AuctionItem({ id, title, status, bids, bestBid, timeLeft, savings }: any) {
     return (
         <div className="group flex items-center justify-between p-6 bg-white rounded-[2.5rem] border border-slate-100 hover:border-violet-200 hover:shadow-xl hover:shadow-violet-500/5 transition-all duration-300">
             <div className="flex items-center gap-6">
@@ -171,7 +215,9 @@ function AuctionItem({ title, status, bids, bestBid, timeLeft, savings }: any) {
                 <div>
                     <h4 className="font-bold text-slate-900 group-hover:text-alteha-violet transition-colors">{title}</h4>
                     <div className="flex items-center gap-3 mt-1">
-                        <span className="text-xs font-black text-alteha-violet uppercase tracking-widest">{status}</span>
+                        <span className="text-[10px] font-black text-alteha-violet uppercase tracking-widest">{status}</span>
+                        <span className="w-1 h-1 rounded-full bg-slate-200" />
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{id}</span>
                         <span className="w-1 h-1 rounded-full bg-slate-200" />
                         <span className="text-xs font-medium text-slate-400">{bids} ofertas</span>
                     </div>
@@ -183,18 +229,22 @@ function AuctionItem({ title, status, bids, bestBid, timeLeft, savings }: any) {
                     <p className="text-xl font-black text-slate-900">{bestBid}</p>
                 </div>
                 <div className="text-right">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Ahorro</p>
-                    <p className="text-sm font-bold text-emerald-500">-{savings}</p>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Fecha Límite</p>
+                    <p className="text-sm font-bold text-slate-600">{timeLeft}</p>
                 </div>
-                <div className="text-right">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Tiempo</p>
-                    <p className="text-sm font-bold text-red-500">{timeLeft}</p>
-                </div>
-                <ChevronRight className="w-6 h-6 text-slate-200 group-hover:text-alteha-violet group-hover:translate-x-1 transition-all" />
+                <Link href={`/dashboard/insurance/auctions/${id}`}>
+                    <ChevronRight className="w-6 h-6 text-slate-200 group-hover:text-alteha-violet group-hover:translate-x-1 transition-all" />
+                </Link>
             </div>
         </div>
     );
 }
+
+const Loader2 = ({ className }: { className?: string }) => (
+    <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }} className={className}>
+        <Clock className="w-full h-full" />
+    </motion.div>
+);
 
 function ActivityItem({ icon: Icon, text, time, color }: any) {
     return (

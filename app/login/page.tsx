@@ -17,6 +17,7 @@ export default function LoginPage() {
     const [isVerified, setIsVerified] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [failedAttempts, setFailedAttempts] = useState(0);
     const { login } = useAuth();
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -32,6 +33,8 @@ export default function LoginPage() {
                 return { title: 'Portal Clínicas', registerLink: '/register/clinic', color: 'text-blue-500' };
             case 'provider':
                 return { title: 'Portal Proveedores', registerLink: '/register/provider', color: 'text-indigo-500' };
+            case 'health-fund':
+                return { title: 'Portal Fondos de Salud', registerLink: '/register/health-fund', color: 'text-rose-500' };
             default:
                 return { title: 'Bienvenido de nuevo', registerLink: '/register/specialist', color: 'text-slate-800' };
         }
@@ -45,6 +48,7 @@ export default function LoginPage() {
             'AUTH_001': 'Usuario o contraseña incorrectos.',
             'AUTH_002': 'Este correo electrónico no está registrado.',
             'AUTH_003': 'Tu cuenta no está verificada.',
+            'AUTH_004': 'Usuario o contraseña incorrectos.',
             'ERROR': 'Error de conexión con el servidor.'
         };
         return errorMessages[code] || 'Error al iniciar sesión. Intenta de nuevo.';
@@ -72,11 +76,46 @@ export default function LoginPage() {
 
             if (result.code === '00' && result.data?.id_token) {
                 // Success - redirect to dashboard
+                setFailedAttempts(0);
                 const destination = role ? `/dashboard/${role}` : '/dashboard/specialist';
                 router.push(destination);
             } else {
-                // Show error message
-                setError(getErrorMessage(result.code));
+                // Increment failed attempts
+                const newAttempts = failedAttempts + 1;
+                setFailedAttempts(newAttempts);
+
+                // Prioritize backend message if it's descriptive, otherwise use mapping
+                let backendMsg = result.message;
+
+                // Specific mapping for "Unauthorized user" as requested
+                if (backendMsg && (backendMsg.toLowerCase().includes('unauthorized user') || backendMsg.toLowerCase().includes('unauthorized'))) {
+                    backendMsg = 'Usuario y contraseña es inválido';
+                }
+
+                // Specific mapping for "Account is blocked"
+                if (backendMsg && (backendMsg.toLowerCase().includes('account is blocked') || backendMsg.toLowerCase().includes('blocked'))) {
+                    backendMsg = 'Tu cuenta ha sido bloqueada debido a múltiples intentos fallidos. Por favor inténtalo más tarde.';
+                }
+
+                // Specific mapping for "Actor not found"
+                if (backendMsg && backendMsg.toLowerCase().includes('actor not found')) {
+                    backendMsg = 'El usuario no se encuentra registrado.';
+                }
+
+                const mappedMsg = getErrorMessage(result.code);
+
+                // If backend message exists and isn't a generic/technical one, use it
+                // Otherwise use our localized mapping
+                let finalError = (backendMsg && !['Unauthorized', 'Actor not found', 'Internal Server Error', 'Bad Credentials'].includes(backendMsg))
+                    ? backendMsg
+                    : mappedMsg;
+
+                // Security warning after 5th attempt
+                if (newAttempts >= 5) {
+                    finalError = 'Has realizado demasiados intentos lo siento el sistema lo podría monitoriar como un atacante';
+                }
+
+                setError(finalError);
                 setLoading(false);
             }
         } catch (err) {
@@ -142,10 +181,19 @@ export default function LoginPage() {
                         <motion.div
                             initial={{ opacity: 0, height: 0 }}
                             animate={{ opacity: 1, height: 'auto' }}
-                            className="bg-red-50 text-red-500 text-sm p-3 rounded-lg flex items-center gap-2"
+                            className="bg-red-50 border border-red-100 p-4 rounded-2xl flex flex-col gap-2 shadow-sm"
                         >
-                            <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
-                            {error}
+                            <div className="flex items-center gap-2 text-red-600 font-bold text-sm">
+                                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                                {error}
+                            </div>
+                            {failedAttempts > 0 && (
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-red-400 bg-red-100/50 px-2 py-0.5 rounded-full">
+                                        Intentos fallidos: {failedAttempts}
+                                    </span>
+                                </div>
+                            )}
                         </motion.div>
                     )}
 

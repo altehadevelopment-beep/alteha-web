@@ -8,13 +8,15 @@ export async function GET(request: NextRequest) {
         const { searchParams } = new URL(request.url);
         const page = searchParams.get('page') || '0';
         const size = searchParams.get('size') || '50';
+        const sort = searchParams.get('sort') || 'desc';
         const token = await getAppToken();
 
-        const response = await fetch(`${API_BASE}/clinics?page=${page}&size=${size}`, {
+        const response = await fetch(`${API_BASE}/clinics/paginated-list?page=${page}&size=${size}&sort=${sort}`, {
             method: 'GET',
             headers: {
                 'Accept': '*/*',
-                'Authorization': `Bearer ${token}`
+                'Authorization': `Bearer ${token}`,
+                'X-Alteha-Token': token
             }
         });
 

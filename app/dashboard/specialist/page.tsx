@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { motion as m, AnimatePresence as AP, AnimatePresence } from 'framer-motion';
+import { motion as m, AnimatePresence } from 'framer-motion';
+import { Loader } from '@/components/ui/Loader';
 import {
     Bell,
     MessageSquare,
@@ -27,66 +28,145 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
-
-// Mock Data for the banner
-const ADS = [
-    { id: 1, title: 'Equipamiento Médico Premium', subtitle: 'Financiamiento exclusivo para especialistas Alteha.', color: 'from-blue-600 to-indigo-600' },
-    { id: 2, title: 'Congreso Internacional 2026', subtitle: 'Inscríbete hoy y obtén un 20% de descuento como miembro.', color: 'from-alteha-turquoise to-teal-500' },
-    { id: 3, title: 'Software de Gestión Clínica', subtitle: 'Optimiza tu consultorio con tecnología de punta.', color: 'from-alteha-violet to-purple-600' },
-];
-
-// Mock Data for Auctions
-const AUCTIONS = [
-    {
-        id: 'SUB-2025-001',
-        specialty: 'Traumatología y Ortopedia',
-        procedure: 'Artroplastia de Cadera Total',
-        reportDetail: 'Paciente femenina de 65 años con osteoartritis avanzada grado IV en cadera derecha. Dolor crónico limitante...',
-        clinics: ['Clínica Metropolitana', 'Centro Médico Docente La Trinidad'],
-        date: '12 Feb, 2026',
-        urgency: 'Media'
-    },
-    {
-        id: 'SUB-2025-002',
-        specialty: 'Cardiología Intervencionista',
-        procedure: 'Angioplastia Coronaria',
-        reportDetail: 'Paciente masculino de 58 años con cuadro de angina inestable. Obstrucción detectada en arteria coronaria derecha...',
-        clinics: ['Policlínica Metropolitana', 'Clínica El Ávila'],
-        date: '15 Feb, 2026',
-        urgency: 'Alta'
-    },
-    {
-        id: 'SUB-2025-003',
-        specialty: 'Oftalmología',
-        procedure: 'Cirugía de Cataratas (Facoemulsificación)',
-        reportDetail: 'Paciente con visión borrosa progresiva. Opacidad lenticular bilateral moderada...',
-        clinics: ['Unidad Oftalmológica de Caracas', 'Clínica Santa Sofía'],
-        date: '18 Feb, 2026',
-        urgency: 'Baja'
-    }
-];
+import { getDashboardAds, getMyInvitations, type Advertisement, type Auction, getIdentityCompliance, searchIdentityCompliance } from '@/lib/api';
 
 export default function SpecialistDashboard() {
     const { userProfile, isLoadingProfile } = useAuth();
+    const [ads, setAds] = useState<Advertisement[]>([]);
     const [currentAd, setCurrentAd] = useState(0);
     const [isImageExpanded, setIsImageExpanded] = useState(false);
     const [showOnboarding, setShowOnboarding] = useState(false);
+    const [isLoadingAds, setIsLoadingAds] = useState(true);
+    const [complianceStatus, setComplianceStatus] = useState<string | null>(null);
+    const [auctions, setAuctions] = useState<Auction[]>([]);
+    const [isLoadingAuctions, setIsLoadingAuctions] = useState(true);
 
     useEffect(() => {
-        const timer = setInterval(() => {
-            setCurrentAd((prev) => (prev + 1) % ADS.length);
-        }, 5000);
-        return () => clearInterval(timer);
+        const fetchAds = async () => {
+            try {
+                const response = await getDashboardAds('DOCTOR');
+                if (response.code === '00' && Array.isArray(response.data)) {
+                    setAds(response.data.filter(ad => ad.active));
+                }
+            } catch (error) {
+                console.error('Error fetching ads:', error);
+            } finally {
+                setIsLoadingAds(false);
+            }
+        };
+
+        fetchAds();
     }, []);
 
-    // Check for pending status to show onboarding popup
     useEffect(() => {
-        if (!isLoadingProfile && userProfile?.status === 'PENDING') {
-            const hasSeenOnboarding = sessionStorage.getItem('hasSeenOnboarding');
-            if (!hasSeenOnboarding) {
-                setShowOnboarding(true);
+        const fetchAuctions = async () => {
+            try {
+                const result = await getMyInvitations('DOCTOR', 0, 3);
+                if (result.code === '00' && result.data) {
+                    setAuctions(result.data);
+                } else if (Array.isArray(result)) {
+                    setAuctions(result as any);
+                } else if ((result as any).content) {
+                    setAuctions((result as any).content);
+                }
+            } catch (e) {
+                console.error('Error loading auctions:', e);
+            } finally {
+                setIsLoadingAuctions(false);
             }
+        };
+        fetchAuctions();
+    }, []);
+
+    useEffect(() => {
+        if (ads.length > 1) {
+            const timer = setInterval(() => {
+                setCurrentAd((prev) => (prev + 1) % ads.length);
+            }, 5000);
+            return () => clearInterval(timer);
         }
+    }, [ads.length]);
+
+    useEffect(() => {
+        const checkCompliance = async () => {
+            if (!isLoadingProfile && userProfile?.id) {
+                console.group('[Compliance Debug]');
+                const profileId = userProfile.id;
+                const accountId = userProfile.account?.id;
+
+                console.log('Profile ID:', profileId);
+                console.log('Account ID:', accountId);
+                console.log('User Profile Status:', userProfile.status);
+
+                const tryFetchCompliance = async (id: string | number, isAccount: boolean = false) => {
+                    if (!id) return null;
+                    try {
+                        let response;
+                        if (isAccount) {
+                            console.log(`Searching compliance by accountId.equals=${id}...`);
+                            response = await searchIdentityCompliance(`accountId.equals=${id}`);
+                        } else {
+                            console.log(`Fetching secure compliance for actorId=${id}...`);
+                            response = await getIdentityCompliance(id);
+                        }
+
+                        console.log(`API Response for ${isAccount ? 'Account' : 'Profile'} ID ${id}:`, response);
+
+                        const actualData = response.data !== undefined ? response.data : response;
+
+                        if (actualData) {
+                            if (Array.isArray(actualData)) {
+                                if (actualData.length === 0) return null;
+                                const verifiedRecord = actualData.find(r =>
+                                    ['VERIFIED', 'COMPLETED', 'APPROVED', 'SUCCESS', 'ACTIVE'].includes((r.complianceStatus || r.status)?.toUpperCase())
+                                );
+                                return verifiedRecord ? (verifiedRecord.complianceStatus || verifiedRecord.status) : (actualData[0]?.complianceStatus || actualData[0]?.status);
+                            } else {
+                                return actualData.complianceStatus || actualData.status;
+                            }
+                        }
+                    } catch (e) {
+                        console.error(`Error fetching compliance for ${isAccount ? 'account' : 'profile'} ID ${id}:`, e);
+                    }
+                    return null;
+                };
+
+                const statusFromProfileId = await tryFetchCompliance(profileId, false);
+                let finalStatus = statusFromProfileId;
+
+                const isVerified = (s: string | null) => ['VERIFIED', 'COMPLETED', 'APPROVED', 'SUCCESS', 'ACTIVE'].includes(s?.toUpperCase() || '');
+
+                if (!isVerified(finalStatus) && accountId) {
+                    console.log('Compliance not verified for profile ID. Trying account search...');
+                    const statusFromAccountId = await tryFetchCompliance(accountId, true);
+                    if (statusFromAccountId) {
+                        finalStatus = statusFromAccountId;
+                    }
+                }
+
+                console.log('Final Detected Status:', finalStatus);
+                setComplianceStatus(finalStatus);
+
+                if (isVerified(finalStatus)) {
+                    setShowOnboarding(false);
+                    console.groupEnd();
+                    return;
+                }
+
+                console.groupEnd();
+
+                const profileStatus = userProfile.status?.toUpperCase();
+                const isProfilePending = ['PENDING', 'INCOMPLETE'].includes(profileStatus || '');
+                if (isProfilePending) {
+                    const hasSeenOnboarding = sessionStorage.getItem('hasSeenOnboarding');
+                    if (!hasSeenOnboarding) {
+                        setShowOnboarding(true);
+                    }
+                }
+            }
+        };
+
+        checkCompliance();
     }, [isLoadingProfile, userProfile]);
 
     const handleCloseOnboarding = () => {
@@ -94,7 +174,6 @@ export default function SpecialistDashboard() {
         sessionStorage.setItem('hasSeenOnboarding', 'true');
     };
 
-    // Placeholder data while loading or if profile fails
     const displayProfile = userProfile || {
         firstName: '...',
         lastName: 'Cargando',
@@ -103,7 +182,13 @@ export default function SpecialistDashboard() {
         status: 'PENDING'
     };
 
-    const isPending = displayProfile.status === 'PENDING';
+    const successStatuses = ['VERIFIED', 'COMPLETED', 'APPROVED', 'SUCCESS', 'ACTIVE'];
+    const isProfileVerified = successStatuses.includes(userProfile?.status?.toUpperCase() || '');
+    const isComplianceVerified = successStatuses.includes(complianceStatus?.toUpperCase() || '');
+    const isVerified = isProfileVerified || isComplianceVerified;
+
+    const isPendingProfile = !userProfile?.status || ['PENDING', 'INCOMPLETE'].includes(userProfile.status.toUpperCase());
+    const isPending = isPendingProfile && !isVerified;
 
     const fullName = displayProfile.firstName && displayProfile.lastName
         ? `Dr. ${displayProfile.firstName} ${displayProfile.lastName}`
@@ -115,12 +200,12 @@ export default function SpecialistDashboard() {
         ? new Date(displayProfile.createdAt).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })
         : 'Reciente';
 
-    const rating = 5; // Default as requested
+    const rating = 5;
 
     return (
         <div className="space-y-10 font-outfit">
             {/* Onboarding Popup */}
-            <AP>
+            <AnimatePresence>
                 {showOnboarding && (
                     <m.div
                         initial={{ opacity: 0 }}
@@ -134,7 +219,6 @@ export default function SpecialistDashboard() {
                             exit={{ scale: 0.9, opacity: 0, y: 20 }}
                             className="bg-white rounded-[3rem] shadow-2xl max-w-lg w-full p-10 relative overflow-hidden"
                         >
-                            {/* Decorative Background */}
                             <div className="absolute -top-24 -right-24 w-48 h-48 bg-alteha-turquoise/10 rounded-full blur-3xl" />
                             <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-alteha-violet/10 rounded-full blur-3xl" />
 
@@ -168,7 +252,7 @@ export default function SpecialistDashboard() {
                         </m.div>
                     </m.div>
                 )}
-            </AP>
+            </AnimatePresence>
 
             {/* Pending Notification Banner */}
             <AnimatePresence>
@@ -184,7 +268,7 @@ export default function SpecialistDashboard() {
                                 <div className="p-3 bg-alteha-violet/20 rounded-xl text-alteha-violet">
                                     <Shield className="w-6 h-6" />
                                 </div>
-                                <div>
+                                <div className="space-y-1">
                                     <h4 className="font-black text-slate-900">Tu cuenta está en estado PENDIENTE</h4>
                                     <p className="text-sm text-slate-500 font-medium">Completa tu perfil para acceder a beneficios exclusivos y prioridad en cirugías.</p>
                                 </div>
@@ -201,7 +285,7 @@ export default function SpecialistDashboard() {
             </AnimatePresence>
 
             {/* Image Expansion Modal */}
-            <AP>
+            <AnimatePresence>
                 {isImageExpanded && (
                     <m.div
                         initial={{ opacity: 0 }}
@@ -231,7 +315,7 @@ export default function SpecialistDashboard() {
                         </m.div>
                     </m.div>
                 )}
-            </AP>
+            </AnimatePresence>
 
             {/* Header Section */}
             <header className="flex flex-col md:flex-row md:items-start justify-between gap-6">
@@ -265,6 +349,17 @@ export default function SpecialistDashboard() {
                             </m.div>
                         )}
                         <div className={`absolute -bottom-1 -right-1 w-8 h-8 border-4 border-white rounded-full ${isLoadingProfile ? 'bg-amber-400 animate-pulse' : 'bg-green-500 shadow-lg shadow-green-200'}`} />
+                        {isVerified && (
+                            <m.div
+                                initial={{ scale: 0, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.5 }}
+                                className="absolute -top-2 -right-2 z-10 w-10 h-10 bg-blue-600 rounded-full border-4 border-white flex items-center justify-center shadow-xl shadow-blue-200/50"
+                                title="Médico Verificado"
+                            >
+                                <CheckCircle2 className="w-6 h-6 text-white fill-white/20" />
+                            </m.div>
+                        )}
                     </div>
                     <div className="space-y-4">
                         {isLoadingProfile && !userProfile ? (
@@ -274,9 +369,24 @@ export default function SpecialistDashboard() {
                             </div>
                         ) : (
                             <>
-                                <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight leading-tight">
-                                    {fullName}
-                                </h2>
+                                <div className="flex items-center flex-wrap gap-3">
+                                    <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight leading-tight">
+                                        {fullName}
+                                    </h2>
+                                    {isVerified && (
+                                        <m.div
+                                            initial={{ x: -10, opacity: 0 }}
+                                            animate={{ x: 0, opacity: 1 }}
+                                            className="flex items-center gap-1.5 px-4 py-1.5 bg-gradient-to-r from-blue-600 to-blue-500 text-white rounded-full shadow-lg shadow-blue-200/50 border border-blue-400 group"
+                                        >
+                                            <Shield className="w-4 h-4 fill-white/20" />
+                                            <span className="text-[10px] font-black uppercase tracking-widest">Sello Verificado</span>
+                                            <div className="w-4 h-4 bg-white/20 rounded-full flex items-center justify-center">
+                                                <CheckCircle2 className="w-2.5 h-2.5" />
+                                            </div>
+                                        </m.div>
+                                    )}
+                                </div>
                                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-slate-500 font-medium text-sm">
                                     <span className="text-alteha-violet font-bold">{specialtyNames}</span>
                                     <span className="w-1 h-1 rounded-full bg-slate-300 hidden md:block" />
@@ -371,33 +481,71 @@ export default function SpecialistDashboard() {
             </section>
 
             {/* Rotating Banner */}
-            <section className="relative h-44 rounded-[2.5rem] overflow-hidden shadow-2xl">
-                <AP mode="wait">
-                    <m.div
-                        key={currentAd}
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -20 }}
-                        className={`absolute inset-0 bg-gradient-to-r ${ADS[currentAd].color} p-10 flex flex-col justify-center`}
+            <section className="relative h-40 max-w-5xl mx-auto rounded-[2rem] overflow-hidden shadow-xl bg-slate-100 group">
+                {isLoadingAds ? (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <Loader className="w-8 h-8 text-alteha-turquoise" />
+                    </div>
+                ) : ads.length > 0 ? (
+                    <>
+                        <AnimatePresence mode="wait">
+                            <m.div
+                                key={currentAd}
+                                initial={{ opacity: 0, scale: 0.98 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 1.02 }}
+                                className="absolute inset-0 p-8 flex flex-col justify-center"
+                                style={{
+                                    backgroundImage: ads[currentAd].mediaUrl && ads[currentAd].mediaType === 'IMAGE'
+                                        ? `linear-gradient(to right, rgba(15, 23, 42, 0.9), rgba(15, 23, 42, 0.4)), url(${ads[currentAd].mediaUrl})`
+                                        : `linear-gradient(to right, rgba(15, 23, 42, 0.9), rgba(15, 23, 42, 0.4)), url(/images/ads/cardiology.png)`,
+                                    backgroundSize: 'cover',
+                                    backgroundPosition: 'center'
+                                }}
+                            >
+                                <div className="max-w-xl relative z-10 space-y-1">
+                                    <span className="text-alteha-turquoise text-[10px] font-black uppercase tracking-[0.3em] mb-1 block">Publicidad Especializada</span>
+                                    <h3 className="text-2xl font-black text-white leading-tight">{ads[currentAd].title}</h3>
+                                    <p className="text-white/70 text-sm font-medium line-clamp-1">{ads[currentAd].subtitle}</p>
+                                    {ads[currentAd].ctaText && (
+                                        <div className="mt-3">
+                                            <a
+                                                href={ads[currentAd].clickUrl}
+                                                target={ads[currentAd].openInNewTab ? "_blank" : "_self"}
+                                                className="inline-flex items-center gap-2 px-4 py-1.5 bg-alteha-turquoise text-slate-900 rounded-lg font-black text-[10px] uppercase hover:scale-105 transition-all"
+                                            >
+                                                {ads[currentAd].ctaText}
+                                                <ExternalLink className="w-3 h-3" />
+                                            </a>
+                                        </div>
+                                    )}
+                                </div>
+                            </m.div>
+                        </AnimatePresence>
+                        <div className="absolute bottom-4 right-8 flex gap-1.5 z-20">
+                            {ads.map((_, i: number) => (
+                                <div
+                                    key={i}
+                                    className={`h-1 rounded-full transition-all duration-300 ${i === currentAd ? 'w-6 bg-alteha-turquoise' : 'w-1.5 bg-white/30'}`}
+                                />
+                            ))}
+                        </div>
+                    </>
+                ) : (
+                    <div className="absolute inset-0 bg-slate-900 flex flex-col justify-center px-10"
+                        style={{
+                            backgroundImage: `linear-gradient(to right, rgba(15, 23, 42, 0.9), rgba(15, 23, 42, 0.4)), url(/images/ads/traumatology.png)`,
+                            backgroundSize: 'cover',
+                            backgroundPosition: 'center'
+                        }}
                     >
                         <div className="max-w-xl relative z-10">
-                            <span className="text-white/60 text-xs font-bold uppercase tracking-[0.3em] mb-2 block">Publicidad Especializada</span>
-                            <h3 className="text-3xl font-black text-white mb-2">{ADS[currentAd].title}</h3>
-                            <p className="text-white/80 font-medium">{ADS[currentAd].subtitle}</p>
+                            <span className="text-alteha-turquoise text-[10px] font-black uppercase tracking-[0.3em] mb-1 block">Bienvenido a Alteha</span>
+                            <h3 className="text-2xl font-black text-white mb-1">Optimiza tu Práctica Médica</h3>
+                            <p className="text-white/70 text-sm font-medium">Gestiona tus cirugías y subastas médicas con la tecnología más avanzada.</p>
                         </div>
-                        <div className="absolute right-10 top-1/2 -translate-y-1/2 opacity-20">
-                            <Hospital className="w-32 h-32 text-white" />
-                        </div>
-                    </m.div>
-                </AP>
-                <div className="absolute bottom-6 left-10 flex gap-2 z-20">
-                    {ADS.map((_, i) => (
-                        <div
-                            key={i}
-                            className={`h-1.5 rounded-full transition-all duration-300 ${i === currentAd ? 'w-8 bg-white' : 'w-2 bg-white/40'}`}
-                        />
-                    ))}
-                </div>
+                    </div>
+                )}
             </section>
 
             {/* Auctions Section */}
@@ -407,22 +555,32 @@ export default function SpecialistDashboard() {
                         <h3 className="text-2xl font-black text-slate-900 tracking-tight">Subastas Disponibles</h3>
                         <p className="text-slate-400 text-sm font-medium">Oportunidades de intervención según tu especialidad</p>
                     </div>
-                    <div className="flex gap-3">
-                        <div className="hidden md:flex items-center bg-white px-4 rounded-2xl border border-slate-100 shadow-sm">
-                            <Search className="w-4 h-4 text-slate-400 mr-2" />
-                            <input type="text" placeholder="Buscar..." className="bg-transparent border-none outline-none py-3 text-sm font-medium w-48 text-slate-600" />
-                        </div>
-                        <button className="p-3 bg-white rounded-2xl border border-slate-100 shadow-sm text-slate-600 hover:bg-slate-50 transition-all">
-                            <Filter className="w-5 h-5" />
-                        </button>
-                    </div>
+                    <Link
+                        href="/dashboard/specialist/auctions"
+                        className="flex items-center gap-2 px-5 py-2.5 bg-alteha-violet text-white rounded-xl font-black text-xs hover:scale-105 transition-all shadow-lg shadow-violet-100"
+                    >
+                        Ver todas
+                        <ChevronRight className="w-4 h-4" />
+                    </Link>
                 </div>
 
-                <div className="grid grid-cols-1 gap-4">
-                    {AUCTIONS.map((auction) => (
-                        <AuctionCard key={auction.id} auction={auction} />
-                    ))}
-                </div>
+                {isLoadingAuctions ? (
+                    <div className="flex items-center justify-center py-20 bg-white rounded-[3rem] border-2 border-dashed border-slate-100">
+                        <m.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}>
+                            <Filter className="w-8 h-8 text-alteha-violet" />
+                        </m.div>
+                    </div>
+                ) : auctions.length === 0 ? (
+                    <div className="py-20 bg-white rounded-[3rem] border-2 border-dashed border-slate-100 text-center">
+                        <p className="text-slate-400 font-bold text-sm">No tienes subastas asignadas por el momento</p>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 gap-4">
+                        {auctions.map((auction) => (
+                            <AuctionCard key={auction.id} auction={auction} />
+                        ))}
+                    </div>
+                )}
             </section>
         </div>
     );
@@ -442,64 +600,66 @@ function StatCard({ label, value, icon: Icon, color, bg }: any) {
     );
 }
 
-function AuctionCard({ auction }: any) {
+function AuctionCard({ auction }: { auction: Auction }) {
+    const urgencyMap: any = {
+        'LOW': { label: 'Baja', color: 'bg-slate-50 text-slate-500', dot: 'bg-slate-400' },
+        'MEDIUM': { label: 'Media', color: 'bg-amber-50 text-amber-500', dot: 'bg-amber-500' },
+        'HIGH': { label: 'Alta', color: 'bg-red-50 text-red-500', dot: 'bg-red-500 animate-pulse' },
+        'CRITICAL': { label: 'Urgente', color: 'bg-red-50 text-red-600', dot: 'bg-red-600 animate-pulse' },
+        'URGENT': { label: 'Urgente', color: 'bg-red-50 text-red-600', dot: 'bg-red-600 animate-pulse' },
+    };
+
+    const urgency = urgencyMap[auction.urgencyLevel] || urgencyMap['LOW'];
+
     return (
         <m.div
             whileHover={{ y: -4 }}
             className="bg-white p-6 md:p-8 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-8 hover:shadow-2xl transition-all"
         >
-            <div className="flex-1 space-y-4">
+            <div className="flex-1 space-y-4 text-left">
                 <div className="flex flex-wrap items-center gap-3">
-                    <span className="px-4 py-1.5 bg-alteha-turquoise/10 text-alteha-turquoise rounded-full text-xs font-bold uppercase tracking-widest leading-none">
-                        {auction.specialty}
+                    <span className="px-4 py-1.5 bg-alteha-turquoise/10 text-alteha-turquoise rounded-full text-[10px] font-black uppercase tracking-widest leading-none">
+                        {auction.specialty?.name || 'Especialidad'}
                     </span>
-                    <span className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest flex items-center gap-1.5 leading-none ${auction.urgency === 'Alta' ? 'bg-red-50 text-red-500' :
-                        auction.urgency === 'Media' ? 'bg-amber-50 text-amber-500' : 'bg-slate-50 text-slate-500'
-                        }`}>
-                        <div className={`w-1.5 h-1.5 rounded-full ${auction.urgency === 'Alta' ? 'bg-red-500 animate-pulse' :
-                            auction.urgency === 'Media' ? 'bg-amber-500' : 'bg-slate-400'
-                            }`} />
-                        {auction.urgency}
+                    <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 leading-none ${urgency.color}`}>
+                        <div className={`w-1.5 h-1.5 rounded-full ${urgency.dot}`} />
+                        {urgency.label}
                     </span>
-                    <span className="text-xs font-bold text-slate-300 uppercase tracking-widest">
-                        Ref: {auction.id}
+                    <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">
+                        Ref: {auction.auctionNumber}
                     </span>
                 </div>
 
                 <div>
-                    <h4 className="text-2xl font-black text-slate-800 tracking-tight mb-2">{auction.procedure}</h4>
-                    <p className="text-slate-500 text-sm line-clamp-2 leading-relaxed">
-                        {auction.reportDetail}
+                    <h4 className="text-2xl font-black text-slate-800 tracking-tight mb-2">{auction.title}</h4>
+                    <p className="text-slate-500 text-sm line-clamp-2 leading-relaxed font-medium">
+                        {auction.medicalHistory || auction.description}
                     </p>
                 </div>
 
                 <div className="flex flex-wrap gap-6 pt-2">
                     <div className="flex items-center gap-2 text-slate-400">
-                        <MapPin className="w-4 h-4" />
-                        <span className="text-xs font-bold uppercase tracking-widest">{auction.date}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-slate-400">
-                        <Hospital className="w-4 h-4" />
-                        <div className="flex gap-2">
-                            {auction.clinics.map((c: string, i: number) => (
-                                <span key={i} className="text-[10px] font-bold uppercase tracking-wider bg-slate-50 px-2 py-1 rounded-lg border border-slate-100 text-slate-500">
-                                    {c}
-                                </span>
-                            ))}
-                        </div>
+                        <Calendar className="w-4 h-4" />
+                        <span className="text-[10px] font-black uppercase tracking-widest">
+                            Fin: {new Date(auction.endDate).toLocaleDateString('es-ES')}
+                        </span>
                     </div>
                 </div>
             </div>
 
             <div className="flex flex-row lg:flex-col items-center gap-3 min-w-[200px]">
-                <button className="flex-1 lg:w-full py-4 bg-white border-2 border-slate-100 text-slate-600 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-slate-50 transition-all">
-                    <FileText className="w-4 h-4" />
-                    Ver Detalle
-                </button>
-                <button className="flex-1 lg:w-full py-4 bg-alteha-turquoise text-slate-900 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-alteha-turquoise/20 hover:scale-[1.02] transition-all">
-                    Postularme
-                    <ArrowRight className="w-4 h-4" />
-                </button>
+                <Link href={`/dashboard/specialist/auctions/${auction.auctionNumber}`} className="flex-1 lg:w-full">
+                    <button className="w-full py-4 bg-white border-2 border-slate-100 text-slate-600 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-slate-50 transition-all">
+                        <FileText className="w-4 h-4" />
+                        Ver Detalle
+                    </button>
+                </Link>
+                <Link href={`/dashboard/specialist/auctions/${auction.auctionNumber}`} className="flex-1 lg:w-full">
+                    <button className="w-full py-4 bg-alteha-turquoise text-slate-900 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-alteha-turquoise/20 hover:scale-[1.02] transition-all">
+                        Postularme
+                        <ArrowRight className="w-4 h-4" />
+                    </button>
+                </Link>
             </div>
         </m.div>
     );

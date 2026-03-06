@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
         }
 
         return NextResponse.json({
-            code: 'AUTH_001',
+            code: 'AUTH_004',
             message: 'Usuario o contraseña incorrectos'
         });
     } catch (error) {
