@@ -12,6 +12,7 @@ import {
     Search,
     Filter,
     ChevronRight,
+    Clock,
     TrendingUp,
     Package,
     CheckCircle2,
@@ -29,6 +30,7 @@ import {
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 import { getDashboardAds, getMyInvitations, type Advertisement, type Auction, getIdentityCompliance, searchIdentityCompliance } from '@/lib/api';
+import AuctionCountdown from '@/components/auctions/AuctionCountdown';
 
 export default function SpecialistDashboard() {
     const { userProfile, isLoadingProfile } = useAuth();
@@ -638,12 +640,18 @@ function AuctionCard({ auction }: { auction: Auction }) {
                 </div>
 
                 <div className="flex flex-wrap gap-6 pt-2">
-                    <div className="flex items-center gap-2 text-slate-400">
-                        <Calendar className="w-4 h-4" />
-                        <span className="text-[10px] font-black uppercase tracking-widest">
-                            Fin: {new Date(auction.endDate).toLocaleDateString('es-ES')}
+                    <div className="flex items-center gap-2 text-slate-400 bg-slate-50 px-3 py-1 rounded-xl">
+                        <Calendar className="w-3.5 h-3.5" />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                            Cierre: {new Date(auction.endDate).toLocaleDateString('es-ES')}
                         </span>
                     </div>
+                    {(auction.status === 'ACTIVE' || auction.status === 'PUBLISHED') && (
+                        <div className="flex items-center gap-2 bg-alteha-violet/5 px-3 py-1 rounded-xl">
+                            <Clock className="w-3.5 h-3.5 text-alteha-violet" />
+                            <AuctionCountdown endDate={auction.endDate} />
+                        </div>
+                    )}
                 </div>
             </div>
 

@@ -227,6 +227,45 @@ export interface RequiredSupply {
     referenceAmount: number;
 }
 
+export interface BidItem {
+    id?: number;
+    itemName?: string;
+    description?: string;
+    quantity: number;
+    unitPrice: number;
+    totalPrice: number;
+    auctionSupply: { id: number };
+}
+
+export interface BidPayload {
+    auction: { id: number };
+    bidAmount?: number;
+    bidType: 'DOCTOR_ONLY' | 'CLINIC_ONLY' | 'BOTH' | 'PHARMACY';
+    proposedStartDate?: string;
+    estimatedDurationDays?: number;
+    notes: string;
+    bidItems?: BidItem[];
+    clinic?: { id: number };
+}
+
+export interface Bid {
+    id: number;
+    bidNumber: string;
+    bidAmount: number;
+    status: string;
+    proposedStartDate: string | null;
+    estimatedDurationDays: number | null;
+    notes: string;
+    isWinning: boolean;
+    submittedAt: string;
+    bidType: string;
+    auction: Partial<Auction>;
+    doctor?: any;
+    clinic?: any;
+    pharmacy?: any;
+    bidItems?: any[];
+}
+
 export interface AuctionAttachment {
     id: number;
     fileName: string;
@@ -732,6 +771,29 @@ export async function publishAuction(
     return response.json();
 }
 
+export async function changeAuctionStatus(
+    auctionNumber: string,
+    newStatus: string,
+    reason: string = 'Cambio de estado manual'
+): Promise<ApiResponse<Auction>> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+
+    const response = await fetch('/api/auctions/change-status', {
+        method: 'POST',
+        headers: {
+            'X-Alteha-Token': token,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            auctionNumber,
+            newStatus,
+            reason
+        })
+    });
+    return response.json();
+}
+
 export async function addAuctionAttachments(
     auctionNumber: string,
     files: File[]
@@ -788,19 +850,8 @@ export async function updateAuction(
     return response.json();
 }
 
-export async function publishExistingAuction(
-    auctionNumber: string
-): Promise<ApiResponse<Auction>> {
-    const token = getStoredToken();
-    if (!token) throw new Error('No token found');
-
-    const response = await fetch(`/api/auctions/publish-existing/${auctionNumber}`, {
-        method: 'POST',
-        headers: {
-            'X-Alteha-Token': token
-        }
-    });
-    return response.json();
+export async function publishExistingAuction(auctionNumber: string): Promise<ApiResponse<Auction>> {
+    return changeAuctionStatus(auctionNumber, 'PUBLISHED', 'publicar la subasta');
 }
 
 export async function getMyAuctions(
@@ -879,6 +930,23 @@ export async function getAuctionDetailsAsDoctor(
         headers: {
             'X-Alteha-Token': token
         }
+    });
+    return response.json();
+}
+
+export async function placeAdvancedBid(
+    payload: BidPayload
+): Promise<ApiResponse<Bid>> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+
+    const response = await fetch('/api/bids/advanced', {
+        method: 'POST',
+        headers: {
+            'X-Alteha-Token': token,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
     });
     return response.json();
 }

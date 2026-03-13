@@ -28,10 +28,12 @@ import {
     getAuctionAttachments,
     addAuctionAttachments,
     publishExistingAuction,
+    changeAuctionStatus,
     type Auction,
     type AuctionAttachment
 } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
+import { Modal } from '@/components/ui/Modal';
 
 const STATUS_CONFIG: Record<string, { label: string, color: string, icon: any }> = {
     'DRAFT': { label: 'Borrador', color: 'bg-slate-100 text-slate-600', icon: FileText },
@@ -51,6 +53,10 @@ export default function AuctionDetailsPage() {
     const [attachments, setAttachments] = useState<AuctionAttachment[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isUploading, setIsUploading] = useState(false);
+    const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
+    const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
+    const [isActivating, setIsActivating] = useState(false);
+    const [isPublishing, setIsPublishing] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     const loadData = async () => {
@@ -115,13 +121,16 @@ export default function AuctionDetailsPage() {
     };
 
     const handlePublish = async () => {
-        if (!auction) return;
-        if (!confirm('¿Estás seguro de que deseas publicar esta subasta?')) return;
+        setIsPublishModalOpen(true);
+    };
 
-        setIsLoading(true);
+    const confirmPublish = async () => {
+        if (!auction) return;
+        setIsPublishing(true);
         try {
             const result = await publishExistingAuction(auctionNumber);
             if (result.code === '00' || result.code === 'SUCCESS' || (result as any).id) {
+                setIsPublishModalOpen(false);
                 await loadData();
             } else {
                 alert(result.message || 'Error al publicar subasta');
@@ -130,7 +139,30 @@ export default function AuctionDetailsPage() {
             console.error('Publish error:', err);
             alert('Error al conectar con el servidor');
         } finally {
-            setIsLoading(false);
+            setIsPublishing(false);
+        }
+    };
+
+    const handleActivate = async () => {
+        setIsStatusModalOpen(true);
+    };
+
+    const confirmActivate = async () => {
+        if (!auction) return;
+        setIsActivating(true);
+        try {
+            const result = await changeAuctionStatus(auction.auctionNumber, 'ACTIVE', 'Activación manual desde el panel');
+            if (result.code === '00' || (result as any).id) {
+                setIsStatusModalOpen(false);
+                await loadData();
+            } else {
+                alert(result.message || 'Error al activar subasta');
+            }
+        } catch (err) {
+            console.error('Activate error:', err);
+            alert('Error al conectar con el servidor');
+        } finally {
+            setIsActivating(false);
         }
     };
 
@@ -180,6 +212,15 @@ export default function AuctionDetailsPage() {
                         >
                             <Gavel className="w-4 h-4" />
                             Publicar Subasta
+                        </Button>
+                    )}
+                    {auction.status === 'PUBLISHED' && (
+                        <Button
+                            onClick={handleActivate}
+                            className="bg-emerald-500 text-white px-6 py-2 rounded-xl font-black flex items-center gap-2 shadow-lg shadow-emerald-100 hover:scale-105 transition-all"
+                        >
+                            <CheckCircle2 className="w-4 h-4" />
+                            Activar Subasta
                         </Button>
                     )}
                 </div>
@@ -389,6 +430,90 @@ export default function AuctionDetailsPage() {
                     </div>
                 </div>
             </div>
+
+            {/* Activation Modal */}
+            <Modal
+                isOpen={isStatusModalOpen}
+                onClose={() => !isActivating && setIsStatusModalOpen(false)}
+                title="Confirmar Activación"
+            >
+                <div className="text-center space-y-6 py-4">
+                    <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mx-auto">
+                        <Gavel className="w-10 h-10 text-emerald-500" />
+                    </div>
+                    <div>
+                        <h4 className="text-2xl font-black text-slate-900 mb-2">¿Activar esta subasta?</h4>
+                        <p className="text-slate-500 font-medium">
+                            Al activar la subasta, todos los médicos y clínicas invitados podrán empezar a enviar sus ofertas de inmediato.
+                        </p>
+                    </div>
+                    <div className="flex flex-col gap-3 pt-4">
+                        <Button
+                            onClick={confirmActivate}
+                            disabled={isActivating}
+                            className="bg-emerald-500 text-white py-4 rounded-2xl font-black text-lg shadow-xl shadow-emerald-100 flex items-center justify-center gap-3 hover:scale-[1.02] transition-all"
+                        >
+                            {isActivating ? (
+                                <Loader2 className="w-6 h-6 animate-spin" />
+                            ) : (
+                                <>
+                                    <CheckCircle2 className="w-6 h-6" />
+                                    Sí, Activar Ahora
+                                </>
+                            )}
+                        </Button>
+                        <Button
+                            onClick={() => setIsStatusModalOpen(false)}
+                            disabled={isActivating}
+                            className="bg-slate-100 text-slate-600 py-4 rounded-2xl font-black text-lg hover:bg-slate-200 transition-all"
+                        >
+                            Cancelar
+                        </Button>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Publish Modal */}
+            <Modal
+                isOpen={isPublishModalOpen}
+                onClose={() => !isPublishing && setIsPublishModalOpen(false)}
+                title="Publicar Subasta"
+            >
+                <div className="text-center space-y-6 py-4">
+                    <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mx-auto">
+                        <FileText className="w-10 h-10 text-blue-500" />
+                    </div>
+                    <div>
+                        <h4 className="text-2xl font-black text-slate-900 mb-2">¿Confirmar Publicación?</h4>
+                        <p className="text-slate-500 font-medium">
+                            Al publicar esta subasta, dejará de ser un borrador y será visible para los especialistas, permitiendo la activación posterior.
+                        </p>
+                    </div>
+                    <div className="flex flex-col gap-3 pt-4">
+                        <Button
+                            onClick={confirmPublish}
+                            disabled={isPublishing}
+                            className="bg-blue-600 text-white py-4 rounded-2xl font-black text-lg shadow-xl shadow-blue-100 flex items-center justify-center gap-3 hover:scale-[1.02] transition-all"
+                        >
+                            {isPublishing ? (
+                                <Loader2 className="w-6 h-6 animate-spin" />
+                            ) : (
+                                <>
+                                    <CheckCircle2 className="w-6 h-6" />
+                                    Sí, Publicar Ahora
+                                </>
+                            )}
+                        </Button>
+                        <Button
+                            onClick={() => setIsPublishModalOpen(false)}
+                            disabled={isPublishing}
+                            className="bg-slate-100 text-slate-600 py-4 rounded-2xl font-black text-lg hover:bg-slate-200 transition-all"
+                        >
+                            Cancelar
+                        </Button>
+                    </div>
+                </div>
+            </Modal>
         </div>
     );
 }

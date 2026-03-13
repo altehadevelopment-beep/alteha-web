@@ -26,6 +26,9 @@ import { Button } from '@/components/ui/Button';
 import AdvancedBidForm from '@/components/auctions/AdvancedBidForm';
 import AuctionCountdown from '@/components/auctions/AuctionCountdown';
 
+// Note: Reusing getAuctionDetailsAsDoctor as it currently works for any actor role in the proxy if they have the token.
+// Ideally, we might want a getAuctionDetailsAsClinic, but for simplicity we reuse the detail fetching logic.
+
 const STATUS_CONFIG: Record<string, { label: string; color: string; dotColor: string }> = {
     'DRAFT': { label: 'Borrador', color: 'bg-slate-100 text-slate-600', dotColor: 'bg-slate-400' },
     'PUBLISHED': { label: 'Publicada', color: 'bg-blue-50 text-blue-600', dotColor: 'bg-blue-500' },
@@ -58,7 +61,7 @@ function InfoRow({ icon: Icon, label, value }: { icon: any; label: string; value
     );
 }
 
-export default function DoctorAuctionDetailPage() {
+export default function ClinicAuctionDetailPage() {
     const params = useParams();
     const auctionNumber = params.id as string;
 
@@ -102,7 +105,7 @@ export default function DoctorAuctionDetailPage() {
                 <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
                 <h2 className="text-2xl font-black text-slate-900 mb-2">Error al cargar</h2>
                 <p className="text-slate-500 mb-6">{error || 'Subasta no encontrada'}</p>
-                <Link href="/dashboard/specialist/auctions">
+                <Link href="/dashboard/clinic/auctions">
                     <Button className="bg-slate-900 text-white px-8 py-3 rounded-2xl font-black">
                         Volver a Subastas
                     </Button>
@@ -115,8 +118,8 @@ export default function DoctorAuctionDetailPage() {
     const urgency = URGENCY_CONFIG[auction.urgencyLevel] || URGENCY_CONFIG['LOW'];
 
     return (
-        <div className="max-w-4xl mx-auto font-outfit pb-20">
-            <Link href="/dashboard/specialist/auctions" className="flex items-center gap-2 text-slate-400 hover:text-alteha-violet transition-colors mb-8 font-bold group w-fit">
+        <div className="max-w-4xl mx-auto font-outfit pb-20 px-4 md:px-0">
+            <Link href="/dashboard/clinic/auctions" className="flex items-center gap-2 text-slate-400 hover:text-alteha-violet transition-colors mb-8 font-bold group w-fit">
                 <ChevronLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
                 Volver a Convocatorias
             </Link>
@@ -147,22 +150,24 @@ export default function DoctorAuctionDetailPage() {
                 </div>
 
                 {/* Summary stats */}
-                <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-slate-100">
+                <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-slate-100 uppercase tracking-widest">
                     <div className="p-6 text-center">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Presupuesto Máx.</p>
+                        <p className="text-[10px] font-black text-slate-400 mb-1">Presupuesto Máx.</p>
                         <p className="text-xl font-black text-slate-900">${(auction.maxBudget || 0).toLocaleString()}</p>
                     </div>
                     <div className="p-6 text-center">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Ofertas</p>
+                        <p className="text-[10px] font-black text-slate-400 mb-1">Ofertas</p>
                         <p className="text-xl font-black text-alteha-turquoise">{auction.totalBids || 0}</p>
                     </div>
                     <div className="p-6 text-center">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Duración</p>
-                        <p className="text-xl font-black text-slate-900">{auction.durationHours || '—'}h</p>
+                        <p className="text-[10px] font-black text-slate-400 mb-1">Cierre en</p>
+                        <div className="flex justify-center">
+                            <AuctionCountdown endDate={auction.endDate} />
+                        </div>
                     </div>
                     <div className="p-6 text-center">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Mín. Ofertas</p>
-                        <p className="text-xl font-black text-slate-900">{auction.minBidsRequired || '—'}</p>
+                        <p className="text-[10px] font-black text-slate-400 mb-1">Hospitalización</p>
+                        <p className="text-xl font-black text-slate-900">{auction.requiresHospitalization ? 'Sí' : 'No'}</p>
                     </div>
                 </div>
             </div>
@@ -173,7 +178,7 @@ export default function DoctorAuctionDetailPage() {
                     {/* Bidding Section */}
                     {(auction.status === 'ACTIVE' || auction.status === 'PUBLISHED') && (
                         <div className="space-y-4">
-                            <h2 className="text-2xl font-black text-slate-900 px-6 italic">¿Deseas participar?</h2>
+                            <h2 className="text-2xl font-black text-slate-900 px-6 italic">Postular Clínica</h2>
                             <AdvancedBidForm auction={auction} onSuccess={() => window.location.reload()} />
                         </div>
                     )}
@@ -182,32 +187,20 @@ export default function DoctorAuctionDetailPage() {
                     <div className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-100 border border-slate-50 p-8 space-y-6">
                         <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
                             <FileText className="w-5 h-5 text-alteha-violet" />
-                            Información Médica
+                            Información del Caso
                         </h2>
 
                         <div className="space-y-4">
                             <InfoRow icon={Stethoscope} label="Especialidad" value={auction.specialty?.name || auction.specialty?.code} />
-                            <InfoRow icon={User} label="Edad del paciente" value={auction.patientAge ? `${auction.patientAge} años` : null} />
                             <InfoRow icon={MapPin} label="Ubicación preferida" value={auction.preferredLocation} />
-                            <InfoRow icon={Hospital} label="Hospitalización" value={auction.requiresHospitalization ? 'Sí requiere hospitalización' : 'No requiere hospitalización'} />
-                            <InfoRow icon={Clock} label="Duración estimada" value={auction.estimatedDurationDays ? `${auction.estimatedDurationDays} días` : null} />
                             <InfoRow icon={Calendar} label="Fecha estimada de cirugía" value={auction.estimatedSurgeryDate ? new Date(auction.estimatedSurgeryDate).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }) : null} />
                         </div>
 
                         {auction.medicalHistory && (
                             <div className="space-y-2">
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Historia Médica / Antecedentes</p>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Resumen del Caso</p>
                                 <p className="text-slate-600 font-medium leading-relaxed bg-slate-50 p-6 rounded-2xl border-l-4 border-alteha-violet">
                                     {auction.medicalHistory}
-                                </p>
-                            </div>
-                        )}
-
-                        {auction.specialRequirements && (
-                            <div className="space-y-2">
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Requerimientos Especiales</p>
-                                <p className="text-slate-600 font-medium leading-relaxed bg-amber-50 p-6 rounded-2xl border-l-4 border-amber-400">
-                                    {auction.specialRequirements}
                                 </p>
                             </div>
                         )}
@@ -255,108 +248,20 @@ export default function DoctorAuctionDetailPage() {
                             </div>
                         )}
                     </div>
-
-                    {/* Supplies */}
-                    {auction.requiredSupplies && auction.requiredSupplies.length > 0 && (
-                        <div className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-100 border border-slate-50 p-8 space-y-4">
-                            <h2 className="text-xl font-black text-slate-900">Insumos Requeridos</h2>
-                            <div className="grid grid-cols-1 gap-3">
-                                {auction.requiredSupplies.map((s, i) => (
-                                    <motion.div
-                                        key={i}
-                                        initial={{ opacity: 0, x: -10 }}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        transition={{ delay: i * 0.05 }}
-                                        className="flex items-center justify-between p-5 bg-slate-50 rounded-2xl border border-slate-100"
-                                    >
-                                        <div>
-                                            <p className="font-black text-slate-900">{s.itemName}</p>
-                                            <p className="text-xs text-slate-400 font-medium mt-0.5">{s.description}</p>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Cant × Precio</p>
-                                            <p className="font-black text-alteha-violet">{s.quantity} × ${(s.referenceAmount || 0).toLocaleString()}</p>
-                                        </div>
-                                    </motion.div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
                 </div>
 
                 {/* Side panel */}
                 <div className="space-y-6">
                     {/* Budget breakdown */}
                     <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white space-y-4">
-                        <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">Desglose del Presupuesto</h3>
+                        <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">Desglose Estimado</h3>
                         <div className="space-y-3">
-                            <div className="flex justify-between items-center">
-                                <span className="text-slate-400 text-sm font-bold">Total Máximo</span>
-                                <span className="font-black text-xl">${(auction.maxBudget || 0).toLocaleString()}</span>
-                            </div>
-                            {(auction.doctorBudget || 0) > 0 && (
-                                <div className="flex justify-between items-center bg-white/5 p-3 rounded-xl">
-                                    <span className="text-slate-400 text-xs font-bold">Honorarios Médicos</span>
-                                    <span className="font-black text-alteha-turquoise">${(auction.doctorBudget || 0).toLocaleString()}</span>
-                                </div>
-                            )}
-                            {(auction.clinicBudget || 0) > 0 && (
-                                <div className="flex justify-between items-center bg-white/5 p-3 rounded-xl">
-                                    <span className="text-slate-400 text-xs font-bold">Gastos de Clínica</span>
-                                    <span className="font-black text-alteha-violet">${(auction.clinicBudget || 0).toLocaleString()}</span>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Auction dates */}
-                    <div className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-100 border border-slate-50 p-8 space-y-4">
-                        <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">Plazos de la Subasta</h3>
-                        <div className="space-y-4">
-                            {auction.endDate && (
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2 bg-red-50 rounded-xl">
-                                        <Clock className="w-4 h-4 text-red-500" />
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Cierre de Ofertas</p>
-                                        <AuctionCountdown endDate={auction.endDate} />
-                                        <p className="text-[8px] text-slate-400 font-bold mt-0.5">
-                                            {new Date(auction.endDate).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}
-                                        </p>
-                                    </div>
-                                </div>
-                            )}
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 bg-emerald-50 rounded-xl">
-                                    <Activity className="w-4 h-4 text-emerald-500" />
-                                </div>
-                                <div>
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Auto-extensión</p>
-                                    <p className="font-bold text-slate-900">{auction.autoExtendMinutes || 0} minutos</p>
-                                </div>
+                            <div className="flex justify-between items-center bg-white/5 p-3 rounded-xl">
+                                <span className="text-slate-400 text-xs font-bold">Gastos de Clínica</span>
+                                <span className="font-black text-alteha-violet">${(auction.clinicBudget || 0).toLocaleString()}</span>
                             </div>
                         </div>
                     </div>
-
-                    {/* Patient */}
-                    {auction.patient && (
-                        <div className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-100 border border-slate-50 p-8 space-y-4">
-                            <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">Paciente</h3>
-                            <div className="flex items-center gap-4">
-                                <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center overflow-hidden">
-                                    {auction.patient.profileImageUrl
-                                        ? <img src={auction.patient.profileImageUrl} alt="Patient" className="w-full h-full object-cover" />
-                                        : <User className="w-7 h-7 text-slate-400" />
-                                    }
-                                </div>
-                                <div>
-                                    <p className="font-black text-slate-900">{auction.patient.firstName} {auction.patient.lastName}</p>
-                                    <p className="text-xs text-slate-400 font-bold">{auction.patientAge} años • {auction.patientGender}</p>
-                                </div>
-                            </div>
-                        </div>
-                    )}
                 </div>
             </div>
         </div>

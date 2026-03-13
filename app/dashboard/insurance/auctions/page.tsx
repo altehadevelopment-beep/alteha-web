@@ -17,6 +17,7 @@ import {
 import Link from 'next/link';
 import { getMyAuctions, type Auction } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
+import AuctionCountdown from '@/components/auctions/AuctionCountdown';
 
 const STATUS_CONFIG: Record<string, { label: string, color: string, icon: any }> = {
     'DRAFT': { label: 'Borrador', color: 'bg-slate-100 text-slate-600', icon: FileText },
@@ -192,8 +193,7 @@ function AuctionCard({ auction, index }: { auction: Auction, index: number }) {
                 </h3>
                 <div className="flex flex-wrap justify-center md:justify-start gap-4 mt-3">
                     <div className="flex items-center gap-2 text-slate-400 text-sm font-bold">
-                        <Clock className="w-4 h-4" />
-                        Fin: {new Date(auction.endDate).toLocaleDateString()}
+                        <AuctionCountdown endDate={auction.endDate} className="scale-90 origin-left" />
                     </div>
                     <div className="flex items-center gap-2 text-alteha-turquoise text-sm font-black">
                         <Gavel className="w-4 h-4" />
@@ -210,7 +210,7 @@ function AuctionCard({ auction, index }: { auction: Auction, index: number }) {
             </div>
 
             <Link href={`/dashboard/insurance/auctions/${auction.auctionNumber}`}>
-                <Button className="w-14 h-14 rounded-[1.5rem] bg-slate-50 hover:bg-alteha-violet hover:text-white flex items-center justify-center transition-all p-0">
+                <Button className="w-14 h-14 rounded-[1.5rem] bg-slate-100 text-slate-400 hover:bg-alteha-violet hover:text-white flex items-center justify-center transition-all p-0">
                     <ChevronRight className="w-6 h-6" />
                 </Button>
             </Link>

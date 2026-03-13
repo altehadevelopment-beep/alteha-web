@@ -20,6 +20,7 @@ import {
 import Link from 'next/link';
 import { getMyInvitations, type Auction } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
+import AuctionCountdown from '@/components/auctions/AuctionCountdown';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; dot: string; icon: any }> = {
     'DRAFT': { label: 'Borrador', color: 'bg-slate-100 text-slate-600', dot: 'bg-slate-400', icon: FileText },
@@ -110,8 +111,8 @@ export default function DoctorAuctionsPage() {
                             key={s}
                             onClick={() => setStatusFilter(s)}
                             className={`px-5 py-2.5 rounded-xl font-black text-xs whitespace-nowrap transition-all ${statusFilter === s
-                                    ? 'bg-alteha-violet text-white shadow-lg shadow-violet-100 scale-105'
-                                    : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
+                                ? 'bg-alteha-violet text-white shadow-lg shadow-violet-100 scale-105'
+                                : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
                                 }`}
                         >
                             {s ? STATUS_CONFIG[s]?.label : 'Todas'}
@@ -209,10 +210,16 @@ function AuctionCard({ auction, index }: { auction: Auction; index: number }) {
                             Cirugía: <span className="text-slate-700">{new Date(auction.estimatedSurgeryDate).toLocaleDateString('es-ES')}</span>
                         </span>
                     )}
-                    <span className="flex items-center gap-1.5 text-slate-400 text-xs font-bold">
+                    <span className="flex items-center gap-1.5 text-slate-400 text-xs font-bold bg-slate-50 px-3 py-1.5 rounded-xl">
                         <Activity className="w-3.5 h-3.5" />
                         {auction.totalBids || 0} oferta{(auction.totalBids || 0) !== 1 ? 's' : ''}
                     </span>
+                    {(auction.status === 'ACTIVE' || auction.status === 'PUBLISHED') && (
+                        <div className="flex items-center gap-2 bg-alteha-violet/5 px-3 py-1.5 rounded-xl">
+                            <Clock className="w-3.5 h-3.5 text-alteha-violet" />
+                            <AuctionCountdown endDate={auction.endDate} />
+                        </div>
+                    )}
                 </div>
 
                 {auction.medicalHistory && (
@@ -223,10 +230,17 @@ function AuctionCard({ auction, index }: { auction: Auction; index: number }) {
             </div>
 
             {/* Action */}
-            <Link href={`/dashboard/specialist/auctions/${auction.auctionNumber}`} className="flex-shrink-0">
-                <Button className="w-14 h-14 rounded-[1.5rem] bg-slate-50 hover:bg-alteha-violet hover:text-white flex items-center justify-center transition-all p-0 group">
-                    <ChevronRight className="w-6 h-6 group-hover:translate-x-0.5 transition-transform" />
-                </Button>
+            <Link href={`/dashboard/specialist/auctions/${auction.auctionNumber}`} className="flex-shrink-0 w-full lg:w-auto">
+                {(auction.status === 'ACTIVE' || auction.status === 'PUBLISHED') ? (
+                    <Button className="w-full lg:w-40 h-14 rounded-[1.5rem] bg-alteha-violet text-white font-black flex items-center justify-center gap-2 shadow-lg shadow-violet-200 hover:scale-105 transition-all">
+                        <Gavel className="w-5 h-5" />
+                        Ofertar Ahora
+                    </Button>
+                ) : (
+                    <Button className="w-14 h-14 rounded-[1.5rem] bg-slate-50 text-slate-400 hover:bg-alteha-violet hover:text-white flex items-center justify-center transition-all p-0 group">
+                        <ChevronRight className="w-6 h-6 group-hover:translate-x-0.5 transition-transform" />
+                    </Button>
+                )}
             </Link>
         </motion.div>
     );

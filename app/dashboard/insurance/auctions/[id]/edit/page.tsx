@@ -315,10 +315,9 @@ export default function EditAuctionPage() {
                                     <FormInput
                                         label="Presupuesto Máximo Final ($)"
                                         type="number"
-                                        disabled={hasBids}
+                                        disabled={true}
                                         value={formData.maxBudget}
-                                        onChange={(v: string) => setFormData({ ...formData, maxBudget: parseFloat(v) })}
-                                        description="El monto máximo general que estás dispuesto a pagar por toda la intervención."
+                                        description="Calculado automáticamente: Honorarios + Gastos de Clínica."
                                     />
                                     <div className="grid grid-cols-2 gap-4">
                                         <FormInput
@@ -326,7 +325,14 @@ export default function EditAuctionPage() {
                                             type="number"
                                             disabled={hasBids}
                                             value={formData.doctorBudget}
-                                            onChange={(v: string) => setFormData({ ...formData, doctorBudget: parseFloat(v) })}
+                                            onChange={(v: string) => {
+                                                const doctorBudget = parseFloat(v) || 0;
+                                                setFormData({
+                                                    ...formData,
+                                                    doctorBudget,
+                                                    maxBudget: doctorBudget + (formData.clinicBudget || 0)
+                                                });
+                                            }}
                                             description="Monto referencial para el especialista."
                                         />
                                         <FormInput
@@ -334,7 +340,14 @@ export default function EditAuctionPage() {
                                             type="number"
                                             disabled={hasBids}
                                             value={formData.clinicBudget}
-                                            onChange={(v: string) => setFormData({ ...formData, clinicBudget: parseFloat(v) })}
+                                            onChange={(v: string) => {
+                                                const clinicBudget = parseFloat(v) || 0;
+                                                setFormData({
+                                                    ...formData,
+                                                    clinicBudget,
+                                                    maxBudget: clinicBudget + (formData.doctorBudget || 0)
+                                                });
+                                            }}
                                             description="Monto referencial para hospitalización."
                                         />
                                     </div>

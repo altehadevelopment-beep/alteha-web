@@ -430,8 +430,8 @@ export default function NewAuctionPage() {
                                             label="Presupuesto Máximo ($)"
                                             type="number"
                                             value={formData.maxBudget}
-                                            onChange={(v: string) => setFormData({ ...formData, maxBudget: parseFloat(v) })}
-                                            description="El monto máximo general que estás dispuesto a pagar por toda la intervención."
+                                            disabled={true}
+                                            description="Calculado automáticamente: Honorarios + Gastos de Clínica."
                                         />
                                         <FormInput
                                             label="Fecha Estimada de Cirugía"
@@ -446,14 +446,28 @@ export default function NewAuctionPage() {
                                             label="Honorarios Médicos sugeridos ($)"
                                             type="number"
                                             value={formData.doctorBudget}
-                                            onChange={(v: string) => setFormData({ ...formData, doctorBudget: parseFloat(v) })}
+                                            onChange={(v: string) => {
+                                                const doctorBudget = parseFloat(v) || 0;
+                                                setFormData({
+                                                    ...formData,
+                                                    doctorBudget,
+                                                    maxBudget: doctorBudget + (formData.clinicBudget || 0)
+                                                });
+                                            }}
                                             description="Monto referencial destinado específicamente a los honorarios del especialista."
                                         />
                                         <FormInput
                                             label="Gastos de Clínica sugeridos ($)"
                                             type="number"
                                             value={formData.clinicBudget}
-                                            onChange={(v: string) => setFormData({ ...formData, clinicBudget: parseFloat(v) })}
+                                            onChange={(v: string) => {
+                                                const clinicBudget = parseFloat(v) || 0;
+                                                setFormData({
+                                                    ...formData,
+                                                    clinicBudget,
+                                                    maxBudget: clinicBudget + (formData.doctorBudget || 0)
+                                                });
+                                            }}
                                             description="Monto referencial destinado a los gastos de hospitalización e insumos de la clínica."
                                         />
                                     </div>
