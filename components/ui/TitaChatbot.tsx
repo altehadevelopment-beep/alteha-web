@@ -326,7 +326,7 @@ export function TitaChatbot() {
 
                                 <div className="relative z-10 space-y-6 bg-black/10 p-6 rounded-[2rem] backdrop-blur-sm">
                                     <p className="text-sm leading-relaxed italic opacity-90">
-                                        "Mi objetivo es garantizar que tu experiencia en el ecosistema médico de Alteha sea fluida, transparente y automatizada."
+                                        &quot;Mi objetivo es garantizar que tu experiencia en el ecosistema médico de Alteha sea fluida, transparente y automatizada.&quot;
                                     </p>
                                     <div className="flex items-center gap-3">
                                         <div className="w-3 h-3 rounded-full bg-emerald-400 animate-pulse" />

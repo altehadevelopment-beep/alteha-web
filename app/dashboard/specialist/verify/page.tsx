@@ -710,7 +710,7 @@ export default function SpecialistVerifyPage() {
                             <div className="text-center space-y-6">
                                 <div className="w-20 h-20 border-4 border-alteha-violet border-t-transparent rounded-full animate-spin mx-auto" />
                                 <h3 className="text-2xl font-black text-slate-900">Enviando tu Verificación...</h3>
-                                <p className="text-slate-500 font-medium italic">"Analizando datos de identidad y biometría en tiempo real"</p>
+                                <p className="text-slate-500 font-medium italic">&quot;Analizando datos de identidad y biometría en tiempo real&quot;</p>
                             </div>
                         )}
                         {step === 'success' && renderSuccess()}

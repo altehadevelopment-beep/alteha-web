@@ -102,7 +102,7 @@ export default function ReviewsPage() {
                                     ))}
                                 </div>
                             </div>
-                            <p className="text-slate-600 leading-relaxed font-medium italic">"{review.comment}"</p>
+                            <p className="text-slate-600 leading-relaxed font-medium italic">&quot;{review.comment}&quot;</p>
                             <div className="pt-4 border-t border-slate-50 flex justify-between items-center text-xs text-slate-400 font-bold uppercase tracking-widest">
                                 <span>Verificado por ALTEHA</span>
                                 <span>{review.date}</span>

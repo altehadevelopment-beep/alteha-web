@@ -185,8 +185,8 @@ export default function AdvancedBidForm({ auction, onSuccess }: Props) {
                 </div>
                 <h3 className="text-xl font-black text-slate-900">Subasta No Disponible</h3>
                 <p className="text-slate-500 font-medium">
-                    Esta subasta se encuentra en estado <span className="font-bold text-slate-900">"{auction.status}"</span>.
-                    Para poder enviar una oferta, la subasta debe estar <span className="font-bold text-emerald-600">"ACTIVA"</span> o <span className="font-bold text-blue-600">"PUBLICADA"</span>.
+                    Esta subasta se encuentra en estado <span className="font-bold text-slate-900">&quot;{auction.status}&quot;</span>.
+                    Para poder enviar una oferta, la subasta debe estar <span className="font-bold text-emerald-600">&quot;ACTIVA&quot;</span> o <span className="font-bold text-blue-600">&quot;PUBLICADA&quot;</span>.
                 </p>
             </div>
         );
