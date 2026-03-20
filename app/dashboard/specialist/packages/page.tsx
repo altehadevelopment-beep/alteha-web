@@ -15,7 +15,8 @@ import {
     Stethoscope,
     Minus,
     Trash2,
-    Layers
+    Layers,
+    ImagePlus
 } from 'lucide-react';
 import Link from 'next/link';
 import { Input } from '@/components/ui/Input';
@@ -24,19 +25,30 @@ import { Button } from '@/components/ui/Button';
 export default function PublishPackagePage() {
     const [step, setStep] = useState(1);
     const [config, setConfig] = useState([
-        { id: 1, type: 'Consulta', icon: Stethoscope, count: 5, price: 50 },
-        { id: 2, type: 'Intervención', icon: Layers, count: 2, price: 1500 }
+        { id: 1, name: 'Consulta Especialista', icon: Stethoscope, image: '', count: 5, price: 50 },
+        { id: 2, name: 'Derecho de Quirófano', icon: Layers, image: '', count: 1, price: 1500 }
     ]);
 
     const updateCount = (id: number, delta: number) => {
-        setConfig(config.map(item =>
+        setConfig(prev => prev.map(item =>
             item.id === id ? { ...item, count: Math.max(0, item.count + delta) } : item
         ));
     };
 
+    const updateName = (id: number, name: string) => {
+        setConfig(prev => prev.map(item => item.id === id ? { ...item, name } : item));
+    };
+
+    const handleImageUpload = (id: number, e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const url = URL.createObjectURL(e.target.files[0]);
+            setConfig(prev => prev.map(item => item.id === id ? { ...item, image: url } : item));
+        }
+    };
+
     const addItem = () => {
-        const newItem = { id: Date.now(), type: 'Nuevo Servicio', icon: Info, count: 1, price: 0 };
-        setConfig([...config, newItem]);
+        const newItem = { id: Date.now(), name: 'Nuevo Ítem', icon: Package, image: '', count: 1, price: 0 };
+        setConfig(prev => [...prev, newItem]);
     };
 
     const totalAmount = config.reduce((acc, item) => acc + (item.count * item.price), 0);
@@ -116,41 +128,61 @@ export default function PublishPackagePage() {
                                 <div className="space-y-4">
                                     {config.map((item) => (
                                         <div key={item.id} className="flex flex-col md:flex-row md:items-center gap-6 p-6 bg-slate-50 rounded-[2rem] border border-slate-100 group">
+                                            
                                             <div className="flex items-center gap-4 flex-1">
-                                                <div className="p-4 bg-white rounded-2xl shadow-sm text-alteha-violet">
-                                                    <item.icon className="w-6 h-6" />
-                                                </div>
-                                                <div className="flex-1">
-                                                    <input
-                                                        className="bg-transparent font-bold text-slate-800 outline-none focus:text-alteha-violet transition-colors w-full"
-                                                        defaultValue={item.type}
+                                                <div className="relative group/img cursor-pointer w-16 h-16 rounded-2xl bg-white border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center hover:border-alteha-turquoise transition-colors shadow-sm">
+                                                    {item.image ? (
+                                                        <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <ImagePlus className="w-6 h-6 text-slate-300 group-hover/img:text-alteha-turquoise transition-colors" />
+                                                    )}
+                                                    <input 
+                                                        type="file" 
+                                                        accept="image/*" 
+                                                        onChange={(e) => handleImageUpload(item.id, e)} 
+                                                        className="absolute inset-0 opacity-0 cursor-pointer" 
+                                                        title="Sube una foto del ítem"
                                                     />
-                                                    <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Tipo de Servicio</p>
+                                                </div>
+                                                
+                                                <div className="flex-1 space-y-1.5">
+                                                    <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest ml-1 flex items-center gap-1">
+                                                        ✎ Nombre / Tipo
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Nombre del ítem (Ej. Consulta, Insumo...)"
+                                                        className="bg-white border border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-800 outline-none focus:border-alteha-violet focus:ring-4 focus:ring-alteha-violet/10 transition-all w-full placeholder:text-slate-300 placeholder:font-medium shadow-sm"
+                                                        value={item.name}
+                                                        onChange={(e) => updateName(item.id, e.target.value)}
+                                                    />
                                                 </div>
                                             </div>
 
                                             <div className="flex items-center gap-6">
                                                 <div className="flex items-center gap-4 bg-white p-2 rounded-2xl shadow-sm border border-slate-100">
-                                                    <button onClick={() => updateCount(item.id, -1)} className="p-2 hover:bg-slate-50 rounded-lg text-slate-400">
+                                                    <button onClick={() => updateCount(item.id, -1)} className="p-2 hover:bg-slate-50 rounded-lg text-slate-400 transition-colors">
                                                         <Minus className="w-4 h-4" />
                                                     </button>
                                                     <span className="font-black text-xl w-8 text-center">{item.count}</span>
-                                                    <button onClick={() => updateCount(item.id, 1)} className="p-2 hover:bg-slate-50 rounded-lg text-alteha-turquoise">
+                                                    <button onClick={() => updateCount(item.id, 1)} className="p-2 hover:bg-slate-50 rounded-lg text-alteha-turquoise transition-colors">
                                                         <Plus className="w-4 h-4" />
                                                     </button>
                                                 </div>
 
                                                 <div className="text-right min-w-[100px]">
-                                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Costo Unit.</p>
-                                                    <div className="flex items-center justify-end text-slate-900 font-black">
-                                                        <span>$</span>
+                                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5 flex items-center justify-end gap-1">
+                                                        ✎ Costo Unit.
+                                                    </p>
+                                                    <div className="flex items-center justify-end text-slate-900 font-black relative">
+                                                        <span className="absolute left-3 text-slate-400 z-10">$</span>
                                                         <input
                                                             type="number"
-                                                            className="bg-transparent w-16 text-right outline-none"
-                                                            defaultValue={item.price}
+                                                            className="bg-white border border-slate-200 rounded-xl py-2 pl-8 pr-3 w-28 text-right outline-none focus:border-alteha-violet focus:ring-4 focus:ring-alteha-violet/10 transition-all shadow-sm"
+                                                            value={item.price}
                                                             onChange={(e) => {
                                                                 const val = parseInt(e.target.value) || 0;
-                                                                setConfig(config.map(i => i.id === item.id ? { ...i, price: val } : i));
+                                                                setConfig(prev => prev.map(i => i.id === item.id ? { ...i, price: val } : i));
                                                             }}
                                                         />
                                                     </div>
@@ -199,12 +231,15 @@ export default function PublishPackagePage() {
                         </h4>
                         <div className="space-y-4">
                             {config.filter(item => item.count > 0).map((item) => (
-                                <div key={item.id} className="flex justify-between items-center p-4 bg-white/5 rounded-2xl border border-white/10">
+                                <div key={item.id} className="flex justify-between items-center p-4 bg-white/5 rounded-2xl border border-white/10 group">
                                     <div className="flex items-center gap-3">
-                                        <span className="w-6 h-6 rounded-lg bg-alteha-turquoise/20 flex items-center justify-center text-[10px] font-black">{item.count}x</span>
-                                        <span className="text-sm font-bold text-white/80">{item.type}</span>
+                                        <span className="w-8 h-8 rounded-lg bg-alteha-turquoise/20 flex items-center justify-center text-[11px] font-black shrink-0">{item.count}x</span>
+                                        {item.image && (
+                                            <img src={item.image} alt={item.name} className="w-8 h-8 rounded-lg object-cover shrink-0" />
+                                        )}
+                                        <span className="text-sm font-bold text-white/90 truncate max-w-[140px] leading-tight" title={item.name}>{item.name}</span>
                                     </div>
-                                    <span className="text-sm font-black text-alteha-turquoise">${(item.count * item.price).toLocaleString()}</span>
+                                    <span className="text-sm font-black text-alteha-turquoise shrink-0">${(item.count * item.price).toLocaleString()}</span>
                                 </div>
                             ))}
                             <div className="pt-4 mt-4 border-t border-white/10">
