@@ -5,6 +5,8 @@ import './globals.css'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { Toaster } from 'sonner'
 
+import { TitaChatbot } from '@/components/ui/TitaChatbot'
+
 // Use Outfit for a more modern, tech feel as requested ("minimalista pero muy moderno")
 const outfit = Outfit({ subsets: ['latin'], variable: '--font-outfit' })
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
@@ -28,6 +30,7 @@ export default function RootLayout({
         <AuthProvider>
           <Toaster position="top-center" richColors />
           {children}
+          <TitaChatbot />
         </AuthProvider>
       </body>
     </html>

@@ -17,7 +17,7 @@ interface PuzzleCaptchaProps {
 
 const PUZZLE_SIZE = 45;
 const CANVAS_WIDTH = 300;
-const CANVAS_HEIGHT = 150;
+const CANVAS_HEIGHT = 140;
 const IMAGES = [
     "https://images.unsplash.com/photo-1576091160550-217359f4ecf8?q=80&w=800&auto=format&fit=crop",
     "https://images.unsplash.com/photo-1504813184591-01592fd03cfd?q=80&w=800&auto=format&fit=crop",
@@ -140,84 +140,85 @@ export function PuzzleCaptcha({ onVerify, className }: PuzzleCaptchaProps) {
     };
 
     return (
-        <div className={cn("p-4 bg-white rounded-3xl shadow-xl border border-slate-100 w-fit select-none", className)}>
-            <div className="relative mb-4 overflow-hidden rounded-2xl bg-slate-100" style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT }}>
+        <div className={cn("p-4 bg-white/40 backdrop-blur-xl rounded-[1.5rem] shadow-2xl border border-white/60 w-fit select-none mx-auto", className)}>
+            <div className="relative mb-4 overflow-hidden rounded-xl bg-slate-200/50 shadow-inner" style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT }}>
                 {isLoading && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-slate-50 z-20">
-                        <RotateCcw className="w-6 h-6 animate-spin text-slate-400" />
+                    <div className="absolute inset-0 flex items-center justify-center bg-white/20 backdrop-blur-sm z-20">
+                        <RotateCcw className="w-8 h-8 animate-spin text-alteha-violet/60" />
                     </div>
                 )}
-                <canvas ref={canvasRef} width={CANVAS_WIDTH} height={CANVAS_HEIGHT} className={cn("block transition-opacity duration-300", isLoading ? "opacity-0" : "opacity-100")} />
+                <canvas ref={canvasRef} width={CANVAS_WIDTH} height={CANVAS_HEIGHT} className={cn("block transition-opacity duration-500", isLoading ? "opacity-0" : "opacity-100")} />
                 <motion.canvas
                     ref={pieceRef}
                     width={CANVAS_WIDTH}
                     height={CANVAS_HEIGHT}
                     style={{ x }}
-                    className={cn("absolute top-0 left-0 drop-shadow-xl z-10 transition-opacity duration-300", isLoading ? "opacity-0" : "opacity-100 pointer-events-none")}
+                    className={cn("absolute top-0 left-0 drop-shadow-[0_10px_15px_rgba(0,0,0,0.5)] z-10 transition-opacity duration-500", isLoading ? "opacity-0" : "opacity-100 pointer-events-none")}
                 />
 
                 {isError && !isLoading && (
                     <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="absolute inset-0 bg-red-500/10 flex items-center justify-center z-30 pointer-events-none"
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="absolute inset-0 bg-red-500/10 flex items-center justify-center z-30 pointer-events-none backdrop-blur-[2px]"
                     >
-                        <div className="bg-white/90 p-2 rounded-full text-red-500 shadow-sm border border-red-100">
-                            <X className="w-6 h-6" />
+                        <div className="bg-white p-3 rounded-full text-red-500 shadow-xl border border-red-100">
+                            <X className="w-8 h-8" />
                         </div>
                     </motion.div>
                 )}
 
                 {isVerified && !isLoading && (
                     <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="absolute inset-0 bg-emerald-500/10 flex items-center justify-center z-30 pointer-events-none"
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="absolute inset-0 bg-emerald-500/10 flex items-center justify-center z-30 pointer-events-none backdrop-blur-[2px]"
                     >
-                        <div className="bg-white/90 p-2 rounded-full text-emerald-500 shadow-sm border border-emerald-100">
-                            <Check className="w-6 h-6" />
+                        <div className="bg-white p-3 rounded-full text-emerald-500 shadow-xl border border-emerald-100">
+                            <Check className="w-8 h-8" />
                         </div>
                     </motion.div>
                 )}
             </div>
 
-            <div className="relative h-12 bg-slate-100 rounded-full border border-slate-200 overflow-hidden">
-                <div className="absolute inset-0 flex items-center justify-center text-slate-400 font-bold text-[10px] uppercase tracking-widest">
-                    {isVerified ? "Verificado con éxito" : isLoading ? "Cargando desafío..." : "Desliza para encajar"}
+            <div className="relative h-12 bg-slate-100/80 backdrop-blur-md rounded-xl border border-slate-200/50 shadow-inner overflow-hidden">
+                <div className="absolute inset-0 flex items-center justify-center text-slate-400 font-bold text-[9px] uppercase tracking-[0.2em] ml-8">
+                    {isVerified ? "Verificado" : isLoading ? "Cargando..." : "Deslizar para verificar"}
                 </div>
 
                 <motion.div
                     style={{ width: x }}
                     className={cn(
-                        "absolute top-0 left-0 h-full bg-alteha-turquoise/20 transition-colors",
-                        isError && "bg-red-500/20",
-                        isVerified && "bg-emerald-500/20"
+                        "absolute top-0 left-0 h-full transition-colors",
+                        isError ? "bg-red-500/20" : 
+                        isVerified ? "bg-emerald-500/20" : 
+                        "bg-alteha-turquoise/20"
                     )}
                 />
 
                 <motion.div
                     drag={isVerified || isLoading ? false : "x"}
-                    dragConstraints={{ left: 0, right: CANVAS_WIDTH - 50 }}
+                    dragConstraints={{ left: 0, right: CANVAS_WIDTH - 46 }}
                     dragElastic={0}
                     dragMomentum={false}
                     onDragEnd={handleDragEnd}
                     animate={controls}
                     style={{ x }}
                     className={cn(
-                        "absolute top-1 left-1 w-10 h-10 bg-white rounded-full shadow-lg cursor-grab active:cursor-grabbing flex items-center justify-center z-10 transition-colors",
-                        isVerified ? "text-emerald-500 cursor-default" : "text-slate-400 hover:text-alteha-violet",
-                        isError && "text-red-500",
+                        "absolute top-1 left-1 w-10 h-10 bg-white rounded-lg shadow-[0_4px_10px_rgba(0,0,0,0.1)] cursor-grab active:cursor-grabbing flex items-center justify-center z-10 transition-all duration-300",
+                        isVerified ? "text-emerald-500 cursor-default shadow-none border border-emerald-100" : "text-slate-400 hover:text-alteha-violet border border-slate-100 hover:scale-105",
+                        isError && "text-red-500 border-red-100 shadow-red-100",
                         isLoading && "cursor-wait opacity-50"
                     )}
                 >
-                    {isVerified ? <Check className="w-5 h-5" /> : isError ? <X className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
+                    {isVerified ? <Check className="w-6 h-6" /> : isError ? <X className="w-6 h-6" /> : <ChevronRight className="w-6 h-6" />}
                 </motion.div>
 
                 <button
                     onClick={generatePuzzle}
                     disabled={isVerified || isLoading}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-1 disabled:opacity-30"
-                    title="Actualizar desafío"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-alteha-violet transition-all p-2 disabled:opacity-30 hover:rotate-180 duration-500"
+                    title="Actualizar"
                 >
                     <RotateCcw className="w-4 h-4" />
                 </button>

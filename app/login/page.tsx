@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { User, Lock, ArrowRight, ArrowLeft, Loader2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Logo } from '@/components/ui/Logo';
@@ -26,17 +27,47 @@ export default function LoginPage() {
     const getRoleInfo = (role: string | null) => {
         switch (role) {
             case 'specialist':
-                return { title: 'Portal Especialistas', registerLink: '/register/specialist', color: 'text-alteha-turquoise' };
+                return { 
+                    title: 'Portal Especialistas', 
+                    registerLink: '/register/specialist', 
+                    color: 'text-alteha-turquoise',
+                    bgImage: '/backgrounds/specialist.png'
+                };
             case 'insurance':
-                return { title: 'Portal Seguros', registerLink: '/register/insurance', color: 'text-alteha-violet' };
+                return { 
+                    title: 'Portal Seguros', 
+                    registerLink: '/register/insurance', 
+                    color: 'text-alteha-violet',
+                    bgImage: '/backgrounds/insurance.png'
+                };
             case 'clinic':
-                return { title: 'Portal Clínicas', registerLink: '/register/clinic', color: 'text-blue-500' };
+                return { 
+                    title: 'Portal Clínicas', 
+                    registerLink: '/register/clinic', 
+                    color: 'text-blue-500',
+                    bgImage: '/backgrounds/clinic.png'
+                };
             case 'provider':
-                return { title: 'Portal Proveedores', registerLink: '/register/provider', color: 'text-indigo-500' };
+                return { 
+                    title: 'Portal Proveedores', 
+                    registerLink: '/register/provider', 
+                    color: 'text-indigo-500',
+                    bgImage: '/backgrounds/provider.png'
+                };
             case 'health-fund':
-                return { title: 'Portal Fondos de Salud', registerLink: '/register/health-fund', color: 'text-rose-500' };
+                return { 
+                    title: 'Portal Fondos de Salud', 
+                    registerLink: '/register/health-fund', 
+                    color: 'text-rose-500',
+                    bgImage: '/backgrounds/health-fund.png'
+                };
             default:
-                return { title: 'Bienvenido de nuevo', registerLink: '/register/specialist', color: 'text-slate-800' };
+                return { 
+                    title: 'Bienvenido de nuevo', 
+                    registerLink: '/register/specialist', 
+                    color: 'text-slate-800',
+                    bgImage: '/backgrounds/specialist.png' // Default background
+                };
         }
     };
 
@@ -125,31 +156,50 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center p-4 bg-slate-50 relative overflow-hidden font-outfit">
-            {/* Background Gradients */}
-            <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0 pointer-events-none">
-                <div className="absolute -top-[10%] -left-[10%] w-[50%] h-[50%] bg-alteha-turquoise/20 rounded-full blur-[120px]" />
-                <div className="absolute top-[20%] right-[10%] w-[40%] h-[40%] bg-alteha-violet/20 rounded-full blur-[120px]" />
+        <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden font-outfit bg-slate-900">
+            {/* Dynamic Background Image */}
+            <AnimatePresence mode="wait">
+                <motion.div
+                    key={roleInfo.bgImage}
+                    initial={{ opacity: 0, scale: 1.1 }}
+                    animate={{ opacity: 0.4, scale: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 1.5, ease: "easeOut" }}
+                    className="absolute inset-0 z-0"
+                >
+                    <div 
+                        className="w-full h-full bg-cover bg-center bg-no-repeat blur-[4px]"
+                        style={{ backgroundImage: `url(${roleInfo.bgImage})` }}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-b from-slate-900/40 via-transparent to-slate-900/60" />
+                </motion.div>
+            </AnimatePresence>
+
+            {/* Background Gradients (Atmospheric) */}
+            <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0 pointer-events-none opacity-50">
+                <div className="absolute -top-[10%] -left-[10%] w-[50%] h-[50%] bg-alteha-turquoise/10 rounded-full blur-[120px]" />
+                <div className="absolute top-[20%] right-[10%] w-[40%] h-[40%] bg-alteha-violet/10 rounded-full blur-[120px]" />
             </div>
 
             <motion.div
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ type: "spring", stiffness: 260, damping: 20 }}
-                className="relative z-10 w-full max-w-md bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl p-8 border border-white/50"
+                transition={{ type: "spring", stiffness: 260, damping: 20, delay: 0.2 }}
+                className="relative z-10 w-full max-w-md bg-white rounded-[2rem] shadow-[0_30px_60px_rgba(0,0,0,0.4)] p-8 border border-slate-100"
             >
                 {/* Inicio Button */}
-                <Link href="/" className="absolute top-4 left-4 flex items-center gap-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-sm font-bold transition-all">
-                    <ArrowLeft className="w-4 h-4" />
+                <Link href="/" className="absolute top-5 left-6 z-30 flex items-center gap-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all hover:gap-3">
+                    <ArrowLeft className="w-3 h-3" />
                     Inicio
                 </Link>
 
-                <div className="flex flex-col items-center mb-8 mt-6">
-                    <Link href="/">
-                        <Logo className="w-16 h-16 mb-4 hover:scale-105 transition-transform duration-300" />
+                <div className="flex flex-col items-center mb-8 mt-12">
+                    <Link href="/" className="relative group/logo">
+                        <div className="absolute -inset-4 bg-gradient-to-tr from-alteha-turquoise/20 to-alteha-violet/20 rounded-full blur-2xl opacity-0 group-hover/logo:opacity-100 transition-opacity duration-500" />
+                        <Logo className="w-16 h-16 mb-4 relative z-10 hover:scale-110 transition-transform duration-500 ease-out" />
                     </Link>
-                    <h1 className={`text-2xl font-bold ${roleInfo.color} transition-colors duration-300`}>{roleInfo.title}</h1>
-                    <p className="text-slate-500 text-sm mt-1">Ingresa a tu cuenta para continuar</p>
+                    <h1 className={cn("text-2xl font-black transition-colors duration-500 tracking-tight", roleInfo.color)}>{roleInfo.title}</h1>
+                    <p className="text-slate-400 text-xs mt-1 font-medium">Ingresa para continuar</p>
                 </div>
 
                 <form onSubmit={handleLogin} className="space-y-6">
@@ -161,7 +211,7 @@ export default function LoginPage() {
                         placeholder="usuario@alteha.com"
                     />
 
-                    <div className="space-y-1">
+                    <div className="space-y-4">
                         <Input
                             label="Contraseña"
                             icon={Lock}
@@ -170,11 +220,6 @@ export default function LoginPage() {
                             onChange={(e) => setPassword(e.target.value)}
                             placeholder="••••••••"
                         />
-                        <div className="flex justify-end">
-                            <Link href="/forgot-password" className="text-xs text-alteha-violet hover:underline font-medium">
-                                ¿Olvidaste tu contraseña?
-                            </Link>
-                        </div>
                     </div>
 
                     {error && (
@@ -201,26 +246,26 @@ export default function LoginPage() {
                         <PuzzleCaptcha onVerify={setIsVerified} />
                     </div>
 
-                    <Button type="submit" className="w-full flex items-center justify-center gap-2 group" disabled={loading || !isVerified}>
+                    <Button type="submit" className="w-full flex items-center justify-center gap-2 group py-3.5" disabled={loading || !isVerified}>
                         {loading ? 'Ingresando...' : 'Iniciar Sesión'}
                         {!loading && <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />}
                     </Button>
 
-                    <div className="text-right">
-                        <Link href="/forgot-password" className="text-sm text-slate-400 hover:text-alteha-violet font-medium transition-colors">
+                    <div className="text-center pt-2">
+                        <Link href="/forgot-password" className="text-[10px] text-slate-400 hover:text-alteha-violet font-bold uppercase tracking-widest transition-colors">
                             ¿Olvidaste tu contraseña?
                         </Link>
                     </div>
                 </form>
 
-                <div className="mt-8 pt-6 border-t border-slate-100 text-center space-y-4">
-                    <p className="text-sm text-slate-500">
+                <div className="mt-6 pt-5 border-t border-slate-100 text-center space-y-3">
+                    <p className="text-xs text-slate-500">
                         ¿No tienes una cuenta?{' '}
                         <Link href={roleInfo.registerLink} className="text-alteha-violet font-semibold hover:underline">
                             Regístrate
                         </Link>
                     </p>
-                    <div className="flex justify-center gap-6 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                    <div className="flex justify-center gap-4 text-[9px] font-bold text-slate-400 uppercase tracking-widest">
                         <Link href="/terms" className="hover:text-alteha-violet transition-colors">Términos</Link>
                         <span>•</span>
                         <Link href="/privacy" className="hover:text-alteha-turquoise transition-colors">Privacidad</Link>

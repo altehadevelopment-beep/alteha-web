@@ -1,2 +1,5 @@
-import ComingSoonPage from '@/components/dashboard/ComingSoon';
-export default function DisputesPage() { return <ComingSoonPage title="Gestión de Disputas" />; }
+import SpecialistDisputes from '@/components/dashboard/SpecialistDisputes';
+
+export default function DisputesPage() {
+    return <SpecialistDisputes />;
+}

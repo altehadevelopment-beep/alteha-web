@@ -1,4 +1,7 @@
+'use client'
+
 import Link from 'next/link'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   ArrowRight,
   Stethoscope,
@@ -11,106 +14,192 @@ import {
   Github,
   CreditCard,
   Wallet,
-  Activity
+  Activity,
+  Sparkles
 } from 'lucide-react'
 import { Logo } from '@/components/ui/Logo'
 
 export default function Home() {
-  return (
-    <main className="flex min-h-screen flex-col items-center justify-between p-12 md:p-24 bg-slate-50 relative overflow-hidden font-outfit">
+  const actors = [
+    {
+      role: 'specialist',
+      name: 'Médico Especialista',
+      icon: Stethoscope,
+      color: 'alteha-turquoise',
+      bg: 'bg-slate-900',
+      borderColor: 'border-alteha-turquoise/30',
+      hoverColor: 'bg-alteha-turquoise'
+    },
+    {
+      role: 'insurance',
+      name: 'Empresa de Seguros',
+      icon: ShieldCheck,
+      color: 'slate-400',
+      bg: 'bg-white',
+      borderColor: 'border-slate-200',
+      hoverColor: 'bg-alteha-turquoise'
+    },
+    {
+      role: 'clinic',
+      name: 'Clínica',
+      icon: Building2,
+      color: 'slate-400',
+      bg: 'bg-white',
+      borderColor: 'border-slate-200',
+      hoverColor: 'bg-alteha-violet'
+    },
+    {
+      role: 'provider',
+      name: 'Proveedor de Insumos',
+      icon: Truck,
+      color: 'slate-400',
+      bg: 'bg-white',
+      borderColor: 'border-slate-200',
+      hoverColor: 'bg-blue-500'
+    },
+    {
+      role: 'health-fund',
+      name: 'Fondo Administrado',
+      icon: Activity,
+      color: 'slate-400',
+      bg: 'bg-white',
+      borderColor: 'border-slate-200',
+      hoverColor: 'bg-rose-500'
+    }
+  ]
 
-      {/* Background Gradients */}
-      <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0">
-        <div className="absolute -top-[10%] -left-[10%] w-[50%] h-[50%] bg-alteha-turquoise/20 rounded-full blur-[120px]" />
-        <div className="absolute top-[20%] right-[10%] w-[40%] h-[40%] bg-alteha-violet/20 rounded-full blur-[120px]" />
+  return (
+    <main className="flex min-h-screen flex-col items-center justify-between p-6 md:p-12 bg-slate-50 relative overflow-hidden font-outfit">
+      
+      {/* Background Elements */}
+      <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0 pointer-events-none">
+        <motion.div 
+          animate={{
+            scale: [1, 1.2, 1],
+            opacity: [0.1, 0.2, 0.1],
+          }}
+          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute -top-[10%] -left-[10%] w-[60%] h-[60%] bg-alteha-turquoise/30 rounded-full blur-[140px]" 
+        />
+        <motion.div 
+          animate={{
+            scale: [1, 1.3, 1],
+            opacity: [0.1, 0.2, 0.1],
+          }}
+          transition={{ duration: 15, repeat: Infinity, ease: "easeInOut", delay: 2 }}
+          className="absolute top-[20%] right-[10%] w-[50%] h-[50%] bg-alteha-violet/20 rounded-full blur-[140px]" 
+        />
+        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03]" />
       </div>
 
       {/* Floating Social Links */}
-      <div className="fixed left-6 top-1/2 -translate-y-1/2 z-50 hidden lg:flex flex-col gap-6">
-        <a href="#" className="p-3 bg-white/80 backdrop-blur-md rounded-full shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all text-slate-600 hover:text-alteha-violet border border-white/50 group">
-          <Instagram className="w-5 h-5 group-hover:scale-110 transition-transform" />
-        </a>
-        <a href="#" className="p-3 bg-white/80 backdrop-blur-md rounded-full shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all text-slate-600 hover:text-alteha-turquoise border border-white/50 group">
-          <Twitter className="w-5 h-5 group-hover:scale-110 transition-transform" />
-        </a>
-        <a href="#" className="p-3 bg-white/80 backdrop-blur-md rounded-full shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all text-slate-600 hover:text-blue-600 border border-white/50 group">
-          <Linkedin className="w-5 h-5 group-hover:scale-110 transition-transform" />
-        </a>
+      <div className="fixed left-6 top-1/2 -translate-y-1/2 z-50 hidden xl:flex flex-col gap-6">
+        {['Instagram', 'Twitter', 'Linkedin'].map((social, i) => (
+          <motion.a
+            key={social}
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.8 + (i * 0.1) }}
+            href="#"
+            className="p-3 bg-white/40 backdrop-blur-xl rounded-full shadow-lg hover:shadow-2xl hover:-translate-y-1 transition-all text-slate-600 hover:text-alteha-violet border border-white/60 group"
+          >
+            {social === 'Instagram' && <Instagram className="w-5 h-5 group-hover:scale-110 transition-transform" />}
+            {social === 'Twitter' && <Twitter className="w-5 h-5 group-hover:scale-110 transition-transform" />}
+            {social === 'Linkedin' && <Linkedin className="w-5 h-5 group-hover:scale-110 transition-transform" />}
+          </motion.a>
+        ))}
       </div>
 
-      <div className="z-10 text-center max-w-4xl flex flex-col items-center my-auto">
-        <Link href="/">
-          <Logo className="w-32 h-32 mb-8 animate-fade-in-up drop-shadow-xl hover:scale-105 transition-transform duration-300 cursor-pointer" />
-        </Link>
+      <div className="z-10 text-center max-w-6xl flex flex-col items-center my-auto w-full">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5 }}
+        >
+          <Link href="/">
+            <Logo className="w-24 h-24 md:w-32 md:h-32 mb-8 drop-shadow-2xl hover:rotate-6 transition-transform duration-500 cursor-pointer" />
+          </Link>
+        </motion.div>
 
-        <div className="inline-block mb-6 px-4 py-1.5 rounded-full bg-white border border-slate-200 text-sm font-medium text-slate-600 shadow-sm">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="inline-flex items-center gap-2 mb-6 px-5 py-2 rounded-full bg-white/60 backdrop-blur-md border border-white/80 text-xs md:text-sm font-semibold text-slate-700 shadow-xl shadow-slate-200/50"
+        >
+          <Sparkles className="w-4 h-4 text-alteha-turquoise animate-pulse" />
           Portal de Subastas Médicas Invertidas
-        </div>
+        </motion.div>
 
-        <h1 className="text-5xl md:text-7xl font-black text-slate-900 mb-6 leading-tight">
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-alteha-turquoise to-alteha-violet animate-gradient bg-[length:200%_auto] tracking-[0.05em]">
+        <motion.h1 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="text-6xl md:text-8xl font-black text-slate-900 mb-6 leading-none tracking-tight"
+        >
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-alteha-turquoise via-alteha-violet to-alteha-turquoise animate-gradient bg-[length:200%_auto]">
             ALTEHA
           </span>
           <br />
-          <span className="tracking-tighter italic text-slate-400 text-4xl md:text-5xl">Ecosistema de Salud</span>
-        </h1>
+          <span className="text-3xl md:text-5xl text-slate-400 font-medium tracking-tighter opacity-80 block mt-2">
+            Ecosistema de Salud
+          </span>
+        </motion.h1>
 
-        <p className="text-xl text-slate-600 mb-12 leading-relaxed max-w-2xl">
-          Conectamos a médicos especialistas, clínicas y aseguradoras en un entorno seguro, eficiente y transparente.
-        </p>
+        <motion.p 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5 }}
+          className="text-lg md:text-xl text-slate-500 mb-16 leading-relaxed max-w-2xl font-medium"
+        >
+          La plataforma definitiva que conecta a médicos, clínicas y aseguradoras para una gestión transparente y eficiente.
+        </motion.p>
 
-        <div className="flex flex-col items-center gap-6 w-full">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full px-4">
-            <Link
-              href="/login?role=specialist"
-              className="group relative px-6 py-10 bg-slate-900 text-white rounded-3xl font-semibold overflow-hidden shadow-2xl shadow-slate-900/20 hover:shadow-slate-900/40 transition-all hover:-translate-y-1 text-center flex flex-col items-center justify-center gap-4"
-            >
-              <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-alteha-turquoise/80 via-alteha-violet/80 to-alteha-turquoise/80 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-[length:200%_auto] animate-gradient" />
-              <Stethoscope className="w-12 h-12 relative z-10 text-alteha-turquoise group-hover:text-white transition-colors duration-300" />
-              <span className="relative flex items-center gap-2 text-base z-10">
-                Médico Especialista
-              </span>
-            </Link>
-
-            <Link
-              href="/login?role=insurance"
-              className="group relative px-6 py-10 bg-white text-slate-700 border border-slate-200 rounded-3xl font-semibold overflow-hidden hover:border-alteha-turquoise/50 hover:text-alteha-turquoise transition-all hover:-translate-y-1 text-center flex flex-col items-center justify-center gap-4 shadow-xl shadow-slate-200/50 hover:shadow-slate-300/60"
-            >
-              <ShieldCheck className="w-12 h-12 text-slate-400 group-hover:text-alteha-turquoise transition-colors duration-300" />
-              <span className="relative flex items-center gap-2 text-base">
-                Empresa de Seguros
-              </span>
-            </Link>
-
-            <Link
-              href="/login?role=clinic"
-              className="group relative px-6 py-10 bg-white text-slate-700 border border-slate-200 rounded-3xl font-semibold overflow-hidden hover:border-alteha-violet/50 hover:text-alteha-violet transition-all hover:-translate-y-1 text-center flex flex-col items-center justify-center gap-4 shadow-xl shadow-slate-200/50 hover:shadow-slate-300/60"
-            >
-              <Building2 className="w-12 h-12 text-slate-400 group-hover:text-alteha-violet transition-colors duration-300" />
-              <span className="relative flex items-center gap-2 text-base">
-                Clínica
-              </span>
-            </Link>
-
-            <Link
-              href="/login?role=provider"
-              className="group relative px-6 py-10 bg-white text-slate-700 border border-slate-200 rounded-3xl font-semibold overflow-hidden hover:border-blue-400/50 hover:text-blue-500 transition-all hover:-translate-y-1 text-center flex flex-col items-center justify-center gap-4 shadow-xl shadow-slate-200/50 hover:shadow-slate-300/60"
-            >
-              <Truck className="w-12 h-12 text-slate-400 group-hover:text-blue-500 transition-colors duration-300" />
-              <span className="relative flex items-center gap-2 text-base">
-                Proveedor de Insumos
-              </span>
-            </Link>
-
-            <Link
-              href="/login?role=health-fund"
-              className="group relative px-6 py-10 bg-white text-slate-700 border border-slate-200 rounded-3xl font-semibold overflow-hidden hover:border-rose-400/50 hover:text-rose-500 transition-all hover:-translate-y-1 text-center flex flex-col items-center justify-center gap-4 shadow-xl shadow-slate-200/50 hover:shadow-slate-300/60 sm:col-span-2 lg:col-span-1"
-            >
-              <Activity className="w-12 h-12 text-slate-400 group-hover:text-rose-500 transition-colors duration-300" />
-              <span className="relative flex items-center gap-2 text-base">
-                Fondo Administrado
-              </span>
-            </Link>
+        <div className="relative w-full overflow-visible py-10 px-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-8 md:gap-12 max-w-6xl mx-auto">
+            {actors.map((actor, i) => (
+              <motion.div
+                key={actor.role}
+                initial={{ opacity: 0, scale: 0.5, y: 30 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                transition={{ 
+                  duration: 0.6, 
+                  delay: 0.6 + (i * 0.1),
+                  type: "spring",
+                  stiffness: 100 
+                }}
+                className="flex flex-col items-center gap-4 group"
+              >
+                <Link href={`/login?role=${actor.role}`} className="relative">
+                  {/* Outer circle animation */}
+                  <div className={`absolute -inset-4 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-500 blur-md ${actor.hoverColor}/20 group-hover:scale-110`} />
+                  
+                  <div className={`
+                    relative w-32 h-32 md:w-36 md:h-36 rounded-full 
+                    ${actor.bg} border-2 ${actor.borderColor} 
+                    flex items-center justify-center shadow-2xl 
+                    group-hover:border-transparent group-hover:scale-105 
+                    transition-all duration-500 overflow-hidden
+                  `}>
+                    <div className={`absolute inset-0 translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-out ${actor.hoverColor}`} />
+                    
+                    <actor.icon className={`
+                      w-12 h-12 md:w-16 md:h-16 relative z-10 
+                      ${actor.role === 'specialist' ? 'text-alteha-turquoise' : 'text-slate-400'} 
+                      group-hover:text-white group-hover:rotate-12 transition-all duration-500
+                    `} />
+                  </div>
+                </Link>
+                <span className="text-sm md:text-base font-bold text-slate-700 tracking-tight group-hover:text-slate-900 group-hover:translate-y-1 transition-all duration-300 text-center px-2">
+                  {actor.name}
+                </span>
+                <motion.div 
+                  initial={{ width: 0 }}
+                  whileHover={{ width: '40%' }}
+                  className="h-1 bg-gradient-to-r from-alteha-turquoise to-alteha-violet rounded-full mt-[-8px]"
+                />
+              </motion.div>
+            ))}
           </div>
         </div>
       </div>
