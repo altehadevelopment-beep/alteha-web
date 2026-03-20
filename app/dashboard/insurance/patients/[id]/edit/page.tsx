@@ -133,8 +133,8 @@ export default function EditPatientPage() {
                         <div className="space-y-6">
                             <h3 className="text-xl font-black text-slate-900 border-b pb-4">Datos Personales</h3>
                             <div className="space-y-4">
-                                <FormInput label="Nombres" value={formData.firstName} onChange={(v) => handleInputChange('firstName', v)} />
-                                <FormInput label="Apellidos" value={formData.lastName} onChange={(v) => handleInputChange('lastName', v)} />
+                                <FormInput label="Nombres" value={formData.firstName} onChange={(v: string) => handleInputChange('firstName', v)} />
+                                <FormInput label="Apellidos" value={formData.lastName} onChange={(v: string) => handleInputChange('lastName', v)} />
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-1">
                                         <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Género</label>
@@ -164,8 +164,8 @@ export default function EditPatientPage() {
                         <div className="space-y-6">
                             <h3 className="text-xl font-black text-slate-900 border-b pb-4">Información de Contacto</h3>
                             <div className="space-y-4">
-                                <FormInput label="Email" type="email" value={formData.email} onChange={(v) => handleInputChange('email', v)} />
-                                <FormInput label="Teléfono" value={formData.phone} onChange={(v) => handleInputChange('phone', v)} />
+                                <FormInput label="Email" type="email" value={formData.email} onChange={(v: string) => handleInputChange('email', v)} />
+                                <FormInput label="Teléfono" value={formData.phone} onChange={(v: string) => handleInputChange('phone', v)} />
                                 <div className="space-y-1">
                                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Dirección</label>
                                     <textarea
