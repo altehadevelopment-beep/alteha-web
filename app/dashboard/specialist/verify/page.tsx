@@ -233,7 +233,10 @@ export default function SpecialistVerifyPage() {
                     <FileText className="w-10 h-10" />
                 </div>
                 <h2 className="text-3xl font-black text-slate-900 tracking-tight mb-2">Selecciona tu Documento</h2>
-                <p className="text-slate-500 font-medium">Elige el tipo de identificación que deseas verificar.</p>
+                <p className="text-slate-500 font-medium max-w-lg mx-auto">
+                    Elige el tipo de identificación que deseas verificar. Para nosotros, <span className="text-alteha-violet font-bold">tu integridad y seguridad son lo más importante</span>; 
+                    por ello, es necesario realizar esta validación para proteger tu identidad y garantizar la máxima confianza dentro de nuestra red médica.
+                </p>
             </div>
 
             {/* Verification Guide Icon */}

@@ -170,7 +170,7 @@ export default function InsuranceProfilePage() {
                             />
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <Input
-                                    label="Teléfono"
+                                    label="Teléfono Celular"
                                     value={formData.phone}
                                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                                     icon={Phone}

@@ -17,7 +17,7 @@ import {
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
-import { updatePatient, searchPatient, type PatientRegistration, type Patient } from '@/lib/api';
+import { updatePatient, getPatient, type PatientRegistration, type Patient } from '@/lib/api';
 
 export default function EditPatientPage() {
     const params = useParams();
@@ -49,21 +49,81 @@ export default function EditPatientPage() {
     useEffect(() => {
         const loadPatientData = async () => {
             setIsLoading(true);
+            let hasData = false;
+            
+            // Watchdog timer to prevent infinite loading
+            const watchdog = setTimeout(() => {
+                if (!hasData) {
+                    setIsLoading(false);
+                    setError('La carga está tardando demasiado. Intente recargar la página.');
+                }
+            }, 10000);
+
             try {
-                // For demonstration, we'll try to load from a hypothetical endpoint or 
-                // search if we had the document number in the URL/state.
-                // Since we only have the ID, we'll try to fetch via a proxy that supports GET by ID 
-                // or just show the form for the user to fill/update.
+                // Check session storage first as a fast cache
+                if (typeof window !== 'undefined') {
+                    const cached = sessionStorage.getItem('editing_patient');
+                    if (cached) {
+                        try {
+                            const p = JSON.parse(cached);
+                            if (String(p.id) === String(patientId)) {
+                                console.log('[EditPatient] Loading from cache:', p);
+                                setFormData({
+                                    firstName: p.firstName || '',
+                                    lastName: p.lastName || '',
+                                    email: p.email || '',
+                                    phone: p.phone || '',
+                                    gender: (p.gender as any) || 'FEMENINO',
+                                    dateOfBirth: (p.dateOfBirth && typeof p.dateOfBirth === 'string') ? p.dateOfBirth.split('T')[0] : '',
+                                    address: p.address || '',
+                                    latitude: p.latitude || 10.4806,
+                                    longitude: p.longitude || -66.9036,
+                                    allergyIds: [],
+                                    medicalConditionIds: [],
+                                    currentMedicationIds: []
+                                });
+                                hasData = true;
+                                setIsLoading(false);
+                            }
+                        } catch (e) {
+                            console.error('Cache parse error:', e);
+                        }
+                    }
+                }
 
-                // Let's assume the update endpoint works and we might have a GET endpoint too
-                // For now, we'll initialize with empty and let user edit
-                // (In a real scenario, this would be populated from a GET call)
+                const result = await getPatient(patientId);
+                console.log('Patient API result:', result);
 
-                // Mocking the fetch for now as the GET by ID wasn't provided
-                setTimeout(() => setIsLoading(false), 800);
+                if (result && result.code === '00' && result.data) {
+                    const p = result.data;
+                    setFormData({
+                        firstName: p.firstName || '',
+                        lastName: p.lastName || '',
+                        email: p.email || '',
+                        phone: p.phone || '',
+                        gender: (p.gender as any) || 'FEMENINO',
+                        dateOfBirth: (p.dateOfBirth && typeof p.dateOfBirth === 'string') ? p.dateOfBirth.split('T')[0] : '',
+                        address: p.address || '',
+                        latitude: p.latitude || 10.4806,
+                        longitude: p.longitude || -66.9036,
+                        allergyIds: [],
+                        medicalConditionIds: [],
+                        currentMedicationIds: []
+                    });
+                    hasData = true;
+                    setError(null); // Clear any previous error if we now have data
+                } else if (!hasData) {
+                    // Only show error if we don't have cached data either
+                    setError(result?.message || 'No se pudieron recuperar los datos del paciente.');
+                }
             } catch (err) {
                 console.error('Load error:', err);
-                setError('Error al cargar los datos del paciente');
+                if (!hasData) {
+                    setError('Error al conectar con el servidor. Verifique su conexión.');
+                }
+            } finally {
+                // Ensure we always stop loading and clear the timer
+                clearTimeout(watchdog);
                 setIsLoading(false);
             }
         };
@@ -141,6 +201,7 @@ export default function EditPatientPage() {
                                         <select
                                             value={formData.gender}
                                             onChange={(e) => handleInputChange('gender', e.target.value)}
+                                            required
                                             className="w-full p-4 bg-slate-50 border-2 border-transparent focus:border-alteha-violet focus:bg-white rounded-2xl font-bold text-slate-900 transition-all appearance-none"
                                         >
                                             <option value="MASCULINO">Masculino</option>
@@ -149,11 +210,12 @@ export default function EditPatientPage() {
                                         </select>
                                     </div>
                                     <div className="space-y-1">
-                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">F. Nacimiento</label>
+                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">F. Nacimiento <span className="text-red-500">*</span></label>
                                         <input
                                             type="date"
                                             value={formData.dateOfBirth}
                                             onChange={(e) => handleInputChange('dateOfBirth', e.target.value)}
+                                            required
                                             className="w-full p-4 bg-slate-50 border-2 border-transparent focus:border-alteha-violet focus:bg-white rounded-2xl font-bold text-slate-900 transition-all font-outfit"
                                         />
                                     </div>
@@ -165,7 +227,7 @@ export default function EditPatientPage() {
                             <h3 className="text-xl font-black text-slate-900 border-b pb-4">Información de Contacto</h3>
                             <div className="space-y-4">
                                 <FormInput label="Email" type="email" value={formData.email} onChange={(v: string) => handleInputChange('email', v)} />
-                                <FormInput label="Teléfono" value={formData.phone} onChange={(v: string) => handleInputChange('phone', v)} />
+                                <FormInput label="Teléfono Celular" value={formData.phone} onChange={(v: string) => handleInputChange('phone', v)} />
                                 <div className="space-y-1">
                                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Dirección</label>
                                     <textarea

@@ -40,6 +40,7 @@ export default function SpecialistDashboard() {
     const [showOnboarding, setShowOnboarding] = useState(false);
     const [isLoadingAds, setIsLoadingAds] = useState(true);
     const [complianceStatus, setComplianceStatus] = useState<string | null>(null);
+    const [isLoadingCompliance, setIsLoadingCompliance] = useState(true);
     const [auctions, setAuctions] = useState<Auction[]>([]);
     const [isLoadingAuctions, setIsLoadingAuctions] = useState(true);
 
@@ -92,6 +93,7 @@ export default function SpecialistDashboard() {
     useEffect(() => {
         const checkCompliance = async () => {
             if (!isLoadingProfile && userProfile?.id) {
+                setIsLoadingCompliance(true);
                 console.group('[Compliance Debug]');
                 const profileId = userProfile.id;
                 const accountId = userProfile.account?.id;
@@ -148,6 +150,7 @@ export default function SpecialistDashboard() {
 
                 console.log('Final Detected Status:', finalStatus);
                 setComplianceStatus(finalStatus);
+                setIsLoadingCompliance(false);
 
                 if (isVerified(finalStatus)) {
                     setShowOnboarding(false);
@@ -165,6 +168,8 @@ export default function SpecialistDashboard() {
                         setShowOnboarding(true);
                     }
                 }
+            } else if (!isLoadingProfile && !userProfile) {
+                setIsLoadingCompliance(false);
             }
         };
 
@@ -208,7 +213,7 @@ export default function SpecialistDashboard() {
         <div className="space-y-10 font-outfit">
             {/* Onboarding Popup */}
             <AnimatePresence>
-                {showOnboarding && (
+                {showOnboarding && !isLoadingProfile && !isLoadingCompliance && (
                     <m.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
@@ -225,8 +230,18 @@ export default function SpecialistDashboard() {
                             <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-alteha-violet/10 rounded-full blur-3xl" />
 
                             <div className="relative z-10 text-center">
-                                <div className="w-20 h-20 bg-alteha-violet/10 rounded-[2rem] flex items-center justify-center mx-auto mb-6 text-alteha-violet">
-                                    <Star className="w-10 h-10 fill-alteha-violet" />
+                                <div className="relative mx-auto mb-8 w-24 h-24 group">
+                                    <div className="absolute inset-0 bg-alteha-violet/20 rounded-[2rem] blur-xl group-hover:blur-2xl transition-all" />
+                                    <div className="relative w-24 h-24 rounded-[2rem] overflow-hidden border-4 border-white shadow-2xl bg-white flex items-center justify-center">
+                                        {displayProfile.profileImageUrl ? (
+                                            <img src={displayProfile.profileImageUrl} alt="Profile" className="w-full h-full object-cover" />
+                                        ) : (
+                                            <img src="/doctor-avatar.png" alt="Profile" className="w-full h-full object-contain opacity-40" />
+                                        )}
+                                    </div>
+                                    <div className="absolute -bottom-2 -right-2 bg-alteha-turquoise text-white p-2 rounded-2xl border-4 border-white shadow-xl animate-bounce">
+                                        <Star className="w-4 h-4 fill-white" />
+                                    </div>
                                 </div>
                                 <h3 className="text-3xl font-black text-slate-900 tracking-tight mb-4">¡Impulsa tu Perfil Médico!</h3>
                                 <p className="text-slate-500 font-medium leading-relaxed mb-8">
@@ -258,7 +273,7 @@ export default function SpecialistDashboard() {
 
             {/* Pending Notification Banner */}
             <AnimatePresence>
-                {isPending && !isLoadingProfile && (
+                {isPending && !isLoadingProfile && !isLoadingCompliance && (
                     <m.div
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: 'auto', opacity: 1 }}
@@ -467,11 +482,11 @@ export default function SpecialistDashboard() {
                     bg="bg-alteha-violet/10"
                 />
                 <StatCard
-                    label="Órdenes Completadas"
-                    value="156"
-                    icon={CheckCircle2}
-                    color="text-blue-500"
-                    bg="bg-blue-500/10"
+                    label="Reseñas Recibidas"
+                    value="128"
+                    icon={Star}
+                    color="text-amber-500"
+                    bg="bg-amber-500/10"
                 />
                 <StatCard
                     label="Ganancias del Mes"

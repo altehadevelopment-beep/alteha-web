@@ -2,24 +2,59 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mail, ArrowLeft, CheckCircle, Loader2, Send } from 'lucide-react';
+import { Mail, ArrowLeft, CheckCircle, Loader2, Send, ChevronDown, AlertCircle } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Logo } from '@/components/ui/Logo';
 import Link from 'next/link';
 
+// Mapeo de roles frontend → backend (mismo que lib/api.ts)
+const roleOptions = [
+    { label: 'Especialista / Doctor', value: 'DOCTOR' },
+    { label: 'Clínica', value: 'CLINIC' },
+    { label: 'Seguro', value: 'INSURANCE_COMPANY' },
+    { label: 'Proveedor / Farmacia', value: 'PHARMACY' },
+    { label: 'Fondo de Salud', value: 'HEALTH_FUND' },
+];
+
 export default function ForgotPasswordPage() {
     const [email, setEmail] = useState('');
+    const [role, setRole] = useState('DOCTOR');
     const [loading, setLoading] = useState(false);
     const [submitted, setSubmitted] = useState(false);
+    const [error, setError] = useState('');
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        setLoading(false);
-        setSubmitted(true);
+        setError('');
+
+        try {
+            const response = await fetch('/api/actor/reset-password/init', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, role }),
+            });
+
+            if (response.ok || response.status === 200) {
+                setSubmitted(true);
+            } else {
+                // Intentar leer el mensaje de error del backend
+                let msg = 'No pudimos procesar tu solicitud. Verifica el correo e intenta de nuevo.';
+                try {
+                    const data = await response.json();
+                    if (data?.message) msg = data.message;
+                    else if (data?.error) msg = data.error;
+                } catch {
+                    // Si no hay JSON, usar mensaje genérico
+                }
+                setError(msg);
+            }
+        } catch (err) {
+            setError('Error de conexión con el servidor. Intenta de nuevo más tarde.');
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -59,7 +94,8 @@ export default function ForgotPasswordPage() {
                                 <p className="text-slate-500 text-sm mt-2 text-center">Ingresa tu correo y te enviaremos un enlace para restablecer tu acceso.</p>
                             </div>
 
-                            <form onSubmit={handleSubmit} className="space-y-6">
+                            <form onSubmit={handleSubmit} className="space-y-5">
+                                {/* Email */}
                                 <Input
                                     label="Correo Electrónico"
                                     icon={Mail}
@@ -70,7 +106,47 @@ export default function ForgotPasswordPage() {
                                     placeholder="doctor@ejemplo.com"
                                 />
 
-                                <Button type="submit" className="w-full flex items-center justify-center gap-2 group py-6 rounded-2xl" disabled={loading}>
+                                {/* Role Selector */}
+                                <div className="flex flex-col gap-1.5">
+                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                                        Tipo de cuenta
+                                    </label>
+                                    <div className="relative">
+                                        <select
+                                            value={role}
+                                            onChange={(e) => setRole(e.target.value)}
+                                            className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3.5 pr-10 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-alteha-violet/30 focus:border-alteha-violet transition-all cursor-pointer"
+                                        >
+                                            {roleOptions.map((opt) => (
+                                                <option key={opt.value} value={opt.value}>
+                                                    {opt.label}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                                    </div>
+                                </div>
+
+                                {/* Error Message */}
+                                <AnimatePresence>
+                                    {error && (
+                                        <motion.div
+                                            initial={{ opacity: 0, height: 0 }}
+                                            animate={{ opacity: 1, height: 'auto' }}
+                                            exit={{ opacity: 0, height: 0 }}
+                                            className="flex items-start gap-3 bg-red-50 border border-red-100 text-red-600 rounded-2xl px-4 py-3 text-sm font-medium"
+                                        >
+                                            <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                                            {error}
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+
+                                <Button
+                                    type="submit"
+                                    className="w-full flex items-center justify-center gap-2 group py-6 rounded-2xl"
+                                    disabled={loading}
+                                >
                                     {loading ? (
                                         <Loader2 className="w-5 h-5 animate-spin" />
                                     ) : (

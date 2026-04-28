@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Search,
@@ -13,19 +13,45 @@ import {
     MapPin,
     Edit2,
     SearchX,
-    Loader2
+    Loader2,
+    CheckCircle2
 } from 'lucide-react';
 import Link from 'next/link';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { searchPatient, type Patient } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
+import { toast } from 'sonner';
 
 export default function PatientsPage() {
+    const searchParams = useSearchParams();
+    const router = useRouter();
     const [documentType, setDocumentType] = useState('CEDULA');
     const [documentNumber, setDocumentNumber] = useState('');
     const [patient, setPatient] = useState<Patient | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [hasSearched, setHasSearched] = useState(false);
+
+    useEffect(() => {
+        const registered = searchParams.get('registered');
+        const updated = searchParams.get('updated');
+
+        if (registered === 'true') {
+            toast.success('¡Paciente guardado exitosamente!', {
+                description: 'El nuevo beneficiario ha sido registrado en el sistema.',
+                icon: <CheckCircle2 className="w-5 h-5 text-emerald-500" />,
+            });
+            // Clear the param from URL without refreshing
+            router.replace('/dashboard/insurance/patients', { scroll: false });
+        } else if (updated === 'true') {
+            toast.success('¡Paciente actualizado!', {
+                description: 'Los datos del beneficiario han sido guardados correctamente.',
+                icon: <CheckCircle2 className="w-5 h-5 text-emerald-500" />,
+            });
+            // Clear the param from URL without refreshing
+            router.replace('/dashboard/insurance/patients', { scroll: false });
+        }
+    }, [searchParams, router]);
 
     const handleSearch = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -149,10 +175,17 @@ export default function PatientsPage() {
                                     <p className="font-bold text-white/80">{patient.identificationType}: {patient.identificationNumber}</p>
                                 </div>
                             </div>
-                            <Link href={`/dashboard/insurance/patients/${patient.id}/edit`}>
+                            <Link 
+                                href={`/dashboard/insurance/patients/${patient.id}/edit`}
+                                onClick={() => {
+                                    if (typeof window !== 'undefined') {
+                                        sessionStorage.setItem('editing_patient', JSON.stringify(patient));
+                                    }
+                                }}
+                            >
                                 <Button className="bg-white text-alteha-violet px-8 py-4 rounded-2xl font-black hover:bg-slate-50 transition-all flex items-center gap-2 shadow-xl shadow-black/10">
                                     <Edit2 className="w-5 h-5" />
-                                    Editar Perfil
+                                    Editar Paciente
                                 </Button>
                             </Link>
                         </div>

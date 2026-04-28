@@ -22,13 +22,19 @@ import {
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
-import { registerPatient, type PatientRegistration } from '@/lib/api';
+import { registerPatient, searchPatient, searchPatientByPhone, searchPatientByEmail, type PatientRegistration } from '@/lib/api';
 
 export default function RegisterPatientPage() {
     const router = useRouter();
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [step, setStep] = useState(1);
+    const [isDuplicate, setIsDuplicate] = useState(false);
+    const [checkingDuplicate, setCheckingDuplicate] = useState(false);
+    const [isPhoneDuplicate, setIsPhoneDuplicate] = useState(false);
+    const [checkingPhone, setCheckingPhone] = useState(false);
+    const [isEmailDuplicate, setIsEmailDuplicate] = useState(false);
+    const [checkingEmail, setCheckingEmail] = useState(false);
 
     const [formData, setFormData] = useState<PatientRegistration>({
         email: '',
@@ -55,7 +61,94 @@ export default function RegisterPatientPage() {
 
     const handleInputChange = (field: keyof PatientRegistration, value: any) => {
         setFormData(prev => ({ ...prev, [field]: value }));
+        if (field === 'identificationNumber' || field === 'identificationType') {
+            setIsDuplicate(false);
+            setError(null);
+        }
+        if (field === 'phone') {
+            setIsPhoneDuplicate(false);
+            setError(null);
+        }
+        if (field === 'email') {
+            setIsEmailDuplicate(false);
+            setError(null);
+        }
     };
+
+    // Check for duplicate identification
+    React.useEffect(() => {
+        const checkDuplicate = async () => {
+            if (!formData.identificationNumber || formData.identificationNumber.length < 6) return;
+            
+            setCheckingDuplicate(true);
+            try {
+                const result = await searchPatient(formData.identificationType, formData.identificationNumber);
+                if (result.code === '00' && result.data) {
+                    setIsDuplicate(true);
+                    setError('Esta identificación ya se encuentra registrada en el sistema.');
+                } else {
+                    setIsDuplicate(false);
+                }
+            } catch (err) {
+                console.error('Duplicate check error:', err);
+            } finally {
+                setCheckingDuplicate(false);
+            }
+        };
+
+        const timer = setTimeout(checkDuplicate, 600);
+        return () => clearTimeout(timer);
+    }, [formData.identificationNumber, formData.identificationType]);
+
+    // Check for duplicate phone
+    React.useEffect(() => {
+        const checkPhone = async () => {
+            if (!formData.phone || formData.phone.length < 10) return;
+            
+            setCheckingPhone(true);
+            try {
+                const result = await searchPatientByPhone(formData.phone);
+                if (result.code === '00' && result.data && (Array.isArray(result.data) ? result.data.length > 0 : true)) {
+                    setIsPhoneDuplicate(true);
+                    setError('Este número de teléfono ya está asociado a otro paciente.');
+                } else {
+                    setIsPhoneDuplicate(false);
+                }
+            } catch (err) {
+                console.error('Phone duplicate check error:', err);
+            } finally {
+                setCheckingPhone(false);
+            }
+        };
+
+        const timer = setTimeout(checkPhone, 800);
+        return () => clearTimeout(timer);
+    }, [formData.phone]);
+
+    // Check for duplicate email
+    React.useEffect(() => {
+        const checkEmail = async () => {
+            if (!formData.email || formData.email.length < 5 || !formData.email.includes('@')) return;
+            
+            setCheckingEmail(true);
+            try {
+                const result = await searchPatientByEmail(formData.email);
+                if (result.code === '00' && result.data && (Array.isArray(result.data) ? result.data.length > 0 : true)) {
+                    setIsEmailDuplicate(true);
+                    setError('Este correo electrónico ya está asociado a otro paciente.');
+                } else {
+                    setIsEmailDuplicate(false);
+                }
+            } catch (err) {
+                console.error('Email duplicate check error:', err);
+            } finally {
+                setCheckingEmail(false);
+            }
+        };
+
+        const timer = setTimeout(checkEmail, 1000);
+        return () => clearTimeout(timer);
+    }, [formData.email]);
 
     const handleProfileImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -86,11 +179,22 @@ export default function RegisterPatientPage() {
             if (result.code === '00') {
                 router.push('/dashboard/insurance/patients?registered=true');
             } else {
-                setError(result.message || 'Error al registrar el paciente');
+                // Map common backend error messages to friendly Spanish
+                let friendlyMessage = result.message || 'Error al registrar el paciente';
+                
+                if (result.message?.includes('Email already in use')) {
+                    friendlyMessage = 'Este correo electrónico ya está registrado con otro paciente.';
+                } else if (result.message?.includes('Phone already in use')) {
+                    friendlyMessage = 'Este número de teléfono ya se encuentra asociado a otro usuario.';
+                } else if (result.message?.includes('identificationNumber already exists') || result.message?.includes('already exists')) {
+                    friendlyMessage = 'Este número de identificación ya está registrado en el sistema.';
+                }
+                
+                setError(friendlyMessage);
             }
         } catch (err) {
             console.error('Registration error:', err);
-            setError('Error de conexión con el servidor');
+            setError('Error de conexión con el servidor. Inténtelo de nuevo.');
         } finally {
             setIsLoading(false);
         }
@@ -169,7 +273,7 @@ export default function RegisterPatientPage() {
                                                 </select>
                                             </div>
                                             <div className="space-y-1">
-                                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">F. Nacimiento</label>
+                                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">F. Nacimiento <span className="text-red-500">*</span></label>
                                                 <input
                                                     type="date"
                                                     className="w-full p-4 bg-slate-50 border-2 border-transparent focus:border-alteha-violet focus:bg-white rounded-2xl font-bold text-slate-900 transition-all"
@@ -183,7 +287,6 @@ export default function RegisterPatientPage() {
 
                                     <div className="space-y-4">
                                         <h3 className="text-xl font-black text-slate-900 flex items-center gap-2">
-                                            <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-500 flex items-center justify-center text-sm font-black">2</div>
                                             Identificación & Foto
                                         </h3>
 
@@ -202,13 +305,26 @@ export default function RegisterPatientPage() {
                                             </div>
                                             <div className="col-span-2 space-y-1">
                                                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Número</label>
-                                                <input
-                                                    className="w-full p-4 bg-slate-50 border-2 border-transparent focus:border-alteha-violet focus:bg-white rounded-2xl font-bold text-slate-900 transition-all"
-                                                    placeholder="Número de doc."
-                                                    value={formData.identificationNumber}
-                                                    onChange={(e) => handleInputChange('identificationNumber', e.target.value)}
-                                                    required
-                                                />
+                                                <div className="relative">
+                                                    <input
+                                                        className={`w-full p-4 bg-slate-50 border-2 rounded-2xl font-bold text-slate-900 transition-all outline-none ${isDuplicate ? 'border-red-500 bg-red-50' : 'border-transparent focus:border-alteha-violet focus:bg-white'}`}
+                                                        placeholder="Número de doc."
+                                                        value={formData.identificationNumber}
+                                                        onChange={(e) => handleInputChange('identificationNumber', e.target.value)}
+                                                        required
+                                                    />
+                                                    {checkingDuplicate && (
+                                                        <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                                                            <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
+                                                        </div>
+                                                    )}
+                                                    {isDuplicate && (
+                                                        <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                                                            <AlertCircle className="w-4 h-4 text-red-500" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                {isDuplicate && <p className="text-[9px] font-bold text-red-500 mt-1 ml-1 uppercase tracking-tight">¡Error! Paciente ya registrado</p>}
                                             </div>
                                         </div>
 
@@ -236,7 +352,14 @@ export default function RegisterPatientPage() {
                                     </div>
                                 </div>
                                 <div className="flex justify-end pt-6">
-                                    <Button type="button" onClick={() => setStep(2)} className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black">Continuar</Button>
+                                    <Button 
+                                        type="button" 
+                                        disabled={!formData.firstName || !formData.lastName || !formData.dateOfBirth || !formData.identificationNumber || isDuplicate || checkingDuplicate} 
+                                        onClick={() => setStep(2)} 
+                                        className={`bg-slate-900 text-white px-10 py-4 rounded-2xl font-black transition-all ${(!formData.firstName || !formData.lastName || !formData.dateOfBirth || !formData.identificationNumber || isDuplicate || checkingDuplicate) ? 'opacity-50 cursor-not-allowed scale-95' : 'hover:scale-105 active:scale-95'}`}
+                                    >
+                                        Continuar
+                                    </Button>
                                 </div>
                             </motion.div>
                         )}
@@ -252,31 +375,57 @@ export default function RegisterPatientPage() {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                     <div className="space-y-6">
                                         <h3 className="text-xl font-black text-slate-900 flex items-center gap-2">
-                                            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-500 flex items-center justify-center text-sm font-black">3</div>
+                                            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-500 flex items-center justify-center text-sm font-black">2</div>
                                             Contacto & Ubicación
                                         </h3>
 
                                         <div className="space-y-1">
                                             <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Email</label>
-                                            <input
-                                                type="email"
-                                                className="w-full p-4 bg-slate-50 border-2 border-transparent focus:border-alteha-violet focus:bg-white rounded-2xl font-bold text-slate-900 transition-all"
-                                                placeholder="ejemplo@correo.com"
-                                                value={formData.email}
-                                                onChange={(e) => handleInputChange('email', e.target.value)}
-                                                required
-                                            />
+                                            <div className="relative">
+                                                <input
+                                                    type="email"
+                                                    className={`w-full p-4 bg-slate-50 border-2 rounded-2xl font-bold text-slate-900 transition-all outline-none ${isEmailDuplicate ? 'border-red-500 bg-red-50' : 'border-transparent focus:border-alteha-violet focus:bg-white'}`}
+                                                    placeholder="ejemplo@correo.com"
+                                                    value={formData.email}
+                                                    onChange={(e) => handleInputChange('email', e.target.value)}
+                                                    required
+                                                />
+                                                {checkingEmail && (
+                                                    <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                                                        <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
+                                                    </div>
+                                                )}
+                                                {isEmailDuplicate && (
+                                                    <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                                                        <AlertCircle className="w-4 h-4 text-red-500" />
+                                                    </div>
+                                                )}
+                                            </div>
+                                            {isEmailDuplicate && <p className="text-[9px] font-bold text-red-500 mt-1 ml-1 uppercase tracking-tight">¡Error! Email ya en uso</p>}
                                         </div>
                                         <div className="space-y-1">
                                             <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Teléfono</label>
-                                            <input
-                                                type="tel"
-                                                className="w-full p-4 bg-slate-50 border-2 border-transparent focus:border-alteha-violet focus:bg-white rounded-2xl font-bold text-slate-900 transition-all"
-                                                placeholder="+58-xxx-xxxxxxx"
-                                                value={formData.phone}
-                                                onChange={(e) => handleInputChange('phone', e.target.value)}
-                                                required
-                                            />
+                                            <div className="relative">
+                                                <input
+                                                    type="tel"
+                                                    className={`w-full p-4 bg-slate-50 border-2 rounded-2xl font-bold text-slate-900 transition-all outline-none ${isPhoneDuplicate ? 'border-red-500 bg-red-50' : 'border-transparent focus:border-alteha-violet focus:bg-white'}`}
+                                                    placeholder="+58-xxx-xxxxxxx"
+                                                    value={formData.phone}
+                                                    onChange={(e) => handleInputChange('phone', e.target.value)}
+                                                    required
+                                                />
+                                                {checkingPhone && (
+                                                    <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                                                        <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
+                                                    </div>
+                                                )}
+                                                {isPhoneDuplicate && (
+                                                    <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                                                        <AlertCircle className="w-4 h-4 text-red-500" />
+                                                    </div>
+                                                )}
+                                            </div>
+                                            {isPhoneDuplicate && <p className="text-[9px] font-bold text-red-500 mt-1 ml-1 uppercase tracking-tight">¡Error! Teléfono ya en uso</p>}
                                         </div>
                                         <div className="space-y-1">
                                             <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Dirección</label>
@@ -292,7 +441,6 @@ export default function RegisterPatientPage() {
 
                                     <div className="space-y-6">
                                         <h3 className="text-xl font-black text-slate-900 flex items-center gap-2">
-                                            <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-500 flex items-center justify-center text-sm font-black">4</div>
                                             Documentos de Verificación
                                         </h3>
 
@@ -325,7 +473,14 @@ export default function RegisterPatientPage() {
                                 </div>
                                 <div className="flex justify-between pt-6">
                                     <Button type="button" onClick={() => setStep(1)} className="bg-slate-100 text-slate-500 px-10 py-4 rounded-2xl font-black">Atrás</Button>
-                                    <Button type="button" onClick={() => setStep(3)} className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black">Continuar</Button>
+                                    <Button 
+                                        type="button" 
+                                        disabled={!formData.email || !formData.phone || !formData.address || isPhoneDuplicate || checkingPhone || isEmailDuplicate || checkingEmail} 
+                                        onClick={() => setStep(3)} 
+                                        className={`bg-slate-900 text-white px-10 py-4 rounded-2xl font-black transition-all ${(!formData.email || !formData.phone || !formData.address || isPhoneDuplicate || checkingPhone || isEmailDuplicate || checkingEmail) ? 'opacity-50 cursor-not-allowed scale-95' : 'hover:scale-105 active:scale-95'}`}
+                                    >
+                                        Continuar
+                                    </Button>
                                 </div>
                             </motion.div>
                         )}
@@ -340,34 +495,31 @@ export default function RegisterPatientPage() {
                             >
                                 <div className="space-y-6">
                                     <h3 className="text-2xl font-black text-slate-900 flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-xl bg-violet-50 text-alteha-violet flex items-center justify-center text-sm font-black">5</div>
-                                        Perfil Médico & Confirmación
+                                        <div className="w-10 h-10 rounded-xl bg-violet-50 text-alteha-violet flex items-center justify-center text-sm font-black">3</div>
+                                        Confirmación de Datos
                                     </h3>
 
-                                    <div className="bg-violet-50/50 p-8 rounded-[2.5rem] border border-violet-100 space-y-6">
-                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                            <div className="p-6 bg-white rounded-3xl shadow-sm">
-                                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                                    <AlertCircle className="w-3 h-3" /> Alergias
+                                    <div className="bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100 space-y-8">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                            <div className="space-y-4">
+                                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                                    <User className="w-3 h-3" /> Identidad
                                                 </h4>
-                                                <div className="flex flex-wrap gap-2 min-h-[40px]">
-                                                    <p className="text-xs text-slate-400 italic">Configure en el perfil del paciente post-registro</p>
+                                                <div className="space-y-2">
+                                                    <p className="text-sm font-bold text-slate-900">{formData.firstName} {formData.lastName}</p>
+                                                    <p className="text-xs text-slate-500 font-medium">{formData.identificationType}: {formData.identificationNumber}</p>
+                                                    <p className="text-xs text-slate-500 font-medium">Género: {formData.gender} | F. Nac: {formData.dateOfBirth}</p>
                                                 </div>
                                             </div>
-                                            <div className="p-6 bg-white rounded-3xl shadow-sm">
-                                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                                    <Stethoscope className="w-3 h-3" /> Condiciones
+
+                                            <div className="space-y-4">
+                                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                                    <Phone className="w-3 h-3" /> Contacto
                                                 </h4>
-                                                <div className="flex flex-wrap gap-2 min-h-[40px]">
-                                                    <p className="text-xs text-slate-400 italic">Configure en el perfil del paciente post-registro</p>
-                                                </div>
-                                            </div>
-                                            <div className="p-6 bg-white rounded-3xl shadow-sm">
-                                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                                    <Shield className="w-3 h-3" /> Medicación
-                                                </h4>
-                                                <div className="flex flex-wrap gap-2 min-h-[40px]">
-                                                    <p className="text-xs text-slate-400 italic">Configure en el perfil del paciente post-registro</p>
+                                                <div className="space-y-2">
+                                                    <p className="text-sm font-bold text-slate-900">{formData.email}</p>
+                                                    <p className="text-xs text-slate-500 font-medium">{formData.phone}</p>
+                                                    <p className="text-xs text-slate-500 font-medium truncate max-w-[250px]">{formData.address}</p>
                                                 </div>
                                             </div>
                                         </div>
@@ -379,7 +531,7 @@ export default function RegisterPatientPage() {
                                             <div>
                                                 <h4 className="font-black text-emerald-900">Listo para Procesar</h4>
                                                 <p className="text-emerald-700/70 text-sm font-medium">
-                                                    Al confirmar, se creará la cuenta del paciente y se vinculará a **{formData.firstName} {formData.lastName}**.
+                                                    Al finalizar, se procederá con la creación oficial del paciente.
                                                 </p>
                                             </div>
                                         </div>

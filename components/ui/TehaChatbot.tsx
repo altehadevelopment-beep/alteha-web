@@ -4,7 +4,8 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageCircle, X, Send, Mic, MicOff, Volume2, VolumeX, Sparkles, Loader2, Headset } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { TITA_SYSTEM_PROMPT, TITA_GREETINGS } from '@/lib/tita-persona';
+import { useAuth } from '@/contexts/AuthContext';
+import { TEHA_SYSTEM_PROMPT, TEHA_GREETINGS } from '@/lib/teha-persona';
 
 interface Message {
     id: string;
@@ -13,7 +14,8 @@ interface Message {
     timestamp: Date;
 }
 
-export function TitaChatbot() {
+export function TehaChatbot() {
+    const { userProfile } = useAuth();
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
@@ -29,7 +31,7 @@ export function TitaChatbot() {
 
     // Initialize initial message on mount or when opening
     const initChat = useCallback(() => {
-        const randomGreeting = TITA_GREETINGS[Math.floor(Math.random() * TITA_GREETINGS.length)];
+        const randomGreeting = TEHA_GREETINGS[Math.floor(Math.random() * TEHA_GREETINGS.length)];
         const initialMsg: Message = {
             id: '1',
             role: 'assistant',
@@ -159,7 +161,7 @@ export function TitaChatbot() {
             .replace(/,/g, ' , '); // Add space around commas
 
         // Phonetic fix: "Alteha" -> "Altea" for better pronunciation
-        const phoneticText = cleanText.replace(/Alteha/gi, 'Altea');
+        const phoneticText = cleanText.replace(/Alteha/gi, 'Altea').replace(/Teha/gi, 'Tea');
         
         const utterance = new SpeechSynthesisUtterance(phoneticText);
         utterance.lang = voice?.lang || 'es-MX'; // Prefer MX over generic for a Latin vibe if VE is missing
@@ -222,10 +224,13 @@ export function TitaChatbot() {
         }
 
         try {
-            const response = await fetch('/api/tita/chat', {
+            const response = await fetch('/api/teha/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ messages: currentMessages }),
+                body: JSON.stringify({ 
+                    messages: currentMessages,
+                    userProfile: userProfile 
+                }),
             });
 
             if (!response.ok) {
@@ -288,7 +293,7 @@ export function TitaChatbot() {
                             exit={{ scale: 0.9, y: 20, opacity: 0 }}
                             className="w-full max-w-6xl h-full max-h-[900px] bg-white rounded-[3rem] shadow-[0_30px_100px_rgba(0,0,0,0.5)] border border-white/20 flex overflow-hidden relative"
                         >
-                            {/* Left Side: Tita Persona & Info */}
+                            {/* Left Side: Teha Persona & Info */}
                             <div className="hidden lg:flex w-1/3 bg-gradient-to-br from-alteha-turquoise to-alteha-violet p-12 flex-col justify-between text-white relative">
                                 <div className="absolute inset-0 opacity-10">
                                     <Sparkles className="w-full h-full scale-150 animate-pulse" />
@@ -308,13 +313,13 @@ export function TitaChatbot() {
                                         ) : (
                                             <img 
                                                 src="/tita-avatar.png"
-                                                alt="Tita Avatar"
+                                                alt="Teha Avatar"
                                                 className="w-full h-full object-cover object-top scale-110"
                                             />
                                         )}
                                     </div>
                                     <div>
-                                        <h2 className="text-4xl font-black tracking-tight">Soy Tita</h2>
+                                        <h2 className="text-4xl font-black tracking-tight">Soy Teha</h2>
                                         <p className="text-white/80 font-medium mt-2">Tu asistente inteligente de Alteha</p>
                                     </div>
                                     <div className="flex flex-wrap justify-center gap-2 pt-4">
@@ -353,7 +358,7 @@ export function TitaChatbot() {
                                             ) : (
                                                 <img 
                                                     src="/tita-avatar.png"
-                                                    alt="Tita Avatar"
+                                                    alt="Teha Avatar"
                                                     className="w-full h-full object-cover object-top scale-110"
                                                 />
                                             )}
@@ -407,7 +412,7 @@ export function TitaChatbot() {
                                         >
                                             {msg.role === 'assistant' && (
                                                 <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 border-2 border-white shadow-xl mt-1 ring-2 ring-alteha-turquoise/20 bg-slate-100 flex items-center justify-center">
-                                                    <img src="/tita-avatar.png" alt="Tita" className="w-full h-full object-cover" />
+                                                    <img src="/tita-avatar.png" alt="Teha" className="w-full h-full object-cover" />
                                                 </div>
                                             )}
                                             <div className="flex flex-col space-y-2">
@@ -423,7 +428,7 @@ export function TitaChatbot() {
                                                     "text-[10px] font-black text-slate-300 uppercase tracking-widest px-2",
                                                     msg.role === 'user' ? "text-right" : "text-left"
                                                 )}>
-                                                    {msg.role === 'user' ? "Tú" : "Tita AI"} • {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    {msg.role === 'user' ? "Tú" : "Teha AI"} • {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                 </span>
                                             </div>
                                         </motion.div>
@@ -435,7 +440,7 @@ export function TitaChatbot() {
                                             className="flex items-center gap-4 text-alteha-turquoise font-black uppercase tracking-[0.2em] text-[10px] bg-alteha-turquoise/5 p-4 rounded-2xl w-fit"
                                         >
                                             <Loader2 className="w-4 h-4 animate-spin" />
-                                            Procesando consulta médica...
+                                            Teha está pensando...
                                         </motion.div>
                                     )}
                                 </div>
@@ -458,7 +463,7 @@ export function TitaChatbot() {
                                                 <div className="absolute -inset-2 rounded-[2rem] border-4 border-red-500/20 animate-ping" />
                                             )}
                                             <div className="absolute -top-12 left-1/2 -translate-x-1/2 px-4 py-2 bg-slate-800 text-white text-[10px] font-bold rounded-xl opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap shadow-2xl">
-                                                {isSpeaking ? "Espere que Tita termine" : "Comando de Voz"}
+                                                {isSpeaking ? "Espere que Teha termine" : "Comando de Voz"}
                                             </div>
                                         </button>
 
@@ -509,7 +514,7 @@ export function TitaChatbot() {
                 ) : (
                     <img 
                         src="/tita-avatar.png"
-                        alt="Tita Avatar"
+                        alt="Teha Avatar"
                         className="w-full h-full object-cover object-top scale-110"
                     />
                 )}
@@ -518,7 +523,7 @@ export function TitaChatbot() {
                 )}
                 <div className="absolute right-24 bg-white text-slate-800 px-6 py-3 rounded-2xl text-sm font-black opacity-0 group-hover:opacity-100 transition-all duration-300 translate-x-4 group-hover:translate-x-0 pointer-events-none whitespace-nowrap shadow-[0_10px_30px_rgba(0,0,0,0.2)] border border-slate-100 flex items-center gap-3">
                     <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    ¡Hola! Soy Tita. ¿Hablamos?
+                    ¡Hola! Soy Teha. ¿Hablamos?
                 </div>
             </motion.button>
         </div>

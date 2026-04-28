@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getAppToken } from '@/lib/auth-service';
 import { verifyCaptcha } from '@/lib/captcha-verify';
@@ -34,6 +36,7 @@ export async function POST(request: NextRequest) {
         });
 
         const data = await response.json();
+        console.log(`[Doctor Register] Status: ${response.status} | Response:`, JSON.stringify(data));
         return NextResponse.json(data);
     } catch (error) {
         console.error('Doctor registration error:', error);

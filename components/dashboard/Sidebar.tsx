@@ -26,10 +26,9 @@ import { cn } from '@/lib/utils';
 
 const specialistItems = [
     { title: 'Dashboard', icon: LayoutDashboard, href: '/dashboard/specialist' },
-    { title: 'Mis Órdenes', icon: FileText, href: '/dashboard/specialist/orders' },
     { title: 'Métodos de Pago', icon: CreditCard, href: '/dashboard/specialist/payments' },
     { title: 'Recepción de Fondos', icon: Wallet, href: '/dashboard/specialist/withdrawals' },
-    { title: 'Publicar Paquete', icon: Package, href: '/dashboard/specialist/packages' },
+    { title: 'Paquetes', icon: Package, href: '/dashboard/specialist/packages' },
     { title: 'Chat', icon: MessageSquare, href: '/dashboard/specialist/chat' },
     { title: 'Referir Colega', icon: Users, href: '/dashboard/specialist/referrals' },
     { title: 'Disputas', icon: AlertCircle, href: '/dashboard/specialist/disputes' },
@@ -39,7 +38,6 @@ const clinicItems = [
     { title: 'Dashboard', icon: LayoutDashboard, href: '/dashboard/clinic' },
     { title: 'Subastas', icon: Gavel, href: '/dashboard/clinic/auctions' },
     { title: 'Mis Paquetes', icon: Package, href: '/dashboard/clinic/packages' },
-    { title: 'Mis Órdenes', icon: FileText, href: '/dashboard/clinic/orders' },
     { title: 'Pagos', icon: CreditCard, href: '/dashboard/clinic/payments' },
     { title: 'Chat', icon: MessageSquare, href: '/dashboard/clinic/chat' },
     { title: 'Notificaciones', icon: Bell, href: '/dashboard/clinic/notifications' },

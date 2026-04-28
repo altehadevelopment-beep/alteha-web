@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getAppToken } from '@/lib/auth-service';
 
@@ -6,9 +8,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://alteha.chanceaapp.c
 export async function GET(request: NextRequest) {
     try {
         const { searchParams } = new URL(request.url);
-        const role = searchParams.get('role') || 'INSURANCE_COMPANY';
-        const documentType = searchParams.get('documentType');
-        const documentNumber = searchParams.get('documentNumber');
+        const queryParams = searchParams.toString();
 
         // Get user token from header
         const userToken = request.headers.get('X-Alteha-Token');
@@ -23,7 +23,8 @@ export async function GET(request: NextRequest) {
         // Get app admin token
         const adminToken = await getAppToken();
 
-        const response = await fetch(`${API_BASE}/actor-register/search-patient?role=${role}&documentType=${documentType}&documentNumber=${documentNumber}`, {
+        // Forward to backend with all parameters
+        const response = await fetch(`${API_BASE}/actor-register/search-patient?${queryParams}`, {
             method: 'GET',
             headers: {
                 'Accept': '*/*',

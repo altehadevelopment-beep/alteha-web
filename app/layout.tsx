@@ -5,7 +5,7 @@ import './globals.css'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { Toaster } from 'sonner'
 
-import { TitaChatbot } from '@/components/ui/TitaChatbot'
+import { TehaChatbot } from '@/components/ui/TehaChatbot'
 
 // Use Outfit for a more modern, tech feel as requested ("minimalista pero muy moderno")
 const outfit = Outfit({ subsets: ['latin'], variable: '--font-outfit' })
@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   title: 'Alteha - Gestión de Subastas Médicas',
   description: 'Portal avanzado de subastas de reservas médicas para especialistas y clínicas.',
   icons: {
-    icon: '/doctor-avatar.png', // Using doctor avatar as placeholder logo if specific favicon is missing, user requested "logo de alteha"
+    icon: '/logoalteha.svg',
   }
 }
 
@@ -30,7 +30,7 @@ export default function RootLayout({
         <AuthProvider>
           <Toaster position="top-center" richColors />
           {children}
-          <TitaChatbot />
+          <TehaChatbot />
         </AuthProvider>
       </body>
     </html>

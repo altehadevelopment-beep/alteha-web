@@ -2,17 +2,19 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LucideIcon, Eye, EyeOff } from 'lucide-react';
+import { LucideIcon, Eye, EyeOff, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
     label: string;
     icon?: LucideIcon;
     error?: string;
+    alwaysFloat?: boolean;
+    tooltip?: string;
 }
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
-    ({ label, icon: Icon, error, className, type, ...props }, ref) => {
+    ({ label, icon: Icon, error, alwaysFloat, tooltip, className, type, ...props }, ref) => {
         const [focused, setFocused] = useState(false);
         const [showPassword, setShowPassword] = useState(false);
         const hasValue = (props.value !== '' && props.value !== undefined) || (props.defaultValue !== '' && props.defaultValue !== undefined);
@@ -23,10 +25,10 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
         return (
             <div className={cn("relative mb-4 group", className)}>
                 <motion.label
-                    animate={focused || hasValue ? { 
+                    animate={focused || hasValue || alwaysFloat ? { 
                         y: -14, 
                         scale: 0.75, 
-                        color: error ? '#ef4444' : '#6A4DFE',
+                        color: error ? '#ef4444' : '#7B5BFF',
                         fontWeight: 700
                     } : { 
                         y: 30, 
@@ -41,7 +43,18 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
                         Icon ? "left-12" : "left-4"
                     )}
                 >
-                    {label}
+                    <div className="flex items-center gap-1.5">
+                        {label}
+                        {tooltip && (focused || hasValue || alwaysFloat) && (
+                            <div className="relative group/tooltip">
+                                <Info className="w-3 h-3 text-slate-400 hover:text-alteha-violet transition-colors cursor-help" />
+                                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-48 p-2 bg-slate-900 text-white text-[9px] font-medium leading-tight rounded-lg opacity-0 group-hover/tooltip:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl normal-case tracking-normal">
+                                    {tooltip}
+                                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900" />
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </motion.label>
 
                 <div className="relative group/input">
@@ -50,7 +63,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
                         "absolute inset-0 rounded-2xl transition-all duration-500",
                         "bg-slate-50/50 backdrop-blur-sm border-2",
                         error ? "border-red-200 bg-red-50/10" : 
-                        focused ? "border-alteha-violet/40 bg-white shadow-[0_0_20px_rgba(106,77,254,0.15)] scale-[1.01]" : 
+                        focused ? "border-alteha-violet/40 bg-white shadow-[0_0_20px_rgba(123,91,255,0.15)] scale-[1.01]" : 
                         "border-slate-100 group-hover:border-slate-200 group-hover:bg-white/80"
                     )} />
                     

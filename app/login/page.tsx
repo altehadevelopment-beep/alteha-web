@@ -28,14 +28,14 @@ export default function LoginPage() {
         switch (role) {
             case 'specialist':
                 return { 
-                    title: 'Portal Especialistas', 
+                    title: 'Red Médica Althea', 
                     registerLink: '/register/specialist', 
                     color: 'text-alteha-turquoise',
                     bgImage: '/backgrounds/specialist.png'
                 };
             case 'insurance':
                 return { 
-                    title: 'Portal Seguros', 
+                    title: 'Portal Empresas de Seguros', 
                     registerLink: '/register/insurance', 
                     color: 'text-alteha-violet',
                     bgImage: '/backgrounds/insurance.png'
@@ -76,10 +76,10 @@ export default function LoginPage() {
     // Error Code Mapping
     const getErrorMessage = (code: string): string => {
         const errorMessages: Record<string, string> = {
-            'AUTH_001': 'Usuario o contraseña incorrectos.',
+            'AUTH_001': 'Usuario (Correo Electrónico) o contraseña incorrectos.',
             'AUTH_002': 'Este correo electrónico no está registrado.',
             'AUTH_003': 'Tu cuenta no está verificada.',
-            'AUTH_004': 'Usuario o contraseña incorrectos.',
+            'AUTH_004': 'Usuario (Correo Electrónico) o contraseña incorrectos.',
             'ERROR': 'Error de conexión con el servidor.'
         };
         return errorMessages[code] || 'Error al iniciar sesión. Intenta de nuevo.';
@@ -90,7 +90,10 @@ export default function LoginPage() {
         setLoading(true);
         setError('');
 
-        if (!username || !password) {
+        const trimmedUsername = username.trim();
+        const trimmedPassword = password.trim();
+
+        if (!trimmedUsername || !trimmedPassword) {
             setError('Por favor ingresa tus credenciales');
             setLoading(false);
             return;
@@ -103,7 +106,7 @@ export default function LoginPage() {
         }
 
         try {
-            const result = await login(username, password, role || 'specialist', isVerified ? 'human' : '');
+            const result = await login(trimmedUsername, trimmedPassword, role || 'specialist', isVerified ? 'human' : '');
 
             if (result.code === '00' && result.data?.id_token) {
                 // Success - redirect to dashboard
@@ -129,8 +132,8 @@ export default function LoginPage() {
                 }
 
                 // Specific mapping for "Actor not found"
-                if (backendMsg && backendMsg.toLowerCase().includes('actor not found')) {
-                    backendMsg = 'El usuario no se encuentra registrado.';
+                if (backendMsg && (backendMsg.toLowerCase().includes('actor not found') || backendMsg.toLowerCase().includes('was not found in the database'))) {
+                    backendMsg = 'Usuario No Existe, inicie su registro.';
                 }
 
                 const mappedMsg = getErrorMessage(result.code);
@@ -188,7 +191,7 @@ export default function LoginPage() {
                 className="relative z-10 w-full max-w-md bg-white rounded-[2rem] shadow-[0_30px_60px_rgba(0,0,0,0.4)] p-8 border border-slate-100"
             >
                 {/* Inicio Button */}
-                <Link href="/" className="absolute top-5 left-6 z-30 flex items-center gap-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all hover:gap-3">
+                <Link href="/" className="absolute top-5 left-6 z-30 flex items-center gap-2 px-3 py-1.5 bg-alteha-turquoise/10 hover:bg-alteha-turquoise/20 text-alteha-turquoise border border-alteha-turquoise/20 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all hover:gap-3 shadow-sm">
                     <ArrowLeft className="w-3 h-3" />
                     Inicio
                 </Link>
@@ -196,7 +199,7 @@ export default function LoginPage() {
                 <div className="flex flex-col items-center mb-8 mt-12">
                     <Link href="/" className="relative group/logo">
                         <div className="absolute -inset-4 bg-gradient-to-tr from-alteha-turquoise/20 to-alteha-violet/20 rounded-full blur-2xl opacity-0 group-hover/logo:opacity-100 transition-opacity duration-500" />
-                        <Logo className="w-16 h-16 mb-4 relative z-10 hover:scale-110 transition-transform duration-500 ease-out" />
+                        <Logo className="w-40 h-40 mb-6 relative z-10 hover:scale-110 transition-transform duration-500 ease-out" />
                     </Link>
                     <h1 className={cn("text-2xl font-black transition-colors duration-500 tracking-tight", roleInfo.color)}>{roleInfo.title}</h1>
                     <p className="text-slate-400 text-xs mt-1 font-medium">Ingresa para continuar</p>
@@ -204,7 +207,7 @@ export default function LoginPage() {
 
                 <form onSubmit={handleLogin} className="space-y-6">
                     <Input
-                        label="Usuario o Correo"
+                        label="Usuario (Correo Electrónico)"
                         icon={User}
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}

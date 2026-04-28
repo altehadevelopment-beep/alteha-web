@@ -14,12 +14,16 @@ import {
     Stethoscope,
     Upload,
     CheckCircle,
-    Shield,
-    Camera,
-    X,
     MapPin,
     Globe,
-    Briefcase
+    Briefcase,
+    Search,
+    Check,
+    AlertCircle,
+    Award,
+    Shield,
+    Camera,
+    X
 } from 'lucide-react';
 import { useLoadScript, GoogleMap, MarkerF, Autocomplete } from '@react-google-maps/api';
 import { Input } from '@/components/ui/Input';
@@ -121,6 +125,7 @@ export default function ClinicRegistrationPage() {
         password: '',
         confirmPassword: '',
         identificationType: 'RIF',
+        nationality: 'J',
         identificationNumber: '',
         website: '',
         healthLicenseNumber: '',
@@ -140,6 +145,12 @@ export default function ClinicRegistrationPage() {
     const [emailToken, setEmailToken] = useState('');
     const [emailSent, setEmailSent] = useState(false);
     const [isVerified, setIsVerified] = useState(false);
+    const [isPreloaded, setIsPreloaded] = useState(false);
+
+    // Preload State
+    const [showPreloadPopup, setShowPreloadPopup] = useState(false);
+    const [foundClinicData, setFoundClinicData] = useState<any>(null);
+    const [searchLoading, setSearchLoading] = useState(false);
 
     // Countdown and resend attempts
     // Countdown and resend attempts
@@ -159,6 +170,51 @@ export default function ClinicRegistrationPage() {
     const [logoPreview, setLogoPreview] = useState<string | null>(null);
     const [rifFile, setRifFile] = useState<File | null>(null);
     const [mercantileFile, setMercantileFile] = useState<File | null>(null);
+
+    // Search for clinic data
+    const handlePreloadSearch = useCallback(async (id: string) => {
+        if (!id || id.length < 5) return;
+        setSearchLoading(true);
+        try {
+            const response = await fetch(`/api/clinics/preload?identificationNumber=${id}`);
+            const data = await response.json();
+            
+            if (data && data.length > 0) {
+                setFoundClinicData(data[0]);
+                setShowPreloadPopup(true);
+            }
+        } catch (error) {
+            console.error("Clinic preload error:", error);
+        } finally {
+            setSearchLoading(false);
+        }
+    }, []);
+
+    const fillPreloadData = () => {
+        if (!foundClinicData) return;
+
+        setFormData(prev => ({
+            ...prev,
+            name: foundClinicData.name || prev.name,
+            legalName: foundClinicData.legalName || prev.legalName,
+            // Pre-fill email and phone, but user must verify or correct them
+            email: foundClinicData.email || prev.email,
+            phone: foundClinicData.phone || prev.phone,
+            website: foundClinicData.website || prev.website,
+            healthLicenseNumber: foundClinicData.healthLicenseNumber || prev.healthLicenseNumber,
+            identificationNumber: foundClinicData.identificationNumber || prev.identificationNumber,
+            identificationType: foundClinicData.identificationType || prev.identificationType,
+        }));
+
+        setIsPreloaded(true);
+        // Do NOT skip verification — user must confirm or correct email and phone
+        setEmailVerified(false);
+        setPhoneVerified(false);
+        setEmailSent(false);
+        setSmsSent(false);
+        setShowPreloadPopup(false);
+        setStep(2); // Move to Map (then user reaches step 4 for verification)
+    };
 
     // Load data on mount
     useEffect(() => {
@@ -193,8 +249,11 @@ export default function ClinicRegistrationPage() {
 
     const loadSpecialties = async () => {
         try {
-            const data = await getSpecialties();
-            setSpecialties(data.filter((s: Specialty) => s.isActive));
+            const list = Array.isArray(data) ? data : (data as any).content || [];
+            const sortedList = list
+                .filter((s: Specialty) => s.isActive)
+                .sort((a: Specialty, b: Specialty) => a.name.localeCompare(b.name));
+            setSpecialties(sortedList);
         } catch (err) {
             console.error('Error loading specialties:', err);
         }
@@ -202,8 +261,9 @@ export default function ClinicRegistrationPage() {
 
     const loadServices = async () => {
         try {
-            const data = await getServices();
-            setServices(data);
+            const list = Array.isArray(data) ? data : (data as any).content || [];
+            const sortedList = list.sort((a: Service, b: Service) => a.name.localeCompare(b.name));
+            setServices(sortedList);
         } catch (err) {
             console.error('Error loading services:', err);
         }
@@ -233,7 +293,11 @@ export default function ClinicRegistrationPage() {
             } else if (result.code === 'AUTH_002') {
                 setError('Este correo electrónico ya está registrado.');
             } else {
-                setError(result.message || 'Error al enviar el código');
+                const rawMsg: string = result.message || '';
+                const isDbError = rawMsg.toLowerCase().includes('jdbc') || rawMsg.toLowerCase().includes('unknown column') || rawMsg.toLowerCase().includes('sql');
+                setError(isDbError
+                    ? 'El servicio de verificación no está disponible temporalmente. Por favor intenta de nuevo en unos minutos o contacta a soporte.'
+                    : (rawMsg || 'Error al enviar el código'));
             }
         } catch (err) {
             setError('Error de conexión con el servidor');
@@ -406,7 +470,7 @@ export default function ClinicRegistrationPage() {
             );
 
             if (result.code === '00') {
-                setStep(7); // Success step
+                setStep(8); // Success step (previously 7)
             } else {
                 setError(getErrorMessage(result.code));
             }
@@ -414,6 +478,72 @@ export default function ClinicRegistrationPage() {
             setError('Error de conexión con el servidor.');
         }
         setLoading(false);
+    };
+
+    const handleNextStep = () => {
+        setError('');
+        const missingFields: string[] = [];
+
+        if (step === 1) {
+            if (!formData.identificationNumber) missingFields.push('Número de Documento');
+            if (!formData.identificationType) missingFields.push('Tipo de Documento');
+
+            if (missingFields.length > 0) {
+                setError(`Por favor completa: ${missingFields.join(', ')}`);
+                return;
+            }
+            setStep(2);
+        } else if (step === 2) {
+            if (!formData.address) missingFields.push('Dirección');
+            if (!formData.latitude || !formData.longitude) missingFields.push('Ubicación en Mapa');
+
+            if (missingFields.length > 0) {
+                setError(`Por favor completa: ${missingFields.join(', ')}`);
+                return;
+            }
+            setStep(3);
+        } else if (step === 3) {
+            if (!formData.name) missingFields.push('Nombre Comercial');
+            if (!formData.legalName) missingFields.push('Razón Social');
+            if (!formData.healthLicenseNumber) missingFields.push('Número de Licencia Sanitaria');
+
+            if (missingFields.length > 0) {
+                setError(`Por favor completa: ${missingFields.join(', ')}`);
+                return;
+            }
+            setStep(4);
+        } else if (step === 4) {
+            if (!emailVerified) missingFields.push('Verificación de Correo');
+            if (!phoneVerified) missingFields.push('Verificación de Teléfono');
+
+            if (missingFields.length > 0) {
+                setError(`Faltan verificaciones: ${missingFields.join(', ')}`);
+                return;
+            }
+            setStep(5);
+        } else if (step === 5) {
+            if (!isPasswordValid) {
+                setError('La contraseña debe cumplir con todos los requisitos de seguridad.');
+                return;
+            }
+            setStep(6);
+        } else if (step === 6) {
+            if (formData.specialtyIds.length === 0) {
+                setError('Debes seleccionar al menos una especialidad/servicio.');
+                return;
+            }
+            setStep(7);
+        } else if (step === 7) {
+            if (!logoFile) missingFields.push('Logo');
+            if (!rifFile) missingFields.push('RIF');
+            if (!mercantileFile) missingFields.push('Registro Mercantil');
+
+            if (missingFields.length > 0) {
+                setError(`Faltan documentos: ${missingFields.join(', ')}`);
+                return;
+            }
+            handleSubmit();
+        }
     };
 
     // Validation Logic
@@ -424,20 +554,22 @@ export default function ClinicRegistrationPage() {
         /[!@#$%^&*]/.test(formData.password) &&
         formData.password === formData.confirmPassword;
 
-    const canProceedStep1 = formData.address && formData.latitude && formData.longitude;
-    const canProceedStep2 = formData.name && formData.legalName && formData.identificationType && formData.identificationNumber && formData.healthLicenseNumber && formData.website !== undefined;
-    const canProceedStep3 = phoneVerified && emailVerified;
-    const canProceedStep4 = isPasswordValid;
-    const canProceedStep5 = formData.specialtyIds.length > 0;
-    const canProceedStep6 = logoFile && rifFile && mercantileFile;
+    const canProceedStep1 = formData.identificationNumber && formData.identificationType;
+    const canProceedStep2 = formData.address && formData.latitude && formData.longitude;
+    const canProceedStep3 = formData.name && formData.legalName && formData.identificationType && formData.identificationNumber && formData.healthLicenseNumber && formData.website !== undefined;
+    const canProceedStep4 = phoneVerified && emailVerified;
+    const canProceedStep5 = isPasswordValid;
+    const canProceedStep6 = formData.specialtyIds.length > 0;
+    const canProceedStep7 = logoFile && rifFile && mercantileFile;
 
     const steps = [
-        { num: 1, title: 'Ubicación' },
-        { num: 2, title: 'Datos' },
-        { num: 3, title: 'Verificación' },
-        { num: 4, title: 'Contraseña' },
-        { num: 5, title: 'Servicios' },
-        { num: 6, title: 'Documentos' }
+        { num: 1, title: 'ID' },
+        { num: 2, title: 'Ubicación' },
+        { num: 3, title: 'Datos' },
+        { num: 4, title: 'Verificación' },
+        { num: 5, title: 'Contraseña' },
+        { num: 6, title: 'Servicios' },
+        { num: 7, title: 'Documentos' }
     ];
 
     const handleNext = () => {
@@ -446,6 +578,7 @@ export default function ClinicRegistrationPage() {
         else if (step === 3 && canProceedStep3) setStep(4);
         else if (step === 4 && canProceedStep4) setStep(5);
         else if (step === 5 && canProceedStep5) setStep(6);
+        else if (step === 6 && canProceedStep6) setStep(7);
     };
 
     return (
@@ -463,7 +596,7 @@ export default function ClinicRegistrationPage() {
                 className="relative z-10 w-full max-w-2xl bg-white/90 backdrop-blur-xl rounded-[2rem] shadow-2xl p-8 border border-white/50"
             >
                 {/* Back Button */}
-                <Link href="/" className="absolute top-4 left-4 flex items-center gap-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-sm font-bold transition-all">
+                <Link href="/" className="absolute top-4 left-4 flex items-center gap-1.5 px-4 py-2 bg-alteha-turquoise/10 hover:bg-alteha-turquoise/20 text-alteha-turquoise border border-alteha-turquoise/20 rounded-xl text-sm font-bold transition-all">
                     <ArrowLeft className="w-4 h-4" />
                     Inicio
                 </Link>
@@ -485,7 +618,7 @@ export default function ClinicRegistrationPage() {
                         {steps.map((s, index) => (
                             <React.Fragment key={s.num}>
                                 <div className="flex flex-col items-center">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-sm transition-all ${step > s.num ? 'bg-emerald-500 text-white' :
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-sm transition-all ${step > s.num ? 'bg-alteha-turquoise text-white' :
                                         step === s.num ? 'bg-blue-500 text-white' :
                                             'bg-slate-100 text-slate-400'
                                         }`}>
@@ -496,7 +629,7 @@ export default function ClinicRegistrationPage() {
                                     </span>
                                 </div>
                                 {index < steps.length - 1 && (
-                                    <div className={`flex-1 h-1 mx-1 rounded-full transition-all ${step > s.num ? 'bg-emerald-500' : 'bg-slate-100'}`} />
+                                    <div className={`flex-1 h-1 mx-1 rounded-full transition-all ${step > s.num ? 'bg-alteha-turquoise' : 'bg-slate-100'}`} />
                                 )}
                             </React.Fragment>
                         ))}
@@ -516,280 +649,7 @@ export default function ClinicRegistrationPage() {
                 )}
 
                 <AnimatePresence mode="wait">
-                    {/* Step 2: Clinic Info */}
-                    {step === 2 && (
-                        <motion.div
-                            key="step2"
-                            initial={{ opacity: 0, x: 20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: -20 }}
-                            className="space-y-6"
-                        >
-                            <div className="flex items-center gap-3 mb-6">
-                                <div className="p-3 bg-blue-500/10 rounded-2xl text-blue-500">
-                                    <Building2 className="w-6 h-6" />
-                                </div>
-                                <div>
-                                    <h2 className="text-xl font-black text-slate-900">Información de la Clínica</h2>
-                                    <p className="text-sm text-slate-500">Datos básicos de identificación</p>
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <Input
-                                    label="Nombre Comercial"
-                                    value={formData.name}
-                                    onChange={(e) => updateFormData('name', e.target.value.slice(0, 100))}
-                                    placeholder="Clínica La Esperanza"
-                                    maxLength={100}
-                                />
-                                <Input
-                                    label="Razón Social"
-                                    value={formData.legalName}
-                                    onChange={(e) => updateFormData('legalName', e.target.value.slice(0, 100))}
-                                    placeholder="Clínica La Esperanza C.A."
-                                    maxLength={100}
-                                />
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="space-y-2">
-                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest px-1">Tipo de Documento</label>
-                                    <select
-                                        className="w-full bg-slate-50 rounded-2xl p-4 border border-slate-100 outline-none focus:border-blue-500/50 transition-all font-medium text-slate-600"
-                                        value={formData.identificationType}
-                                        onChange={(e) => updateFormData('identificationType', e.target.value)}
-                                    >
-                                        <option value="RIF">RIF</option>
-                                        <option value="CEDULA">Cédula</option>
-                                        <option value="PASAPORTE">Pasaporte</option>
-                                    </select>
-                                </div>
-                                <Input
-                                    label="Número de Documento"
-                                    value={formData.identificationNumber}
-                                    onChange={(e) => updateFormData('identificationNumber', e.target.value.slice(0, 20))}
-                                    placeholder="J-12345678-9"
-                                    maxLength={20}
-                                />
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <Input
-                                    label="Número de Licencia Sanitaria"
-                                    value={formData.healthLicenseNumber}
-                                    onChange={(e) => updateFormData('healthLicenseNumber', e.target.value.slice(0, 30))}
-                                    placeholder="LS-123456"
-                                    maxLength={30}
-                                />
-                            </div>
-
-
-
-                            <Input
-                                label="Sitio Web (Opcional)"
-                                value={formData.website}
-                                onChange={(e) => updateFormData('website', e.target.value.slice(0, 100))}
-                                placeholder="www.clinica.com"
-                                maxLength={100}
-                            />
-
-                            <div className="flex justify-between pt-4">
-                                <button onClick={() => setStep(1)} className="px-8 py-4 rounded-2xl border border-slate-200 text-slate-500 font-bold hover:bg-slate-50 transition-all">
-                                    Volver
-                                </button>
-                                <Button
-                                    onClick={() => setStep(3)}
-                                    disabled={!canProceedStep2}
-                                    className="bg-slate-900 px-8 py-4 rounded-2xl font-black text-white hover:bg-slate-800 transition-all flex items-center gap-2"
-                                >
-                                    Siguiente <ArrowRight className="w-5 h-5" />
-                                </Button>
-                            </div>
-                        </motion.div>
-                    )}
-
-                    {/* Step 3: Phone Verification */}
-                    {step === 3 && (
-                        <motion.div
-                            key="step3"
-                            initial={{ opacity: 0, x: 20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: -20 }}
-                            className="space-y-6"
-                        >
-                            <div className="flex items-center gap-3 mb-6">
-                                <div className="p-3 bg-alteha-violet/10 rounded-2xl text-alteha-violet">
-                                    <Shield className="w-6 h-6" />
-                                </div>
-                                <div>
-                                    <h2 className="text-xl font-black text-slate-900">Verificación de Contacto</h2>
-                                    <p className="text-sm text-slate-500">Valida tu correo y número de teléfono</p>
-                                </div>
-                            </div>
-
-                            {/* Email Verification Section */}
-                            <div className={`p-6 rounded-[2rem] border-2 transition-all ${emailVerified ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-slate-100'}`}>
-                                <div className="flex items-center gap-3 mb-4">
-                                    <Mail className={`w-5 h-5 ${emailVerified ? 'text-emerald-500' : 'text-slate-400'}`} />
-                                    <span className="font-bold text-slate-900">Correo Electrónico</span>
-                                    {emailVerified && <CheckCircle className="w-5 h-5 text-emerald-500 ml-auto" />}
-                                </div>
-
-                                <div className="space-y-4">
-                                    <div className="flex items-end gap-2">
-                                        <div className="flex-1">
-                                            <Input
-                                                label="Correo Electrónico"
-                                                type="email"
-                                                value={formData.email}
-                                                onChange={(e) => updateFormData('email', e.target.value.slice(0, 100))}
-                                                placeholder="contacto@clinica.com"
-                                                maxLength={100}
-                                                disabled={emailSent}
-                                            />
-                                        </div>
-                                        {!emailVerified && !emailSent && (
-                                            <Button
-                                                onClick={() => handleSendEmailToken(false)}
-                                                disabled={loading || !formData.email || !isValidEmail(formData.email)}
-                                                className="mb-1 h-[50px] px-6 rounded-xl bg-alteha-violet text-white font-bold"
-                                            >
-                                                {loading ? <Loader size={20} /> : 'Verificar'}
-                                            </Button>
-                                        )}
-                                    </div>
-
-                                    {emailSent && !emailVerified && (
-                                        <div className="space-y-3">
-                                            <p className="text-sm text-slate-500">Ingresa el código enviado a {formData.email}</p>
-                                            <div className="flex gap-3">
-                                                <Input
-                                                    label="Código"
-                                                    value={emailToken}
-                                                    onChange={(e) => setEmailToken(e.target.value.slice(0, 6))}
-                                                    placeholder="000000"
-                                                    maxLength={6}
-                                                />
-                                                <Button
-                                                    onClick={handleVerifyEmail}
-                                                    disabled={loading || !emailToken || emailToken.length < 6}
-                                                    className="px-6 py-4 rounded-xl bg-emerald-500 text-white font-bold"
-                                                >
-                                                    {loading ? <Loader size={20} /> : 'Confirmar'}
-                                                </Button>
-                                            </div>
-                                            <div className="flex items-center justify-between">
-                                                {emailCountdown > 0 ? (
-                                                    <p className="text-xs text-slate-400">Reenviar en <span className="font-bold">{formatCountdown(emailCountdown)}</span></p>
-                                                ) : (
-                                                    <button
-                                                        onClick={() => handleSendEmailToken(true)}
-                                                        disabled={loading || emailResendAttempts >= MAX_RESEND_ATTEMPTS}
-                                                        className="text-xs font-bold text-alteha-violet hover:underline disabled:text-slate-300"
-                                                    >
-                                                        Reenviar Código
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            <div className={`p-6 rounded-[2rem] border-2 transition-all ${phoneVerified ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-slate-100'}`}>
-                                <div className="flex items-center gap-3 mb-4">
-                                    <Phone className={`w-5 h-5 ${phoneVerified ? 'text-emerald-500' : 'text-slate-400'}`} />
-                                    <span className="font-bold text-slate-900">Teléfono de Contacto</span>
-                                    {phoneVerified && <CheckCircle className="w-5 h-5 text-emerald-500 ml-auto" />}
-                                </div>
-
-                                {!phoneVerified && (
-                                    <div className="space-y-4">
-                                        <Input
-                                            label="Teléfono"
-                                            value={formData.phone}
-                                            onChange={(e) => updateFormData('phone', e.target.value.replace(/\D/g, '').slice(0, 15))}
-                                            placeholder="584241234567"
-                                            disabled={smsSent}
-                                            maxLength={15}
-                                        />
-                                        {formData.phone && !isValidPhone(formData.phone) && (
-                                            <p className="text-red-500 text-xs font-medium -mt-2">Ingresa un número válido (10-15 dígitos)</p>
-                                        )}
-
-                                        {!smsSent ? (
-                                            <Button
-                                                onClick={() => handleSendSmsToken(false)}
-                                                disabled={loading || !formData.phone || !isValidPhone(formData.phone)}
-                                                className="w-full py-4 rounded-xl bg-alteha-violet text-white font-bold"
-                                            >
-                                                {loading ? <Loader size={20} /> : 'Enviar SMS'}
-                                            </Button>
-                                        ) : (
-                                            <div className="space-y-4">
-                                                <p className="text-sm text-slate-500">Ingresa el código enviado a {formData.phone}</p>
-                                                <div className="flex gap-3">
-                                                    <Input
-                                                        label="Código"
-                                                        value={phoneToken}
-                                                        onChange={(e) => setPhoneToken(e.target.value.slice(0, 6))}
-                                                        placeholder="000000"
-                                                        maxLength={6}
-                                                    />
-                                                    <Button
-                                                        onClick={handleVerifyPhone}
-                                                        disabled={loading || !phoneToken || phoneToken.length < 6}
-                                                        className="px-6 py-4 rounded-xl bg-emerald-500 text-white font-bold"
-                                                    >
-                                                        {loading ? <Loader size={20} /> : 'Verificar'}
-                                                    </Button>
-                                                </div>
-
-                                                {/* Countdown and Resend */}
-                                                <div className="flex items-center justify-between pt-2">
-                                                    {smsCountdown > 0 ? (
-                                                        <p className="text-sm text-slate-400">
-                                                            Puedes reenviar en <span className="font-bold text-alteha-violet">{formatCountdown(smsCountdown)}</span>
-                                                        </p>
-                                                    ) : (
-                                                        <button
-                                                            onClick={() => handleSendSmsToken(true)}
-                                                            disabled={loading || smsResendAttempts >= MAX_RESEND_ATTEMPTS}
-                                                            className={`text-sm font-bold transition-colors ${smsResendAttempts >= MAX_RESEND_ATTEMPTS
-                                                                ? 'text-slate-300 cursor-not-allowed'
-                                                                : 'text-alteha-violet hover:underline'
-                                                                }`}
-                                                        >
-                                                            Reenviar SMS
-                                                        </button>
-                                                    )}
-                                                    <p className="text-xs text-slate-400">
-                                                        Intentos: {smsResendAttempts}/{MAX_RESEND_ATTEMPTS}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="flex justify-between pt-4">
-                                <button onClick={() => setStep(2)} className="px-8 py-4 rounded-2xl border border-slate-200 text-slate-500 font-bold hover:bg-slate-50 transition-all">
-                                    Volver
-                                </button>
-                                <Button
-                                    onClick={() => setStep(4)}
-                                    disabled={!canProceedStep3}
-                                    className="bg-slate-900 px-8 py-4 rounded-2xl font-black text-white hover:bg-slate-800 transition-all flex items-center gap-2"
-                                >
-                                    Siguiente <ArrowRight className="w-5 h-5" />
-                                </Button>
-                            </div>
-                        </motion.div>
-                    )}
-
-                    {/* Step 1: Location with Map */}
+                    {/* Step 1: Identification */}
                     {step === 1 && (
                         <motion.div
                             key="step1"
@@ -799,7 +659,100 @@ export default function ClinicRegistrationPage() {
                             className="space-y-6"
                         >
                             <div className="flex items-center gap-3 mb-6">
-                                <div className="p-3 bg-emerald-500/10 rounded-2xl text-emerald-500">
+                                <div className="p-3 bg-blue-500/10 rounded-2xl text-blue-500">
+                                    <Search className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h2 className="text-xl font-black text-slate-900">Identificación de la Clínica</h2>
+                                    <p className="text-sm text-slate-500">Ingresa el RIF para comenzar</p>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10 items-start">
+                                <div className="flex gap-4">
+                                    <div className="w-24">
+                                        <Select
+                                            label="Nac."
+                                            alwaysFloat
+                                            options={[
+                                                { id: 'V', label: 'V' },
+                                                { id: 'E', label: 'E' },
+                                                { id: 'J', label: 'J' },
+                                                { id: 'G', label: 'G' },
+                                            ]}
+                                            value={formData.nationality || 'J'}
+                                            onChange={(val) => updateFormData('nationality', val)}
+                                        />
+                                    </div>
+                                    <div className="flex-1">
+                                        <Input
+                                            label="Número de Documento" alwaysFloat
+                                            value={formData.identificationNumber}
+                                            onChange={(e) => {
+                                                const val = e.target.value.toUpperCase();
+                                                updateFormData('identificationNumber', val);
+                                            }}
+                                            onBlur={() => {
+                                                if (formData.identificationNumber.length >= 8) {
+                                                    handlePreloadSearch(formData.identificationNumber);
+                                                }
+                                            }}
+                                            placeholder="12345678"
+                                            maxLength={20}
+                                            className="!mb-0"
+                                        />
+                                        {searchLoading && (
+                                            <div className="absolute right-4 top-[2.4rem]">
+                                                <Loader size={16} className="animate-spin text-alteha-turquoise" />
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                                <Select
+                                    label="Tipo de Documento"
+                                    alwaysFloat
+                                    options={[
+                                        { id: 'RIF', label: 'RIF' },
+                                        { id: 'CEDULA', label: 'Cédula' },
+                                        { id: 'PASAPORTE', label: 'Pasaporte' },
+                                    ]}
+                                    value={formData.identificationType}
+                                    onChange={(val) => updateFormData('identificationType', val)}
+                                />
+                            </div>
+
+                            <div className="flex items-center justify-between pt-6 border-t border-slate-100 mt-8">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => router.push('/')}
+                                    className="border-alteha-turquoise text-alteha-turquoise bg-alteha-turquoise/5 hover:bg-alteha-turquoise/10 px-8 rounded-2xl"
+                                >
+                                    <ArrowLeft className="w-4 h-4 mr-2" />
+                                    Inicio
+                                </Button>
+                                <Button
+                                    onClick={handleNextStep}
+                                    isLoading={searchLoading}
+                                    className="bg-alteha-turquoise px-8 py-4 rounded-2xl font-black text-white hover:bg-alteha-turquoise/90 transition-all flex items-center gap-2"
+                                >
+                                    Siguiente
+                                    <ArrowRight className="w-5 h-5" />
+                                </Button>
+                            </div>
+                        </motion.div>
+                    )}
+
+                    {/* Step 2: Location with Map */}
+                    {step === 2 && (
+                        <motion.div
+                            key="step2"
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            className="space-y-6"
+                        >
+                            <div className="flex items-center gap-3 mb-6">
+                                <div className="p-3 bg-alteha-turquoise/10 rounded-2xl text-alteha-turquoise">
                                     <MapPin className="w-6 h-6" />
                                 </div>
                                 <div>
@@ -814,7 +767,7 @@ export default function ClinicRegistrationPage() {
                                     Defina la Ubicación
                                 </label>
                                 <div
-                                    className="w-full h-[500px] bg-slate-100 rounded-2xl border border-slate-200 overflow-hidden relative"
+                                    className="w-full h-[400px] bg-slate-100 rounded-2xl border border-slate-200 overflow-hidden relative"
                                     id="clinic-map"
                                 >
                                     {isLoaded ? (
@@ -871,12 +824,9 @@ export default function ClinicRegistrationPage() {
                                                     draggable={true}
                                                     title="Ubicación de la Clínica"
                                                     icon={{
-                                                        // Dark Blue Pin with White Cross
-                                                        // Path 1: Pin shape
-                                                        // Path 2: Medical Cross inside
                                                         url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="64" height="64"><path fill="#1e3a8a" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><path fill="#ffffff" d="M11 7h2v2h2v2h-2v2h-2v-2h-2v-2h2z"/></svg>')}`,
                                                         scaledSize: new window.google.maps.Size(50, 50),
-                                                        anchor: new window.google.maps.Point(25, 50) // Anchor at bottom tip
+                                                        anchor: new window.google.maps.Point(25, 50)
                                                     }}
                                                     onDragEnd={(e) => {
                                                         if (e.latLng) {
@@ -901,21 +851,320 @@ export default function ClinicRegistrationPage() {
                                 </div>
                             </div>
 
-                            <div className="flex justify-end pt-4">
+                            <div className="flex items-center justify-between pt-6 border-t border-slate-100 mt-8">
                                 <Button
-                                    onClick={() => setStep(2)}
-                                    className="bg-slate-900 px-8 py-4 rounded-2xl font-black text-white hover:bg-slate-800 transition-all flex items-center gap-2"
+                                    variant="outline"
+                                    onClick={() => { setStep(1); setError(''); }}
+                                    className="border-alteha-turquoise text-alteha-turquoise bg-alteha-turquoise/5 hover:bg-alteha-turquoise/10 px-8 rounded-2xl"
                                 >
-                                    Siguiente <ArrowRight className="w-5 h-5" />
+                                    <ArrowLeft className="w-4 h-4 mr-2" />
+                                    Volver
+                                </Button>
+                                <Button
+                                    onClick={handleNextStep}
+                                    className="bg-alteha-turquoise px-8 py-4 rounded-2xl font-black text-white hover:bg-alteha-turquoise/90 transition-all flex items-center gap-2"
+                                >
+                                    Siguiente
+                                    <ArrowRight className="w-5 h-5" />
                                 </Button>
                             </div>
                         </motion.div>
                     )}
 
-                    {/* Step 4: Password */}
+                    {/* Step 3: Clinic Info */}
+                    {step === 3 && (
+                        <motion.div
+                            key="step3"
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            className="space-y-6"
+                        >
+                            <div className="flex items-center gap-3 mb-6">
+                                <div className="p-3 bg-blue-500/10 rounded-2xl text-blue-500">
+                                    <Building2 className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h2 className="text-xl font-black text-slate-900">Información de la Clínica</h2>
+                                    <p className="text-sm text-slate-500">Datos básicos de identificación</p>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <Input
+                                    label="Nombre Comercial"
+                                    value={formData.name}
+                                    onChange={(e) => updateFormData('name', e.target.value.slice(0, 100))}
+                                    placeholder="Clínica La Esperanza"
+                                    maxLength={100}
+                                />
+                                <Input
+                                    label="Razón Social"
+                                    value={formData.legalName}
+                                    onChange={(e) => updateFormData('legalName', e.target.value.slice(0, 100))}
+                                    placeholder="Clínica La Esperanza C.A."
+                                    maxLength={100}
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest px-1">Tipo de Documento</label>
+                                    <div className="w-full bg-slate-50 rounded-2xl p-4 border border-slate-100 font-medium text-slate-600">
+                                        {formData.identificationType}
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest px-1">Número de Documento</label>
+                                    <div className="w-full bg-slate-50 rounded-2xl p-4 border border-slate-100 font-medium text-slate-600">
+                                        {formData.identificationNumber}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <Input
+                                    label="Número de Licencia Sanitaria"
+                                    value={formData.healthLicenseNumber}
+                                    onChange={(e) => updateFormData('healthLicenseNumber', e.target.value.slice(0, 30))}
+                                    placeholder="LS-123456"
+                                    maxLength={30}
+                                />
+                                <Input
+                                    label="Sitio Web (Opcional)"
+                                    value={formData.website}
+                                    onChange={(e) => updateFormData('website', e.target.value.slice(0, 100))}
+                                    placeholder="www.clinica.com"
+                                    maxLength={100}
+                                />
+                            </div>
+
+                            <div className="flex items-center justify-between pt-6 border-t border-slate-100 mt-8">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => { setStep(2); setError(''); }}
+                                    className="border-alteha-turquoise text-alteha-turquoise bg-alteha-turquoise/5 hover:bg-alteha-turquoise/10 px-8 rounded-2xl"
+                                >
+                                    <ArrowLeft className="w-4 h-4 mr-2" />
+                                    Volver
+                                </Button>
+                                <Button
+                                    onClick={handleNextStep}
+                                    className="bg-alteha-turquoise px-8 py-4 rounded-2xl font-black text-white hover:bg-alteha-turquoise/90 transition-all flex items-center gap-2"
+                                >
+                                    Siguiente
+                                    <ArrowRight className="w-5 h-5" />
+                                </Button>
+                            </div>
+                        </motion.div>
+                    )}
+
+                    {/* Step 4: Contact Verification */}
                     {step === 4 && (
                         <motion.div
-                            key="step4"
+                            key="step3"
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            className="space-y-6"
+                        >
+                            <div className="flex items-center gap-3 mb-6">
+                                <div className="p-3 bg-alteha-violet/10 rounded-2xl text-alteha-violet">
+                                    <Shield className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h2 className="text-xl font-black text-slate-900">Verificación de Contacto</h2>
+                                    <p className="text-sm text-slate-500">Valida tu correo y número de teléfono</p>
+                                </div>
+                            </div>
+                            {/* Preload notice */}
+                            {isPreloaded && (
+                                <motion.div
+                                    initial={{ opacity: 0, scale: 0.95 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    className="p-5 bg-blue-50 border border-blue-200 rounded-[2rem] flex items-end gap-4 text-blue-700"
+                                >
+                                    <div className="w-10 h-10 bg-blue-500 text-white rounded-full flex items-center justify-center shrink-0 mt-0.5">
+                                        <Search className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <p className="font-black text-sm">Datos precargados encontrados</p>
+                                        <p className="text-xs opacity-80 mt-1">Hemos pre-rellenado tu correo y teléfono con la información registrada. <span className="font-bold">Si alguno no es correcto, corrígelo antes de enviar el código de verificación.</span></p>
+                                    </div>
+                                </motion.div>
+                            )}
+
+                            {/* Email Verification Section */}
+                            <div className={`p-6 rounded-[2rem] border-2 transition-all ${emailVerified ? 'bg-alteha-turquoise/5 border-alteha-turquoise/40' : 'bg-white border-slate-100'}`}>
+                                <div className="flex items-center gap-3 mb-4">
+                                    <Mail className={`w-5 h-5 ${emailVerified ? 'text-alteha-turquoise' : 'text-slate-400'}`} />
+                                    <span className="font-bold text-slate-900">Correo Electrónico</span>
+                                    {emailVerified && <CheckCircle className="w-5 h-5 text-alteha-turquoise ml-auto" />}
+                                </div>
+
+                                <div className="space-y-4">
+                                    <div className="flex items-end gap-2">
+                                        <div className="flex-1">
+                                            <Input
+                                                label="Correo Electrónico"
+                                                type="email"
+                                                value={formData.email}
+                                                onChange={(e) => updateFormData('email', e.target.value.slice(0, 100))}
+                                                placeholder="contacto@clinica.com"
+                                                maxLength={100}
+                                                disabled={emailSent}
+                                            />
+                                        </div>
+                                        {!emailVerified && !emailSent && (
+                                            <Button
+                                                onClick={() => handleSendEmailToken(false)}
+                                                disabled={loading || !formData.email || !isValidEmail(formData.email)}
+                                                className="mb-1 h-[50px] px-6 rounded-xl bg-alteha-violet text-white font-bold"
+                                            >
+                                                {loading ? <Loader size={20} /> : 'Verificar'}
+                                            </Button>
+                                        )}
+                                    </div>
+
+                                    {emailSent && !emailVerified && (
+                                        <div className="space-y-3">
+                                            <p className="text-sm text-slate-500">Ingresa el código enviado a {formData.email}</p>
+                                            <div className="flex gap-3">
+                                                <Input
+                                                    label="Código"
+                                                    value={emailToken}
+                                                    onChange={(e) => setEmailToken(e.target.value.slice(0, 6))}
+                                                    placeholder="000000"
+                                                    maxLength={6}
+                                                />
+                                                <Button
+                                                    onClick={handleVerifyEmail}
+                                                    disabled={loading || !emailToken || emailToken.length < 6}
+                                                    className="px-6 py-4 rounded-xl bg-alteha-turquoise text-white font-bold"
+                                                >
+                                                    {loading ? <Loader size={20} /> : 'Confirmar'}
+                                                </Button>
+                                            </div>
+                                            <div className="flex items-center justify-between">
+                                                {emailCountdown > 0 ? (
+                                                    <p className="text-xs text-slate-400">Reenviar en <span className="font-bold">{formatCountdown(emailCountdown)}</span></p>
+                                                ) : (
+                                                    <button
+                                                        onClick={() => handleSendEmailToken(true)}
+                                                        disabled={loading || emailResendAttempts >= MAX_RESEND_ATTEMPTS}
+                                                        className="text-xs font-bold text-alteha-violet hover:underline disabled:text-slate-300"
+                                                    >
+                                                        Reenviar Código
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className={`p-6 rounded-[2rem] border-2 transition-all ${phoneVerified ? 'bg-alteha-turquoise/5 border-alteha-turquoise/40' : 'bg-white border-slate-100'}`}>
+                                <div className="flex items-center gap-3 mb-4">
+                                    <Phone className={`w-5 h-5 ${phoneVerified ? 'text-alteha-turquoise' : 'text-slate-400'}`} />
+                                    <span className="font-bold text-slate-900">Teléfono Celular de Contacto</span>
+                                    {phoneVerified && <CheckCircle className="w-5 h-5 text-alteha-turquoise ml-auto" />}
+                                </div>
+
+                                {!phoneVerified && (
+                                    <div className="space-y-4">
+                                        <Input
+                                            label="Teléfono Celular"
+                                            value={formData.phone}
+                                            onChange={(e) => updateFormData('phone', e.target.value.replace(/\D/g, '').slice(0, 15))}
+                                            placeholder="584241234567"
+                                            disabled={smsSent}
+                                            maxLength={15}
+                                        />
+                                        {formData.phone && !isValidPhone(formData.phone) && (
+                                            <p className="text-red-500 text-xs font-medium -mt-2">Ingresa un número válido (10-15 dígitos)</p>
+                                        )}
+
+                                        {!smsSent ? (
+                                            <Button
+                                                onClick={() => handleSendSmsToken(false)}
+                                                disabled={loading || !formData.phone || !isValidPhone(formData.phone)}
+                                                className="w-full py-4 rounded-xl bg-alteha-violet text-white font-bold"
+                                            >
+                                                {loading ? <Loader size={20} /> : 'Enviar SMS'}
+                                            </Button>
+                                        ) : (
+                                            <div className="space-y-4">
+                                                <p className="text-sm text-slate-500">Ingresa el código enviado a {formData.phone}</p>
+                                                <div className="flex gap-3">
+                                                    <Input
+                                                        label="Código"
+                                                        value={phoneToken}
+                                                        onChange={(e) => setPhoneToken(e.target.value.slice(0, 6))}
+                                                        placeholder="000000"
+                                                        maxLength={6}
+                                                    />
+                                                    <Button
+                                                        onClick={handleVerifyPhone}
+                                                        disabled={loading || !phoneToken || phoneToken.length < 6}
+                                                        className="px-6 py-4 rounded-xl bg-alteha-turquoise text-white font-bold"
+                                                    >
+                                                        {loading ? <Loader size={20} /> : 'Verificar'}
+                                                    </Button>
+                                                </div>
+
+                                                {/* Countdown and Resend */}
+                                                <div className="flex items-center justify-between pt-2">
+                                                    {smsCountdown > 0 ? (
+                                                        <p className="text-sm text-slate-400">
+                                                            Puedes reenviar en <span className="font-bold text-alteha-violet">{formatCountdown(smsCountdown)}</span>
+                                                        </p>
+                                                    ) : (
+                                                        <button
+                                                            onClick={() => handleSendSmsToken(true)}
+                                                            disabled={loading || smsResendAttempts >= MAX_RESEND_ATTEMPTS}
+                                                            className={`text-sm font-bold transition-colors ${smsResendAttempts >= MAX_RESEND_ATTEMPTS
+                                                                ? 'text-slate-300 cursor-not-allowed'
+                                                                : 'text-alteha-violet hover:underline'
+                                                                }`}
+                                                        >
+                                                            Reenviar SMS
+                                                        </button>
+                                                    )}
+                                                    <p className="text-xs text-slate-400">
+                                                        Intentos: {smsResendAttempts}/{MAX_RESEND_ATTEMPTS}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="flex items-center justify-between pt-6 border-t border-slate-100 mt-8">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => { setStep(3); setError(''); }}
+                                    className="border-alteha-turquoise text-alteha-turquoise bg-alteha-turquoise/5 hover:bg-alteha-turquoise/10 px-8 rounded-2xl"
+                                >
+                                    <ArrowLeft className="w-4 h-4 mr-2" />
+                                    Volver
+                                </Button>
+                                <Button
+                                    onClick={handleNextStep}
+                                    className="bg-alteha-turquoise px-8 py-4 rounded-2xl font-black text-white hover:bg-alteha-turquoise/90 transition-all flex items-center gap-2"
+                                >
+                                    Siguiente
+                                    <ArrowRight className="w-5 h-5" />
+                                </Button>
+                            </div>
+                        </motion.div>
+                    )}
+
+
+                    {/* Step 5: Password */}
+                    {step === 5 && (
+                        <motion.div
+                            key="step5"
                             initial={{ opacity: 0, x: 20 }}
                             animate={{ opacity: 1, x: 0 }}
                             exit={{ opacity: 0, x: -20 }}
@@ -943,11 +1192,11 @@ export default function ClinicRegistrationPage() {
                             {/* Password Requirements */}
                             <div className="p-4 bg-slate-50 rounded-2xl space-y-2">
                                 <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Requisitos de Contraseña</p>
-                                <PasswordRequirement met={passwordChecks.minLength} text="Mínimo 8 caracteres" />
-                                <PasswordRequirement met={passwordChecks.hasUppercase} text="Al menos una letra mayúscula (A-Z)" />
-                                <PasswordRequirement met={passwordChecks.hasLowercase} text="Al menos una letra minúscula (a-z)" />
-                                <PasswordRequirement met={passwordChecks.hasNumber} text="Al menos un número (0-9)" />
-                                <PasswordRequirement met={passwordChecks.hasSpecial} text="Al menos un carácter especial (!@#$%^&*)" />
+                                <PasswordRequirement met={passwordChecks.minLength} active={formData.password.length > 0} text="Mínimo 8 caracteres" />
+                                <PasswordRequirement met={passwordChecks.hasUppercase} active={formData.password.length > 0} text="Al menos una letra mayúscula (A-Z)" />
+                                <PasswordRequirement met={passwordChecks.hasLowercase} active={formData.password.length > 0} text="Al menos una letra minúscula (a-z)" />
+                                <PasswordRequirement met={passwordChecks.hasNumber} active={formData.password.length > 0} text="Al menos un número (0-9)" />
+                                <PasswordRequirement met={passwordChecks.hasSpecial} active={formData.password.length > 0} text="Al menos uno de estos caracteres especiales (!@#$%^&*)" />
                             </div>
 
                             <Input
@@ -960,7 +1209,7 @@ export default function ClinicRegistrationPage() {
                             />
 
                             {formData.confirmPassword && (
-                                <div className={`flex items-center gap-2 p-3 rounded-xl ${passwordChecks.passwordsMatch ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'}`}>
+                                <div className={`flex items-center gap-2 p-3 rounded-xl ${passwordChecks.passwordsMatch ? 'bg-alteha-turquoise/5 text-alteha-turquoise' : 'bg-red-50 text-red-500'}`}>
                                     {passwordChecks.passwordsMatch ? (
                                         <><CheckCircle className="w-4 h-4" /><span className="text-sm font-medium">Las contraseñas coinciden</span></>
                                     ) : (
@@ -969,25 +1218,30 @@ export default function ClinicRegistrationPage() {
                                 </div>
                             )}
 
-                            <div className="flex justify-between pt-4">
-                                <button onClick={() => setStep(3)} className="px-8 py-4 rounded-2xl border border-slate-200 text-slate-500 font-bold hover:bg-slate-50 transition-all">
-                                    Volver
-                                </button>
+                            <div className="flex items-center justify-between pt-6 border-t border-slate-100 mt-8">
                                 <Button
-                                    onClick={() => setStep(5)}
-                                    disabled={!canProceedStep4}
-                                    className="bg-slate-900 px-8 py-4 rounded-2xl font-black text-white hover:bg-slate-800 transition-all flex items-center gap-2"
+                                    variant="outline"
+                                    onClick={() => { setStep(4); setError(''); }}
+                                    className="border-alteha-turquoise text-alteha-turquoise bg-alteha-turquoise/5 hover:bg-alteha-turquoise/10 px-8 rounded-2xl"
                                 >
-                                    Siguiente <ArrowRight className="w-5 h-5" />
+                                    <ArrowLeft className="w-4 h-4 mr-2" />
+                                    Volver
+                                </Button>
+                                <Button
+                                    onClick={handleNextStep}
+                                    className="bg-alteha-turquoise px-8 py-4 rounded-2xl font-black text-white hover:bg-alteha-turquoise/90 transition-all flex items-center gap-2"
+                                >
+                                    Siguiente
+                                    <ArrowRight className="w-5 h-5" />
                                 </Button>
                             </div>
                         </motion.div>
                     )}
 
-                    {/* Step 5: Specialties & Services */}
-                    {step === 5 && (
+                    {/* Step 6: Specialties & Services */}
+                    {step === 6 && (
                         <motion.div
-                            key="step5"
+                            key="step6"
                             initial={{ opacity: 0, x: 20 }}
                             animate={{ opacity: 1, x: 0 }}
                             exit={{ opacity: 0, x: -20 }}
@@ -1039,25 +1293,30 @@ export default function ClinicRegistrationPage() {
                                 </div>
                             </div>
 
-                            <div className="flex justify-between pt-4">
-                                <button onClick={() => setStep(4)} className="px-8 py-4 rounded-2xl border border-slate-200 text-slate-500 font-bold hover:bg-slate-50 transition-all">
-                                    Volver
-                                </button>
+                            <div className="flex items-center justify-between pt-6 border-t border-slate-100 mt-8">
                                 <Button
-                                    onClick={() => setStep(6)}
-                                    disabled={!canProceedStep5}
-                                    className="bg-slate-900 px-8 py-4 rounded-2xl font-black text-white hover:bg-slate-800 transition-all flex items-center gap-2"
+                                    variant="outline"
+                                    onClick={() => { setStep(5); setError(''); }}
+                                    className="border-alteha-turquoise text-alteha-turquoise bg-alteha-turquoise/5 hover:bg-alteha-turquoise/10 px-8 rounded-2xl"
                                 >
-                                    Siguiente <ArrowRight className="w-5 h-5" />
+                                    <ArrowLeft className="w-4 h-4 mr-2" />
+                                    Volver
+                                </Button>
+                                <Button
+                                    onClick={handleNextStep}
+                                    className="bg-alteha-turquoise px-8 py-4 rounded-2xl font-black text-white hover:bg-alteha-turquoise/90 transition-all flex items-center gap-2"
+                                >
+                                    Siguiente
+                                    <ArrowRight className="w-5 h-5" />
                                 </Button>
                             </div>
                         </motion.div>
                     )}
 
-                    {/* Step 6: Documents */}
-                    {step === 6 && (
+                    {/* Step 7: Documents */}
+                    {step === 7 && (
                         <motion.div
-                            key="step6"
+                            key="step7"
                             initial={{ opacity: 0, x: 20 }}
                             animate={{ opacity: 1, x: 0 }}
                             exit={{ opacity: 0, x: -20 }}
@@ -1095,21 +1354,21 @@ export default function ClinicRegistrationPage() {
                                     <div>
                                         <p className="font-bold text-slate-700">Logo de la Clínica</p>
                                         <p className="text-sm text-slate-500">JPG, PNG o WebP. Máximo 5MB.</p>
-                                        {logoFile && <p className="text-xs text-emerald-600 font-medium mt-1">✓ {logoFile.name}</p>}
+                                        {logoFile && <p className="text-xs text-alteha-turquoise font-medium mt-1">✓ {logoFile.name}</p>}
                                     </div>
                                 </div>
                             </div>
 
                             {/* RIF Upload */}
-                            <div className={`p-4 border-2 rounded-2xl transition-all ${rifFile ? 'bg-emerald-50 border-emerald-200' : 'border-slate-200 border-dashed'}`}>
+                            <div className={`p-4 border-2 rounded-2xl transition-all ${rifFile ? 'bg-alteha-turquoise/5 border-alteha-turquoise/40' : 'border-slate-200 border-dashed'}`}>
                                 <div className="flex items-center gap-4">
-                                    <div className={`p-3 rounded-xl ${rifFile ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                                    <div className={`p-3 rounded-xl ${rifFile ? 'bg-alteha-turquoise text-white' : 'bg-slate-100 text-slate-400'}`}>
                                         <FileText className="w-6 h-6" />
                                     </div>
                                     <div className="flex-1">
                                         <p className="font-bold text-slate-700">RIF de la Clínica</p>
                                         <p className="text-sm text-slate-500">Documento de registro fiscal</p>
-                                        {rifFile && <p className="text-xs text-emerald-600 font-medium mt-1">✓ {rifFile.name}</p>}
+                                        {rifFile && <p className="text-xs text-alteha-turquoise font-medium mt-1">✓ {rifFile.name}</p>}
                                     </div>
                                     <label className="px-4 py-2 bg-slate-900 text-white rounded-xl font-bold cursor-pointer hover:bg-slate-800 transition-all">
                                         <Upload className="w-4 h-4 inline mr-2" />
@@ -1120,15 +1379,15 @@ export default function ClinicRegistrationPage() {
                             </div>
 
                             {/* Mercantile Registry Upload */}
-                            <div className={`p-4 border-2 rounded-2xl transition-all ${mercantileFile ? 'bg-emerald-50 border-emerald-200' : 'border-slate-200 border-dashed'}`}>
+                            <div className={`p-4 border-2 rounded-2xl transition-all ${mercantileFile ? 'bg-alteha-turquoise/5 border-alteha-turquoise/40' : 'border-slate-200 border-dashed'}`}>
                                 <div className="flex items-center gap-4">
-                                    <div className={`p-3 rounded-xl ${mercantileFile ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                                    <div className={`p-3 rounded-xl ${mercantileFile ? 'bg-alteha-turquoise text-white' : 'bg-slate-100 text-slate-400'}`}>
                                         <Briefcase className="w-6 h-6" />
                                     </div>
                                     <div className="flex-1">
                                         <p className="font-bold text-slate-700">Registro Mercantil</p>
                                         <p className="text-sm text-slate-500">Documento de constitución de la empresa</p>
-                                        {mercantileFile && <p className="text-xs text-emerald-600 font-medium mt-1">✓ {mercantileFile.name}</p>}
+                                        {mercantileFile && <p className="text-xs text-alteha-turquoise font-medium mt-1">✓ {mercantileFile.name}</p>}
                                     </div>
                                     <label className="px-4 py-2 bg-slate-900 text-white rounded-xl font-bold cursor-pointer hover:bg-slate-800 transition-all">
                                         <Upload className="w-4 h-4 inline mr-2" />
@@ -1138,49 +1397,178 @@ export default function ClinicRegistrationPage() {
                                 </div>
                             </div>
 
-                            <div className="flex justify-between pt-4">
-                                <button onClick={() => setStep(5)} className="px-8 py-4 rounded-2xl border border-slate-200 text-slate-500 font-bold hover:bg-slate-50 transition-all">
-                                    Volver
-                                </button>
+                            <div className="flex justify-center mt-6 mb-8">
+                                <PuzzleCaptcha onVerify={setIsVerified} />
+                            </div>
+
+                            <div className="flex items-center justify-between pt-6 border-t border-slate-100 mt-8">
                                 <Button
-                                    onClick={handleSubmit}
-                                    disabled={!canProceedStep6 || loading}
-                                    className="bg-blue-500 px-8 py-4 rounded-2xl font-black text-white hover:bg-blue-600 transition-all flex items-center gap-2"
+                                    variant="outline"
+                                    onClick={() => { setStep(6); setError(''); }}
+                                    className="border-alteha-turquoise text-alteha-turquoise bg-alteha-turquoise/5 hover:bg-alteha-turquoise/10 px-8 rounded-2xl"
+                                >
+                                    <ArrowLeft className="w-4 h-4 mr-2" />
+                                    Volver
+                                </Button>
+                                <Button
+                                    onClick={handleNextStep}
+                                    isLoading={loading}
+                                    className="bg-alteha-turquoise px-8 py-4 rounded-2xl font-black text-white hover:bg-alteha-turquoise/90 transition-all flex items-center gap-2"
                                 >
                                     {loading ? <Loader size={20} /> : 'Finalizar Registro'}
                                 </Button>
                             </div>
-
-                            <div className="flex justify-center mt-6">
-                                <PuzzleCaptcha onVerify={setIsVerified} />
-                            </div>
                         </motion.div>
                     )}
 
-                    {/* Step 7: Success */}
-                    {step === 7 && (
+                    {/* Step 8: Success */}
+                    {step === 8 && (
                         <motion.div
-                            key="step7"
-                            initial={{ opacity: 0, scale: 0.9 }}
+                            key="step8"
+                            initial={{ opacity: 0, scale: 0.95 }}
                             animate={{ opacity: 1, scale: 1 }}
-                            className="text-center py-10"
+                            className="text-center py-6"
                         >
-                            <div className="w-24 h-24 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-6">
-                                <CheckCircle className="w-12 h-12" />
+                            {/* Welcoming Doctor Illustration (SVG) */}
+                            <div className="relative w-72 h-72 mx-auto mb-8 animate-in fade-in zoom-in duration-1000">
+                                <div className="absolute inset-0 bg-alteha-turquoise/5 rounded-full scale-110 blur-3xl animate-pulse" />
+                                <svg viewBox="0 0 200 200" className="w-full h-full relative z-10 drop-shadow-2xl translate-y-2">
+                                    {/* Skin / Body */}
+                                    <circle cx="100" cy="55" r="35" fill="#FFDBAC" className="animate-bounce-subtle" />
+                                    <path d="M40,200 L40,140 C40,110 60,95 100,95 C140,95 160,110 160,140 L160,200" fill="#E2E8F0" />
+                                    {/* White Coat */}
+                                    <path d="M100,95 C120,95 145,100 160,130 L160,200 L120,200 L100,120 L80,200 L40,200 L40,130 C55,100 80,95 100,95" fill="white" />
+                                    {/* Open Arms */}
+                                    <motion.path 
+                                        d="M40,135 Q10,120 15,90" 
+                                        fill="none" stroke="#FFDBAC" strokeWidth="14" strokeLinecap="round"
+                                        animate={{ rotate: [-2, 5, -2] }}
+                                        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                                    />
+                                    <motion.path 
+                                        d="M160,135 Q190,120 185,90" 
+                                        fill="none" stroke="#FFDBAC" strokeWidth="14" strokeLinecap="round"
+                                        animate={{ rotate: [2, -5, 2] }}
+                                        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                                    />
+                                    {/* Stethoscope */}
+                                    <path d="M75,95 Q100,140 125,95" fill="none" stroke="#475569" strokeWidth="4" />
+                                    <circle cx="100" cy="130" r="8" fill="#94A3B8" />
+                                    {/* Face Details */}
+                                    <circle cx="88" cy="50" r="3" fill="#334155" />
+                                    <circle cx="112" cy="50" r="3" fill="#334155" />
+                                    <path d="M85,65 Q100,80 115,65" fill="none" stroke="#EB5E28" strokeWidth="2" strokeLinecap="round" />
+                                </svg>
+                                {/* Decorative Hearts/Confetti */}
+                                <div className="absolute top-0 right-10 text-alteha-turquoise animate-bounce"><CheckCircle className="w-8 h-8" /></div>
+                                <div className="absolute bottom-10 left-0 text-alteha-violet animate-pulse"><Stethoscope className="w-10 h-10" /></div>
                             </div>
-                            <h2 className="text-3xl font-black text-slate-900 mb-2">¡Registro Exitoso!</h2>
-                            <p className="text-slate-500 font-medium mb-8 max-w-md mx-auto">
-                                Tu clínica ha sido registrada correctamente. Recibirás un correo de confirmación una vez que los documentos de tu institución sean verificados por nuestro equipo.
+
+                            <div className="space-y-4 mb-10">
+                                <h2 className="text-4xl font-black text-slate-900 tracking-tight">
+                                    ¡Bienvenido a ALTEHA, {formData.name}!
+                                </h2>
+                                <p className="text-xl text-slate-600 font-medium max-w-lg mx-auto leading-relaxed">
+                                    Tu registro ha sido un éxito. Estamos encantados de sumar a tu institución a nuestra comunidad.
+                                </p>
+                            </div>
+
+                            {/* Promotion Section */}
+                            <div className="max-w-md mx-auto p-6 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-[2.5rem] text-white shadow-2xl shadow-blue-200 mb-10 relative overflow-hidden group">
+                                <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl group-hover:scale-125 transition-transform duration-700" />
+                                
+                                <div className="relative z-10 text-left">
+                                    <div className="flex items-center gap-4 mb-4">
+                                        <div className="w-14 h-14 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/30">
+                                            <Award className="w-8 h-8 text-white" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-lg font-black leading-tight">¡Impulsa tu Clínica!</h3>
+                                            <p className="text-blue-100 text-sm font-medium">Verificación Prioritaria</p>
+                                        </div>
+                                    </div>
+                                    <p className="text-sm text-blue-50/80 mb-6 leading-relaxed">
+                                        Completa tu perfil y sube tu logo para obtener el <strong>sello de verificado</strong> y prioridad en las búsquedas locales.
+                                    </p>
+                                    <Link href="/login?role=clinic">
+                                        <Button className="w-full bg-white text-blue-600 hover:bg-blue-50 px-8 py-5 rounded-2xl font-black transition-all shadow-lg hover:shadow-xl active:scale-[0.98]">
+                                            Ir a Pantalla de Login
+                                        </Button>
+                                    </Link>
+                                </div>
+                            </div>
+
+                            <p className="text-slate-400 text-sm font-medium">
+                                Recibirás un correo con los detalles de tu acceso en los próximos minutos.
                             </p>
-                            <Link href="/login?role=clinic">
-                                <Button className="bg-slate-900 px-10 py-5 rounded-2xl font-black text-white hover:bg-slate-800 transition-all">
-                                    Ir al Login
-                                </Button>
-                            </Link>
                         </motion.div>
                     )}
                 </AnimatePresence>
             </motion.div >
+
+            {/* Preload Confirmation Popup */}
+            <AnimatePresence>
+                {showPreloadPopup && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                            className="bg-white rounded-[2.5rem] shadow-2xl max-w-md w-full p-8 relative overflow-hidden border border-slate-100"
+                        >
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-full -mr-16 -mt-16 blur-2xl opacity-50" />
+                            
+                            <div className="flex flex-col items-center text-center">
+                                <div className="w-20 h-20 bg-blue-500 rounded-3xl flex items-center justify-center mb-6 shadow-lg shadow-blue-200 rotate-3">
+                                    <Building2 className="w-10 h-10 text-white -rotate-3" />
+                                </div>
+                                <h3 className="text-2xl font-black text-slate-900 mb-2">¡Clínica Encontrada!</h3>
+                                <p className="text-slate-500 font-medium mb-6">
+                                    Hemos detectado que <span className="text-blue-600 font-bold">{foundClinicData?.name}</span> ya cuenta con información pre-autorizada.
+                                </p>
+
+                                <div className="w-full bg-slate-50 rounded-2xl p-4 mb-8 text-left space-y-2 border border-slate-100">
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Identificación</span>
+                                        <span className="text-slate-700 font-bold">{foundClinicData?.identificationNumber}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Correo</span>
+                                        <span className="text-slate-700 font-bold truncate max-w-[180px]">{foundClinicData?.email}</span>
+                                    </div>
+                                    {foundClinicData?.phone && (
+                                        <div className="flex justify-between items-center text-sm">
+                                            <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Teléfono Celular</span>
+                                            <span className="text-slate-700 font-bold">{foundClinicData?.phone}</span>
+                                        </div>
+                                    )}
+                                    {foundClinicData?.healthLicenseNumber && (
+                                        <div className="flex justify-between items-center text-sm">
+                                            <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Licencia Sanitaria</span>
+                                            <span className="text-slate-700 font-bold">{foundClinicData?.healthLicenseNumber}</span>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="flex flex-col w-full gap-3">
+                                    <Button
+                                        onClick={fillPreloadData}
+                                        className="w-full bg-blue-600 py-4 rounded-2xl text-white font-black hover:bg-blue-700 transition-all shadow-lg active:scale-[0.98]"
+                                    >
+                                        Autocompletar Datos
+                                    </Button>
+                                    <button
+                                        onClick={() => setShowPreloadPopup(false)}
+                                        className="w-full py-4 text-slate-400 font-bold hover:text-slate-600 transition-colors"
+                                    >
+                                        Continuar manualmente
+                                    </button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
 
 
         </div >
@@ -1188,15 +1576,25 @@ export default function ClinicRegistrationPage() {
 }
 
 // Helper component for password requirements
-function PasswordRequirement({ met, text }: { met: boolean; text: string }) {
+// Helper component for password requirements
+function PasswordRequirement({ met, active = false, text }: { met: boolean; active?: boolean; text: string }) {
+    const color = met
+        ? 'text-alteha-turquoise'
+        : active
+            ? 'text-red-500'
+            : 'text-slate-400';
     return (
-        <div className={`flex items-center gap-2 transition-all ${met ? 'text-emerald-600' : 'text-slate-400'}`}>
+        <div className={`flex items-center gap-2 transition-all duration-300 ${color}`}>
             {met ? (
                 <CheckCircle className="w-4 h-4" />
+            ) : active ? (
+                <div className="w-4 h-4 rounded-full border-2 border-current flex items-center justify-center">
+                    <div className="w-1.5 h-1.5 rounded-full bg-current" />
+                </div>
             ) : (
                 <div className="w-4 h-4 rounded-full border-2 border-current" />
             )}
-            <span className={`text-sm font-medium ${met ? 'text-emerald-600' : 'text-slate-500'}`}>{text}</span>
+            <span className={`text-sm font-medium transition-all duration-300 ${color}`}>{text}</span>
         </div>
     );
 }

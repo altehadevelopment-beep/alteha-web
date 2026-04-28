@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getAppToken } from '@/lib/auth-service';
 import { verifyCaptcha } from '@/lib/captcha-verify';
@@ -52,7 +54,7 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({
             code: 'AUTH_004',
-            message: 'Usuario o contraseña incorrectos'
+            message: 'Usuario (Correo Electrónico) o contraseña incorrectos'
         });
     } catch (error) {
         console.error('Authentication error:', error);

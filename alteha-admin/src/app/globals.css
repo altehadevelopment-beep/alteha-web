@@ -1,0 +1,85 @@
+@import "tailwindcss";
+@plugin "tailwindcss-animate";
+
+/* ═══════════════════════════════════════════════════════════
+   ALTEHA BRAND DESIGN SYSTEM
+   Colors extracted directly from the official Alteha logo
+   Gradient: Teal #2ECFBF → Purple #7B5BFF
+════════════════════════════════════════════════════════════ */
+:root {
+  /* ── Core brand gradient ── */
+  --alteha-teal:    #2ECFBF;   /* Left side of ALTEHA text / logo */
+  --alteha-mint:    #48DDD0;   /* Lighter teal accent */
+  --alteha-violet:  #7B5BFF;   /* Right side of ALTEHA text */
+  --alteha-purple:  #6347E8;   /* Deeper violet for buttons */
+  --alteha-gradient: linear-gradient(90deg, #2ECFBF, #7B5BFF);
+  --alteha-gradient-135: linear-gradient(135deg, #2ECFBF, #7B5BFF);
+
+  /* ── App backgrounds ── */
+  --bg-app:       #EEF2FF;   /* Very light lavender — main app bg */
+  --bg-card:      #FFFFFF;
+  --bg-dark:      #0C0E1A;   /* Deep dark navy for sidebar/login */
+  --bg-dark-2:    #111527;   /* Slightly lighter dark for cards */
+  --bg-dark-3:    #1A1F35;   /* Borders and separators */
+
+  /* ── Text ── */
+  --text-primary:   #0F1128;
+  --text-secondary: #6B7280;
+  --text-muted:     #9CA3AF;
+
+  /* ── Border ── */
+  --border-light:  rgba(123,91,255,0.12);
+  --border-teal:   rgba(46,207,191,0.2);
+
+  /* ── Glows ── */
+  --glow-teal:    0 0 24px rgba(46,207,191,0.25);
+  --glow-violet:  0 0 24px rgba(123,91,255,0.25);
+}
+
+@theme {
+  --color-background:      var(--bg-app);
+  --color-foreground:      var(--text-primary);
+  --color-alteha-teal:     var(--alteha-teal);
+  --color-alteha-mint:     var(--alteha-mint);
+  --color-alteha-violet:   var(--alteha-violet);
+  --color-alteha-purple:   var(--alteha-purple);
+  --color-alteha-dark:     var(--bg-dark);
+  --font-sans:   var(--font-inter), system-ui, sans-serif;
+  --font-outfit: var(--font-outfit), system-ui, sans-serif;
+}
+
+/* ── Base ─────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg-app);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Custom Scrollbar ─────────────────────────────── */
+.custom-scrollbar::-webkit-scrollbar { width: 3px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(46,207,191,0.25);
+  border-radius: 99px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(46,207,191,0.5);
+}
+
+/* ── Gradient text utility ────────────────────────── */
+.alteha-text-gradient {
+  background: var(--alteha-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Gradient border utility ──────────────────────── */
+.alteha-border {
+  border: 1px solid;
+  border-image: linear-gradient(135deg, rgba(46,207,191,0.4), rgba(123,91,255,0.4)) 1;
+  border-radius: inherit;
+}

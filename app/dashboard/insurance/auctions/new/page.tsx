@@ -17,7 +17,17 @@ import {
     Upload,
     MapPin,
     Users,
-    Building2
+    Building2,
+    Search,
+    Filter,
+    ArrowLeft,
+    Bed,
+    Target,
+    Zap,
+    Clock,
+    HelpCircle,
+    UserPlus,
+    Plus
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -32,7 +42,11 @@ import {
     type Patient,
     type Clinic,
     type ActorProfile,
-    getProfile
+    getProfile,
+    getProcedureTypes,
+    getProcedureTemplates,
+    type ProcedureTemplate,
+    type ProcedureType
 } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 
@@ -41,7 +55,11 @@ export default function NewAuctionPage() {
     const [step, setStep] = useState(1);
     const [isLoading, setIsLoading] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [clinicSearch, setClinicSearch] = useState('');
+    const [doctorSearch, setDoctorSearch] = useState('');
+    const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
+    const [prefilledFields, setPrefilledFields] = useState<Set<string>>(new Set());
+    const [error, setError] = useState<string | React.ReactNode | null>(null);
 
     // Form State
     const [formData, setFormData] = useState<AuctionPayload>({
@@ -50,7 +68,7 @@ export default function NewAuctionPage() {
         auctionType: 'REVERSE_AUCTION',
         status: 'DRAFT',
         startDate: new Date().toISOString(),
-        endDate: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(),
+        endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
         maxBudget: 0,
         reservePrice: 0,
         urgencyLevel: 'MEDIUM',
@@ -60,13 +78,20 @@ export default function NewAuctionPage() {
         preferredLocation: 'Caracas, Venezuela',
         requiresHospitalization: true,
         estimatedDurationDays: 1,
+        estimatedDuration: 0,
+        anesthesiologist: false,
+        biopsyRequired: false,
+        numberOfAssistants: 0,
+        protocol: '',
+        subSpecialty: '',
+        equipment: '',
         specialRequirements: '',
         termsAndConditions: 'Términos estándar de Alteha...',
         termsAndConditionsAccepted: true,
         showPrice: true,
         durationHours: 240,
-        autoExtendMinutes: 10,
-        minBidsRequired: 1,
+        autoExtendMinutes: 1440,
+        minBidsRequired: 10,
         estimatedSurgeryDate: new Date(Date.now() + 20 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         patient: { id: 0 },
         specialty: { id: 1 },
@@ -83,8 +108,19 @@ export default function NewAuctionPage() {
     const [specialties, setSpecialties] = useState<Specialty[]>([]);
     const [clinics, setClinics] = useState<Clinic[]>([]);
     const [doctors, setDoctors] = useState<ActorProfile[]>([]);
-    const [foundPatient, setFoundPatient] = useState<Patient | null>(null);
+    const [searchResults, setSearchResults] = useState<Patient[]>([]);
+    const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
     const [searchDoc, setSearchDoc] = useState('');
+
+    // Procedure Template States
+    const [procedureTypes, setProcedureTypes] = useState<ProcedureType[]>([]);
+    const [procedureTemplates, setProcedureTemplates] = useState<ProcedureTemplate[]>([]);
+    const [selectedProcedureTypeId, setSelectedProcedureTypeId] = useState<number | null>(null);
+    const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
+    const [searchProcedure, setSearchProcedure] = useState('');
+    const [showProcedureResults, setShowProcedureResults] = useState(false);
+    const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
+    const [advSearchSpecialtyId, setAdvSearchSpecialtyId] = useState<number | null>(null);
 
     useEffect(() => {
         const loadInitial = async () => {
@@ -112,6 +148,10 @@ export default function NewAuctionPage() {
                     invitedDoctorIds: [1500, 1501],
                     invitedClinicIds: [1500, 1501, 1502]
                 }));
+
+                // Load Procedure Types
+                const types = await getProcedureTypes();
+                setProcedureTypes(Array.isArray(types) ? types : []);
             } catch (err) {
                 console.error('Error loading initial data:', err);
             }
@@ -119,29 +159,151 @@ export default function NewAuctionPage() {
         loadInitial();
     }, []);
 
+    const markPrefilled = (fields: string[]) => {
+        setPrefilledFields(new Set(fields));
+    };
+
+    const handleManualChange = (field: string, value: any) => {
+        setFormData(prev => ({ ...prev, [field]: value }));
+        setPrefilledFields(prev => {
+            const next = new Set(prev);
+            next.delete(field);
+            return next;
+        });
+    };
+
+    // Load templates when procedure type changes
+    useEffect(() => {
+        if (selectedProcedureTypeId) {
+            const loadTemplates = async () => {
+                setIsLoadingTemplates(true);
+                try {
+                    const templates = await getProcedureTemplates(selectedProcedureTypeId);
+                    setProcedureTemplates(Array.isArray(templates) ? templates : []);
+                } catch (err) {
+                    console.error('Error loading templates:', err);
+                    setProcedureTemplates([]);
+                } finally {
+                    setIsLoadingTemplates(false);
+                }
+            };
+            loadTemplates();
+        } else {
+            setProcedureTemplates([]);
+        }
+    }, [selectedProcedureTypeId]);
+
+    const handleTemplateSelect = (templateId: number) => {
+        const template = procedureTemplates.find(t => t.id === templateId);
+        if (!template) return;
+
+        setSelectedTemplateId(templateId);
+        const prefilledKeys = [
+            'procedureType', 'title', 'description', 'doctorBudget', 'clinicBudget', 
+            'maxBudget', 'requiresHospitalization', 'estimatedDurationDays', 
+            'estimatedDuration', 'anesthesiologist', 'biopsyRequired', 
+            'numberOfAssistants', 'protocol', 'subSpecialty', 'equipment', 'specialty'
+        ];
+        markPrefilled(prefilledKeys);
+        
+        setFormData(prev => ({
+            ...prev,
+            procedureType: { id: template.procedureType.id },
+            title: template.procedureName,
+            description: template.description || '',
+            doctorBudget: template.doctorBudget || 0,
+            clinicBudget: template.clinicBudget || 0,
+            maxBudget: (template.doctorBudget || 0) + (template.clinicBudget || 0),
+            requiresHospitalization: template.requiresHospitalization ?? true,
+            estimatedDurationDays: template.hospitalizationTime ? Math.ceil(template.hospitalizationTime / 24) : 1,
+            estimatedDuration: template.estimatedDuration || 0,
+            anesthesiologist: template.anesthesiologist ?? false,
+            biopsyRequired: template.biopsyRequired ?? false,
+            numberOfAssistants: template.numberOfAssistants || 0,
+            protocol: template.protocol || '',
+            subSpecialty: template.subSpecialty || '',
+            equipment: template.equipment || '',
+            specialty: template.specialty ? { id: template.specialty.id } : prev.specialty
+        }));
+    };
+
+    // Search as you type with debounce
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (searchDoc && searchDoc.length >= 2) {
+                handlePatientSearch();
+            } else if (!searchDoc) {
+                setSelectedPatient(null);
+                setSearchResults([]);
+                setError(null);
+            }
+        }, 300);
+
+        return () => clearTimeout(timer);
+    }, [searchDoc]);
+
+    // Keep maxBudget updated whenever budgets or supplies change
+    useEffect(() => {
+        const suppliesSum = formData.requiredSupplies?.reduce((acc, s) => acc + (s.quantity * s.referenceAmount), 0) || 0;
+        const total = (formData.doctorBudget || 0) + (formData.clinicBudget || 0) + suppliesSum;
+        if (formData.maxBudget !== total) {
+            setFormData(prev => ({ ...prev, maxBudget: total }));
+        }
+    }, [formData.doctorBudget, formData.clinicBudget, formData.requiredSupplies]);
+
     const handlePatientSearch = async () => {
         if (!searchDoc) return;
         setIsSearching(true);
         setError(null);
         try {
-            const result = await searchPatient('CEDULA', searchDoc);
+            const cleanDoc = searchDoc.replace(/\D/g, '');
+            const result = await searchPatient('CEDULA', cleanDoc);
+            
             if (result.code === '00' && result.data) {
-                setFoundPatient(result.data);
-                setFormData(prev => ({
-                    ...prev,
-                    patient: { id: result.data.id },
-                    patientAge: calculateAge(result.data.dateOfBirth),
-                    patientGender: result.data.gender as any
-                }));
+                // If the API returns a single object, wrap it in an array
+                const data = Array.isArray(result.data) ? result.data : [result.data];
+                setSearchResults(data);
             } else {
-                setError('Paciente no encontrado. Por favor verifique el documento.');
-                setFoundPatient(null);
+                setSearchResults([]);
+                // Only show error if the user has typed a complete-looking ID but no patient is found
+                if (cleanDoc.length >= 8) {
+                    setError(
+                        <div className="flex flex-col gap-2">
+                            <p>No existe un paciente registrado con la cédula <span className="text-slate-900 font-black">{cleanDoc}</span>.</p>
+                            <p className="text-xs opacity-80">Sugerimos registrar al nuevo beneficiario para continuar con la subasta.</p>
+                            <Link 
+                                href="/dashboard/insurance/patients/register" 
+                                className="mt-1 bg-alteha-violet text-white px-4 py-2 rounded-xl font-black flex items-center gap-2 hover:scale-105 transition-all w-fit shadow-lg shadow-violet-100"
+                            >
+                                <Plus className="w-4 h-4" />
+                                Registrar Paciente
+                            </Link>
+                        </div>
+                    );
+                }
             }
-        } catch (err) {
-            setError('Error al buscar paciente');
+        } catch (err: any) {
+            console.error('Search error:', err);
+            setSearchResults([]);
         } finally {
             setIsSearching(false);
         }
+    };
+
+    const handleSelectPatient = (patient: Patient) => {
+        setSelectedPatient(patient);
+        setSearchResults([]);
+        setSearchDoc(`${patient.identificationNumber}`);
+        setFormData(prev => ({
+            ...prev,
+            patient: { id: patient.id },
+            patientAge: calculateAge(patient.dateOfBirth),
+            patientGender: patient.gender as any
+        }));
+        // Auto-scroll to history
+        setTimeout(() => {
+            document.getElementById('medical-history-section')?.scrollIntoView({ behavior: 'smooth' });
+        }, 300);
     };
 
     const calculateAge = (dob: string) => {
@@ -188,18 +350,14 @@ export default function NewAuctionPage() {
     };
 
     const steps = [
-        { id: 1, title: 'Paciente', icon: User },
-        { id: 2, title: 'Clínico', icon: Stethoscope },
-        { id: 3, title: 'Presupuesto', icon: DollarSign },
-        { id: 4, title: 'Subasta', icon: Gavel },
-        { id: 5, title: 'Clínicas', icon: Building2 },
-        { id: 6, title: 'Médicos', icon: Users },
-        { id: 7, title: 'Confirmación', icon: CheckCircle2 }
+        { id: 1, title: 'Configuración', icon: Stethoscope },
+        { id: 2, title: 'Invitados', icon: Users },
+        { id: 3, title: 'Publicación', icon: Gavel }
     ];
 
     // Computed: Filter doctors based on selected clinics
     const filteredDoctors = doctors.filter(doctor => {
-        if (!formData.invitedClinicIds || formData.invitedClinicIds.length === 0) return true; // Show all if no clinic selected? Or none? User said "médico debe trabajar en al menos una clinica de las clnicas selecionadas"
+        if (!formData.invitedClinicIds || formData.invitedClinicIds.length === 0) return true;
         return doctor.preferredClinics?.some(pc => formData.invitedClinicIds?.includes(pc.id));
     });
 
@@ -213,100 +371,503 @@ export default function NewAuctionPage() {
             <div className="bg-white rounded-[3rem] shadow-2xl shadow-slate-200 overflow-hidden border border-slate-100">
                 <div className="bg-slate-900 p-10 text-white flex flex-col md:flex-row justify-between items-center gap-6">
                     <div>
-                        <h2 className="text-4xl font-black tracking-tight">Nueva Subasta</h2>
-                        <p className="text-slate-400 font-medium mt-1">Sigue los pasos para configurar tu convocatoria</p>
+                        <h2 className="text-2xl font-black tracking-tight">Nueva Subasta</h2>
+                        <p className="text-slate-400 font-bold text-xs mt-1">Configura tu convocatoria paso a paso</p>
                     </div>
                     {/* Progress indicator */}
                     <div className="flex items-center gap-3 bg-white/5 p-3 rounded-2xl backdrop-blur-sm overflow-x-auto max-w-full">
-                        {steps.map((s, i) => (
-                            <div key={s.id} className="flex items-center">
-                                <div className={`w-8 h-8 md:w-10 md:h-10 rounded-xl flex items-center justify-center font-black transition-all ${step >= s.id ? 'bg-alteha-violet text-white' : 'bg-white/10 text-white/30'
-                                    }`}>
-                                    <s.icon className="w-4 h-4 md:w-5 md:h-5" />
+                        {steps.map((s, i) => {
+                            const Icon = s.icon;
+                            return (
+                                <div key={s.id} className="flex items-center">
+                                    <div className={`w-8 h-8 md:w-10 md:h-10 rounded-xl flex items-center justify-center font-black transition-all ${step >= s.id ? 'bg-alteha-violet text-white' : 'bg-white/10 text-white/30'}`}>
+                                        <Icon className="w-4 h-4 md:w-5 md:h-5" />
+                                    </div>
+                                    {i < steps.length - 1 && (
+                                        <div className={`w-3 md:w-6 h-1 rounded-full mx-1 md:mx-2 ${step > s.id ? 'bg-alteha-violet' : 'bg-white/10'}`} />
+                                    )}
                                 </div>
-                                {i < steps.length - 1 && (
-                                    <div className={`w-3 md:w-6 h-1 rounded-full mx-1 md:mx-2 ${step > s.id ? 'bg-alteha-violet' : 'bg-white/10'
-                                        }`} />
-                                )}
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 </div>
 
                 <form onSubmit={handleSubmit} className="p-10">
-                    <AnimatePresence mode="wait">
-                        {step === 1 && (
+                    {error && (
+                        <motion.div 
+                            initial={{ opacity: 0, y: -20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="mb-8 p-5 bg-red-50 border-2 border-red-100 text-red-600 rounded-3xl flex items-start gap-4 font-bold text-sm shadow-sm"
+                        >
+                            <AlertCircle className="w-6 h-6 shrink-0 mt-0.5" />
+                            <div className="flex-1 leading-relaxed">
+                                {error}
+                            </div>
+                        </motion.div>
+                    )}
+
+                    {step === 1 && (
                             <motion.div
                                 key="step1"
                                 initial={{ opacity: 0, x: 20 }}
                                 animate={{ opacity: 1, x: 0 }}
                                 exit={{ opacity: 0, x: -20 }}
-                                className="space-y-8"
+                                className="space-y-10"
                             >
+                                <div className="space-y-8">
                                 <div className="space-y-6">
-                                    <h3 className="text-2xl font-black text-slate-900 border-b pb-4">Identificación del Paciente</h3>
-                                    <div className="flex gap-4">
-                                        <div className="flex-1 space-y-1">
-                                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Cédula del Paciente</label>
-                                            <input
-                                                type="text"
-                                                value={searchDoc}
-                                                onChange={(e) => setSearchDoc(e.target.value)}
-                                                placeholder="Ej: 28900788"
-                                                className="w-full p-4 bg-slate-50 border-2 border-transparent focus:border-alteha-violet focus:bg-white rounded-2xl font-bold text-slate-900 transition-all"
-                                            />
-                                        </div>
-                                        <div className="flex items-end">
-                                            <Button
-                                                type="button"
-                                                onClick={handlePatientSearch}
-                                                disabled={isSearching || !searchDoc}
-                                                className="bg-slate-900 text-white p-4 rounded-2xl aspect-square flex items-center justify-center"
-                                            >
-                                                {isSearching ? <Loader2 className="w-5 h-5 animate-spin" /> : <ChevronRight className="w-5 h-5" />}
-                                            </Button>
-                                        </div>
-                                    </div>
-
-                                    {error && error.includes("belong") && (
-                                        <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3 group">
-                                            <AlertCircle className="w-5 h-5 text-amber-500 mt-0.5" />
-                                            <div>
-                                                <p className="text-amber-800 font-bold text-sm">Validación de Pertenencia</p>
-                                                <p className="text-amber-700 text-xs font-medium">El paciente no está registrado bajo su compañía de seguros. Por favor, verifique el documento o contacte con soporte.</p>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {foundPatient && (
-                                        <motion.div
-                                            initial={{ opacity: 0, scale: 0.95 }}
-                                            animate={{ opacity: 1, scale: 1 }}
-                                            className="p-6 bg-emerald-50 rounded-3xl border border-emerald-100 flex items-center gap-6"
+                                    {/* MENSAJE INSTRUCTIVO */}
+                                    {!selectedPatient && (
+                                        <motion.div 
+                                            initial={{ opacity: 0, y: -10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            className="bg-alteha-violet/5 p-6 rounded-[2rem] border-2 border-dashed border-alteha-violet/20 flex items-start gap-4"
                                         >
-                                            <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center text-emerald-500 overflow-hidden shadow-sm">
-                                                {foundPatient.profileImageUrl ? (
-                                                    <img src={foundPatient.profileImageUrl} alt="Profile" className="w-full h-full object-cover" />
-                                                ) : <User className="w-8 h-8" />}
+                                            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm border border-alteha-violet/10 shrink-0">
+                                                <AlertCircle className="w-6 h-6 text-alteha-violet" />
                                             </div>
-                                            <div>
-                                                <h4 className="text-xl font-black text-slate-900">{foundPatient.firstName} {foundPatient.lastName}</h4>
-                                                <p className="text-slate-500 font-bold text-sm">{foundPatient.identificationNumber} • {foundPatient.gender} • {calculateAge(foundPatient.dateOfBirth)} años</p>
-                                            </div>
-                                            <CheckCircle2 className="w-8 h-8 text-emerald-500 ml-auto" />
+                                            <p className="text-sm font-bold text-slate-600 leading-relaxed italic">
+                                                El primer paso para crear la subasta es colocar la <span className="text-alteha-violet font-black underline">cédula del cliente</span>. 
+                                                Si el cliente no existe, debe registrarlo previamente en la plataforma para continuar.
+                                            </p>
                                         </motion.div>
                                     )}
 
-                                    <FormInput
-                                        label="Historia Médica / Antecedentes"
-                                        value={formData.medicalHistory}
-                                        onChange={(v: string) => setFormData({ ...formData, medicalHistory: v })}
-                                        placeholder="Detalla los antecedentes relevantes para la subasta..."
-                                        description="Incluye diagnósticos previos, alergias o condiciones que el médico deba considerar antes de ofertar."
-                                    />
+                                    {/* SECCIÓN 1: PACIENTE */}
+                                    <div className="space-y-4">
+                                        <h3 className="text-lg font-black text-slate-900 border-b pb-3 uppercase tracking-wider italic">1. Información del Paciente</h3>
+                                        <div className="flex gap-3">
+                                            <div className="relative flex-1">
+                                                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                                    {isSearching ? <Loader2 className="h-5 w-5 text-alteha-violet animate-spin" /> : <User className="h-5 w-5 text-slate-400" />}
+                                                </div>
+                                                <input
+                                                    type="text"
+                                                    className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-transparent focus:border-alteha-violet focus:bg-white rounded-2xl font-bold text-sm text-slate-900 transition-all outline-none shadow-sm"
+                                                    placeholder="Escribe la cédula del paciente..."
+                                                    value={searchDoc}
+                                                    onChange={(e) => {
+                                                        setSearchDoc(e.target.value);
+                                                        if (selectedPatient) setSelectedPatient(null);
+                                                    }}
+                                                />
+
+                                                {/* SUGGESTIONS DROPDOWN */}
+                                                <AnimatePresence>
+                                                    {searchResults.length > 0 && !selectedPatient && (
+                                                        <motion.div
+                                                            initial={{ opacity: 0, y: 10 }}
+                                                            animate={{ opacity: 1, y: 0 }}
+                                                            exit={{ opacity: 0, y: 10 }}
+                                                            className="absolute z-50 left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden"
+                                                        >
+                                                            <div className="p-2 max-h-[300px] overflow-y-auto">
+                                                                {searchResults.map((patient) => (
+                                                                    <button
+                                                                        key={patient.id}
+                                                                        type="button"
+                                                                        onClick={() => handleSelectPatient(patient)}
+                                                                        className="w-full p-4 flex items-center gap-4 hover:bg-slate-50 rounded-xl transition-all text-left group"
+                                                                    >
+                                                                        <div className="w-10 h-10 rounded-full bg-alteha-violet/10 flex items-center justify-center text-alteha-violet font-black">
+                                                                            {patient.firstName[0]}{patient.lastName[0]}
+                                                                        </div>
+                                                                        <div className="flex-1">
+                                                                            <h4 className="text-sm font-black text-slate-900">{patient.firstName} {patient.lastName}</h4>
+                                                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{patient.identificationNumber}</p>
+                                                                        </div>
+                                                                        <ChevronRight className="w-4 h-4 text-slate-300 group-hover:translate-x-1 transition-transform" />
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        </motion.div>
+                                                    )}
+                                                </AnimatePresence>
+                                            </div>
+                                            <Link 
+                                                href="/dashboard/insurance/patients/register"
+                                                className="px-6 py-4 bg-white border-2 border-slate-100 hover:border-alteha-violet hover:text-alteha-violet text-slate-400 rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center gap-2 shadow-sm whitespace-nowrap"
+                                            >
+                                                <UserPlus className="w-4 h-4" />
+                                                Crear Paciente
+                                            </Link>
+                                        </div>
+
+                                        <AnimatePresence>
+                                            {selectedPatient && (
+                                                <motion.div
+                                                    initial={{ opacity: 0, scale: 0.95 }}
+                                                    animate={{ opacity: 1, scale: 1 }}
+                                                    className="p-6 bg-emerald-50 border-2 border-emerald-100 rounded-[2.5rem] flex items-center gap-4 shadow-sm"
+                                                >
+                                                    <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center border-2 border-emerald-200 shadow-sm overflow-hidden shrink-0">
+                                                        {selectedPatient.profileImageUrl ? (
+                                                            <img src={selectedPatient.profileImageUrl} className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            <User className="w-8 h-8 text-emerald-500" />
+                                                        )}
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="text-sm font-black text-slate-900">{selectedPatient.firstName} {selectedPatient.lastName}</h4>
+                                                        <p className="text-slate-500 font-bold text-[10px] uppercase tracking-tighter">{calculateAge(selectedPatient.dateOfBirth)} años • {selectedPatient.gender}</p>
+                                                    </div>
+                                                    <CheckCircle2 className="w-6 h-6 text-emerald-500 ml-auto" />
+                                                </motion.div>
+                                            )}
+                                        </AnimatePresence>
+                                    </div>
                                 </div>
-                            </motion.div>
-                        )}
+                                </div>
+
+                                <AnimatePresence>
+                                    {selectedPatient ? (
+                                        <motion.div
+                                            key="technical-details"
+                                            initial={{ opacity: 0, y: 30 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            exit={{ opacity: 0, y: -20 }}
+                                            transition={{ duration: 0.5, ease: "easeOut" }}
+                                            className="space-y-12"
+                                        >
+                                            <div className="space-y-4 pt-8 border-t">
+                                                <h3 className="text-lg font-black text-slate-900 border-b pb-3 uppercase tracking-wider italic">2. Antecedentes</h3>
+                                                <textarea
+                                                    className={`w-full p-4 border-2 border-transparent focus:border-alteha-violet focus:bg-white rounded-xl font-bold text-slate-900 transition-all outline-none min-h-[100px] text-sm ${prefilledFields.has('medicalHistory') ? 'bg-violet-50/50 border-alteha-violet/10' : 'bg-slate-50'}`}
+                                                    placeholder="Historia médica relevante..."
+                                                    value={formData.medicalHistory}
+                                                    onChange={(e) => handleManualChange('medicalHistory', e.target.value)}
+                                                />
+                                            </div>
+
+                                            <div className="relative mt-8 pt-8 border-t">
+                                                <h3 className="text-lg font-black text-slate-900 border-b pb-3 uppercase tracking-wider italic">3. ¿Qué intervención vamos a subastar?</h3>
+                                                    <div className="flex gap-3">
+                                                <div className="flex-1 relative group">
+                                                    <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
+                                                        <Stethoscope className="h-5 w-5 text-alteha-violet" />
+                                                    </div>
+                                                    <input
+                                                        type="text"
+                                                        className="w-full pl-14 pr-5 py-4 bg-slate-50 border-2 border-transparent focus:border-alteha-violet focus:bg-white rounded-2xl font-bold text-sm text-slate-900 transition-all outline-none shadow-sm"
+                                                        placeholder="Busca el tipo de intervención..."
+                                                        value={searchProcedure}
+                                                        onChange={(e) => {
+                                                            setSearchProcedure(e.target.value);
+                                                            setShowProcedureResults(true);
+                                                        }}
+                                                        onFocus={() => setShowProcedureResults(true)}
+                                                    />
+                                                    {searchProcedure && (
+                                                        <button 
+                                                            onClick={() => { setSearchProcedure(''); setShowProcedureResults(false); }}
+                                                            className="absolute inset-y-0 right-6 flex items-center text-slate-300 hover:text-slate-600 transition-colors"
+                                                        >
+                                                            <ChevronLeft className="rotate-45 w-6 h-6" />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowAdvancedSearch(true)}
+                                                    className="px-8 bg-slate-900 text-white rounded-[2rem] hover:bg-slate-800 transition-all flex items-center gap-3 shadow-xl hover:shadow-slate-200"
+                                                >
+                                                    <Search className="w-6 h-6" />
+                                                    <span className="hidden md:block font-black uppercase text-xs tracking-widest">Búsqueda Avanzada</span>
+                                                </button>
+                                            </div>
+
+                                        <AnimatePresence>
+                                            {showProcedureResults && searchProcedure.length > 0 && (
+                                                <motion.div
+                                                    initial={{ opacity: 0, y: 10 }}
+                                                    animate={{ opacity: 1, y: 0 }}
+                                                    exit={{ opacity: 0, y: 10 }}
+                                                    className="absolute z-50 w-full mt-4 bg-white rounded-[2.5rem] shadow-2xl border border-slate-100 overflow-hidden max-h-[450px] overflow-y-auto"
+                                                >
+                                                    {procedureTypes
+                                                        .filter(t => (t.name?.toLowerCase().includes(searchProcedure.toLowerCase()) || t.code?.toLowerCase().includes(searchProcedure.toLowerCase())))
+                                                        .map(type => (
+                                                            <div key={type.id} className="border-b last:border-0">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setSelectedProcedureTypeId(type.id)}
+                                                                    className={`w-full text-left px-8 py-5 hover:bg-alteha-violet/5 flex items-center justify-between transition-colors ${selectedProcedureTypeId === type.id ? 'bg-alteha-violet/10' : ''}`}
+                                                                >
+                                                                    <div>
+                                                                        <div className="flex items-center gap-3">
+                                                                            <p className="font-black text-slate-900 text-lg">{type.name}</p>
+                                                                            {type.code && (
+                                                                                <span className="px-3 py-1 bg-alteha-violet/10 text-alteha-violet text-[10px] font-black rounded-lg uppercase tracking-widest">{type.code}</span>
+                                                                            )}
+                                                                        </div>
+                                                                        <p className="text-xs text-slate-500 font-bold tracking-tight uppercase mt-1">{type.description?.substring(0, 100)}...</p>
+                                                                    </div>
+                                                                    {selectedProcedureTypeId === type.id ? <CheckCircle2 className="w-6 h-6 text-alteha-violet" /> : <ChevronRight className="w-5 h-5 text-slate-300" />}
+                                                                </button>
+                                                                
+                                                                {selectedProcedureTypeId === type.id && (
+                                                                    <div className="bg-slate-50 px-10 py-4 space-y-2 border-t border-slate-100">
+                                                                        {isLoadingTemplates ? (
+                                                                            <div className="py-8 text-center">
+                                                                                <Loader2 className="w-8 h-8 animate-spin text-alteha-violet mx-auto" />
+                                                                                <p className="text-sm font-bold text-slate-400 mt-3 italic">Consultando catálogos Alteha...</p>
+                                                                            </div>
+                                                                        ) : procedureTemplates.length > 0 ? (
+                                                                            procedureTemplates.map(template => (
+                                                                                <button
+                                                                                    key={template.id}
+                                                                                    type="button"
+                                                                                    onClick={() => {
+                                                                                        handleTemplateSelect(template.id);
+                                                                                        setSearchProcedure(template.procedureName);
+                                                                                        setShowProcedureResults(false);
+                                                                                    }}
+                                                                                    className="w-full text-left p-4 rounded-2xl bg-white border border-transparent hover:border-alteha-violet hover:shadow-md transition-all flex items-center justify-between group/item"
+                                                                                >
+                                                                                    <div className="flex items-center gap-4">
+                                                                                        <div className="w-3 h-3 rounded-full bg-alteha-violet shadow-[0_0_10px_rgba(124,58,237,0.4)]" />
+                                                                                        <span className="text-base font-black text-slate-700 group-hover/item:text-alteha-violet transition-colors">{template.procedureName}</span>
+                                                                                    </div>
+                                                                                    <div className="text-right">
+                                                                                        <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-0.5">Precarga Lista</p>
+                                                                                        <p className="text-sm font-black text-slate-900">${(template.clinicBudget + template.doctorBudget).toLocaleString()}</p>
+                                                                                    </div>
+                                                                                </button>
+                                                                            ))
+                                                                        ) : (
+                                                                            <div className="py-6 text-center border-2 border-dashed border-slate-200 rounded-2xl">
+                                                                                <p className="text-sm font-bold text-slate-400 italic">No se encontraron variantes para esta intervención</p>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ))}
+                                                </motion.div>
+                                            )}
+                                        </AnimatePresence>
+                                    </div>
+
+
+                                    <AnimatePresence>
+                                        {selectedProcedureTypeId && (
+                                            <motion.div
+                                                initial={{ opacity: 0, height: 0 }}
+                                                animate={{ opacity: 1, height: 'auto' }}
+                                                exit={{ opacity: 0, height: 0 }}
+                                                className="space-y-12"
+                                            >
+                                                {/* SECCIÓN 4: DETALLES Y LOGÍSTICA */}
+                                                <div className="space-y-6 pt-8 border-t mt-8">
+                                                    <h3 className="text-lg font-black text-slate-900 border-b pb-3 uppercase tracking-wider italic">4. Detalles y Logística</h3>
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                                        <div className="space-y-4">
+                                                            <FormInput 
+                                                                label="Título de la Subasta" 
+                                                                value={formData.title} 
+                                                                isPrefilled={prefilledFields.has('title')} 
+                                                                onChange={(v: string) => handleManualChange('title', v)} 
+                                                                placeholder="Ej: Cirugía de Vesícula..." 
+                                                                icon={FileText}
+                                                                description="Indica un nombre claro para la intervención. Esto ayudará a los médicos a identificar rápidamente el caso."
+                                                            />
+                                                                <div className="space-y-1">
+                                                                    <div className="flex justify-between items-center px-1">
+                                                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Especialidad</label>
+                                                                    </div>
+                                                                    <select
+                                                                        value={formData.specialty?.id}
+                                                                        onChange={(e) => handleManualChange('specialty', { id: parseInt(e.target.value) })}
+                                                                        className={`w-full p-3 border-2 border-transparent focus:border-alteha-violet focus:bg-white rounded-xl font-bold text-sm text-slate-900 transition-all outline-none ${prefilledFields.has('specialty') ? 'bg-violet-50/50 border-alteha-violet/10' : 'bg-slate-50'}`}
+                                                                    >
+                                                                        {(Array.isArray(specialties) ? specialties : []).map(s => (
+                                                                            <option key={s.id} value={s.id}>{s.name || s.code}</option>
+                                                                        ))}
+                                                                    </select>
+                                                                </div>
+                                                                <div className="space-y-1">
+                                                                    <FormInput 
+                                                                        label="Días Hospitalización" 
+                                                                        type="number" 
+                                                                        value={formData.estimatedDurationDays} 
+                                                                        isPrefilled={prefilledFields.has('estimatedDurationDays')} 
+                                                                        onChange={(v: string) => handleManualChange('estimatedDurationDays', parseInt(v))} 
+                                                                        icon={Bed}
+                                                                        description="Número estimado de días que el paciente permanecerá en la clínica tras la cirugía."
+                                                                    />
+                                                                </div>
+                                                            <div className="grid grid-cols-2 gap-3">
+                                                                <FormInput 
+                                                                    label="Fecha Estimada" 
+                                                                    type="date" 
+                                                                    value={formData.estimatedSurgeryDate} 
+                                                                    isPrefilled={prefilledFields.has('estimatedSurgeryDate')} 
+                                                                    onChange={(v: string) => handleManualChange('estimatedSurgeryDate', v)} 
+                                                                    icon={Calendar}
+                                                                    description="La fecha en la que se tiene programado realizar la intervención quirúrgica."
+                                                                />
+                                                                <FormInput 
+                                                                    label="Ubicación" 
+                                                                    value={formData.preferredLocation} 
+                                                                    isPrefilled={prefilledFields.has('preferredLocation')} 
+                                                                    onChange={(v: string) => handleManualChange('preferredLocation', v)} 
+                                                                    icon={MapPin}
+                                                                    description="Ciudad o zona de preferencia para realizar la cirugía."
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        <div className="space-y-4">
+                                                            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Parámetros Técnicos</h4>
+                                                            <div className="grid grid-cols-2 gap-3">
+                                                                <div className={`p-3 rounded-xl border transition-all ${prefilledFields.has('biopsyRequired') ? 'bg-violet-50/50 border-alteha-violet/20 shadow-sm' : 'bg-slate-50 border-slate-100'}`}>
+                                                                    <div className="flex justify-between items-center mb-1 px-1">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <Stethoscope className="w-3 h-3 text-alteha-violet/60" />
+                                                                            <p className="text-[10px] font-black text-slate-400 uppercase">¿Biopsia?</p>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="flex gap-2">
+                                                                        {['SÍ', 'NO'].map(opt => (
+                                                                            <button key={opt} type="button" onClick={() => handleManualChange('biopsyRequired', opt === 'SÍ')} className={`flex-1 py-1 rounded-lg text-[10px] font-black transition-all ${((opt === 'SÍ' && formData.biopsyRequired) || (opt === 'NO' && !formData.biopsyRequired)) ? 'bg-alteha-violet text-white shadow-sm' : 'bg-white text-slate-400 hover:bg-slate-100'}`}>{opt}</button>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                                <div className={`p-3 rounded-xl border transition-all ${prefilledFields.has('anesthesiologist') ? 'bg-violet-50/50 border-alteha-violet/20 shadow-sm' : 'bg-slate-50 border-slate-100'}`}>
+                                                                    <div className="flex justify-between items-center mb-1 px-1">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <Users className="w-3 h-3 text-alteha-violet/60" />
+                                                                            <p className="text-[10px] font-black text-slate-400 uppercase">¿Anestesiólogo?</p>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="flex gap-2">
+                                                                        {['SÍ', 'NO'].map(opt => (
+                                                                            <button key={opt} type="button" onClick={() => handleManualChange('anesthesiologist', opt === 'SÍ')} className={`flex-1 py-1 rounded-lg text-[10px] font-black transition-all ${((opt === 'SÍ' && formData.anesthesiologist) || (opt === 'NO' && !formData.anesthesiologist)) ? 'bg-alteha-violet text-white shadow-sm' : 'bg-white text-slate-400 hover:bg-slate-100'}`}>{opt}</button>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <div className="grid grid-cols-2 gap-3">
+                                                                <div>
+                                                                    <div className="flex justify-between items-center px-1 mb-1">
+                                                                        <p className="text-[10px] font-black text-slate-400 uppercase">Min. Quirófano</p>
+                                                                    </div>
+                                                                    <input type="number" value={formData.estimatedDuration || 0} onChange={(e) => handleManualChange('estimatedDuration', parseInt(e.target.value))} className={`w-full p-2.5 border-2 border-transparent focus:border-alteha-violet focus:bg-white rounded-xl font-bold text-sm text-slate-900 outline-none ${prefilledFields.has('estimatedDuration') ? 'bg-violet-50/50 border-alteha-violet/10' : 'bg-slate-50'}`} />
+                                                                </div>
+                                                                <div>
+                                                                    <div className="flex justify-between items-center px-1 mb-1">
+                                                                        <p className="text-[10px] font-black text-slate-400 uppercase">Asistentes</p>
+                                                                    </div>
+                                                                    <input type="number" value={formData.numberOfAssistants || 0} onChange={(e) => handleManualChange('numberOfAssistants', parseInt(e.target.value))} className={`w-full p-2.5 border-2 border-transparent focus:border-alteha-violet focus:bg-white rounded-xl font-bold text-sm text-slate-900 outline-none ${prefilledFields.has('numberOfAssistants') ? 'bg-violet-50/50 border-alteha-violet/10' : 'bg-slate-50'}`} />
+                                                                </div>
+                                                            </div>
+                                                            <div className="space-y-2">
+                                                                <div className="flex justify-between items-center px-1">
+                                                                    <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest">Equipamiento Médico</label>
+                                                                    {prefilledFields.has('equipment') && <div className="w-1.5 h-1.5 rounded-full bg-alteha-violet" />}
+                                                                </div>
+                                                                <textarea 
+                                                                    className={`w-full p-3 border-2 border-transparent focus:border-alteha-violet focus:bg-white rounded-xl font-bold text-slate-900 transition-all outline-none min-h-[60px] text-sm ${prefilledFields.has('equipment') ? 'bg-violet-50/50 border-alteha-violet/10' : 'bg-slate-50'}`} 
+                                                                    placeholder="Equipos específicos..." 
+                                                                    value={formData.equipment} 
+                                                                    onChange={(e) => handleManualChange('equipment', e.target.value)} 
+                                                                />
+                                                            </div>
+                                                            <div className="p-5 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50 hover:border-alteha-violet transition-all group">
+                                                                <input type="file" id="medical-report-final" className="hidden" onChange={(e) => setMedicalReport(e.target.files?.[0] || null)} />
+                                                                <label htmlFor="medical-report-final" className="flex flex-col items-center gap-2 cursor-pointer">
+                                                                    <Upload className="w-5 h-5 text-slate-300" />
+                                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{medicalReport ? medicalReport.name : 'Subir Informe Médico'}</span>
+                                                                </label>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* SECCIÓN 5: INSUMOS */}
+                                                <div className="space-y-4 pt-8 border-t mt-8">
+                                                    <div className="flex justify-between items-center border-b pb-3">
+                                                        <h3 className="text-lg font-black text-slate-900 uppercase tracking-wider italic">5. Insumos Especiales</h3>
+                                                        <button type="button" onClick={() => setFormData({ ...formData, requiredSupplies: [...(formData.requiredSupplies || []), { itemName: '', description: '', quantity: 1, referenceAmount: 0 }] })} className="text-alteha-violet font-black text-[10px] uppercase tracking-widest hover:underline">+ Agregar</button>
+                                                    </div>
+                                                    <div className="grid grid-cols-1 gap-4 max-h-[400px] overflow-y-auto pr-2">
+                                                        {(formData.requiredSupplies || []).map((supply, index) => (
+                                                            <div key={index} className="p-4 bg-white border border-slate-100 rounded-2xl space-y-3 relative group shadow-md hover:shadow-lg transition-all">
+                                                                <button type="button" onClick={() => { const n = [...formData.requiredSupplies]; n.splice(index, 1); setFormData({ ...formData, requiredSupplies: n }); }} className="absolute top-4 right-4 text-slate-300 hover:text-red-500 transition-colors"><AlertCircle className="w-4 h-4" /></button>
+                                                                 <div className="space-y-1">
+                                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Nombre del Insumo</p>
+                                                                    <input type="text" placeholder="Ej: Malla de Polipropileno..." value={supply.itemName} onChange={(e) => { const n = [...formData.requiredSupplies]; n[index].itemName = e.target.value; setFormData({ ...formData, requiredSupplies: n }); }} className="w-full bg-slate-50 px-4 py-4 rounded-xl text-base font-bold text-slate-900 outline-none border-2 border-transparent focus:border-alteha-violet transition-all" />
+                                                                </div>
+                                                                <div className="space-y-1">
+                                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Descripción / Observaciones</p>
+                                                                    <textarea placeholder="Especificaciones técnicas, medidas, marcas preferidas..." value={supply.description} onChange={(e) => { const n = [...formData.requiredSupplies]; n[index].description = e.target.value; setFormData({ ...formData, requiredSupplies: n }); }} className="w-full bg-slate-50 px-4 py-4 rounded-xl text-sm font-medium text-slate-600 outline-none border-2 border-transparent focus:border-alteha-violet transition-all resize-none h-24" />
+                                                                </div>
+                                                                <div className="grid grid-cols-2 gap-4">
+                                                                    <div><p className="text-[9px] font-black text-slate-400 uppercase mb-1 ml-1">Cant.</p><input type="number" value={supply.quantity} onChange={(e) => { const n = [...formData.requiredSupplies]; n[index].quantity = parseInt(e.target.value); setFormData({ ...formData, requiredSupplies: n }); }} className="w-full bg-slate-50 px-4 py-3 rounded-xl text-base font-black outline-none border border-transparent focus:border-alteha-violet" /></div>
+                                                                    <div><p className="text-[9px] font-black text-slate-400 uppercase mb-1 ml-1">Ref ($)</p><input type="number" value={supply.referenceAmount} onChange={(e) => { const n = [...formData.requiredSupplies]; n[index].referenceAmount = parseFloat(e.target.value); setFormData({ ...formData, requiredSupplies: n }); }} className="w-full bg-slate-50 px-4 py-3 rounded-xl text-base font-black outline-none border border-transparent focus:border-alteha-violet" /></div>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                        {(!formData.requiredSupplies || formData.requiredSupplies.length === 0) && (
+                                                            <div className="py-8 text-center text-slate-300 italic text-xs font-medium border-2 border-dashed border-slate-100 rounded-2xl col-span-full">No se han añadido insumos</div>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                {/* SECCIÓN 6: CONFIGURACIÓN FINANCIERA */}
+                                                <div className="space-y-6 pt-8 border-t mt-8 bg-slate-900 p-8 rounded-[2.5rem] text-white">
+                                                    <div className="flex justify-between items-center border-b border-white/10 pb-4">
+                                                        <h3 className="text-lg font-black uppercase tracking-wider italic">6. Configuración del Presupuesto</h3>
+                                                        {formData.requiredSupplies && formData.requiredSupplies.length > 0 && (
+                                                            <span className="bg-alteha-violet px-4 py-1 rounded-full text-[10px] font-black tracking-widest uppercase">Incluye {formData.requiredSupplies.length} Insumos</span>
+                                                        )}
+                                                    </div>
+                                                    
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                                        <div className="space-y-2">
+                                                            <label className="text-[10px] font-black text-white/40 uppercase tracking-widest ml-1">Honorarios Médicos ($)</label>
+                                                            <input 
+                                                                type="number" 
+                                                                value={formData.doctorBudget} 
+                                                                onChange={(e) => setFormData({ ...formData, doctorBudget: parseFloat(e.target.value) || 0 })} 
+                                                                className="w-full bg-white/5 border border-white/10 p-4 rounded-2xl text-xl font-black text-white focus:border-alteha-violet outline-none transition-all" 
+                                                            />
+                                                        </div>
+                                                        <div className="space-y-2">
+                                                            <label className="text-[10px] font-black text-white/40 uppercase tracking-widest ml-1">Gastos Clínica ($)</label>
+                                                            <input 
+                                                                type="number" 
+                                                                value={formData.clinicBudget} 
+                                                                onChange={(e) => setFormData({ ...formData, clinicBudget: parseFloat(e.target.value) || 0 })} 
+                                                                className="w-full bg-white/5 border border-white/10 p-4 rounded-2xl text-xl font-black text-white focus:border-alteha-violet outline-none transition-all" 
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    {/* RESUMEN FINANCIERO INTEGRADO */}
+                                                    <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                        <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
+                                                            <p className="text-[8px] font-black text-white/40 uppercase tracking-widest mb-1">Sin Insumos (Base)</p>
+                                                            <p className="text-lg font-black">${((formData.doctorBudget || 0) + (formData.clinicBudget || 0)).toLocaleString()}</p>
+                                                        </div>
+                                                        <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
+                                                            <p className="text-[8px] font-black text-white/40 uppercase tracking-widest mb-1">Total Insumos</p>
+                                                            <p className="text-lg font-black text-alteha-turquoise">${(formData.requiredSupplies?.reduce((acc, s) => acc + (s.quantity * s.referenceAmount), 0) || 0).toLocaleString()}</p>
+                                                        </div>
+                                                        <div className="bg-alteha-violet p-4 rounded-2xl flex flex-col justify-center shadow-xl shadow-alteha-violet/20 border border-white/10">
+                                                            <p className="text-[8px] font-black text-white/70 uppercase tracking-widest mb-0.5">Total Presupuestado</p>
+                                                            <p className="text-2xl font-black">${formData.maxBudget.toLocaleString()}</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </motion.div>
+                            ) : null}
+                        </AnimatePresence>
+                    </motion.div>
+                )}
 
                         {step === 2 && (
                             <motion.div
@@ -317,99 +878,96 @@ export default function NewAuctionPage() {
                                 className="space-y-8"
                             >
                                 <div className="space-y-6">
-                                    <h3 className="text-2xl font-black text-slate-900 border-b pb-4">Detalles Clínicos</h3>
-                                    <FormInput
-                                        label="Título de la Subasta"
-                                        value={formData.title}
-                                        onChange={(v: string) => setFormData({ ...formData, title: v })}
-                                        placeholder="Ej: Cirugía de Vesícula por Laparoscopia"
-                                        description="Un título descriptivo ayuda a los especialistas a identificar rápidamente el tipo de intervención."
-                                    />
+                                    <div className="flex justify-between items-end border-b pb-4">
+                                        <h3 className="text-2xl font-black text-slate-900">Invitados a la Subasta</h3>
+                                        <div className="text-right">
+                                            <p className="text-[10px] font-black text-alteha-violet uppercase tracking-widest">{formData.invitedClinicIds?.length || 0} Clínicas</p>
+                                            <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">{formData.invitedDoctorIds?.length || 0} Médicos</p>
+                                        </div>
+                                    </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div className="space-y-1">
-                                            <div className="flex justify-between items-center mb-1">
-                                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Especialidad Requerida</label>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                        <div className="space-y-4">
+                                            <div className="flex items-center justify-between">
+                                                <h4 className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                                    <Building2 className="w-4 h-4" /> Clínicas
+                                                </h4>
                                             </div>
-                                            <select
-                                                value={formData.specialty.id}
-                                                onChange={(e) => setFormData({ ...formData, specialty: { id: parseInt(e.target.value) } })}
-                                                className="w-full p-4 bg-slate-50 border-2 border-transparent focus:border-alteha-violet focus:bg-white rounded-2xl font-bold text-slate-900 transition-all appearance-none outline-none"
-                                            >
-                                                {(Array.isArray(specialties) ? specialties : []).map(s => (
-                                                    <option key={s.id} value={s.id}>{s.name || s.code}</option>
+                                            <div className="relative">
+                                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Filtrar clínicas..." 
+                                                    value={clinicSearch}
+                                                    onChange={(e) => setClinicSearch(e.target.value)}
+                                                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border-2 border-transparent focus:border-alteha-violet focus:bg-white rounded-xl text-xs font-bold text-slate-900 transition-all outline-none"
+                                                />
+                                            </div>
+                                            <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                                                {(Array.isArray(clinics) ? clinics : [])
+                                                    .filter(c => c.name?.toLowerCase().includes(clinicSearch.toLowerCase()))
+                                                    .map(clinic => (
+                                                    <div
+                                                        key={clinic.id}
+                                                        onClick={() => {
+                                                            const ids = formData.invitedClinicIds || [];
+                                                            if (ids.includes(clinic.id)) {
+                                                                const newIds = ids.filter(id => id !== clinic.id);
+                                                                const remainingDocs = doctors.filter(d => d.preferredClinics?.some(pc => newIds.includes(pc.id))).map(d => d.id);
+                                                                setFormData({ ...formData, invitedClinicIds: newIds, invitedDoctorIds: formData.invitedDoctorIds?.filter(id => remainingDocs.includes(id)) || [] });
+                                                            } else {
+                                                                setFormData({ ...formData, invitedClinicIds: [...ids, clinic.id] });
+                                                            }
+                                                        }}
+                                                        className={`p-4 rounded-2xl border-2 transition-all flex items-center gap-3 cursor-pointer ${formData.invitedClinicIds?.includes(clinic.id) ? 'border-alteha-violet bg-violet-50' : 'border-slate-100 hover:border-slate-200'}`}
+                                                    >
+                                                        <div className="w-10 h-10 bg-white rounded-lg border flex items-center justify-center p-1 shadow-sm">
+                                                            {clinic.logoUrl ? <img src={clinic.logoUrl} className="w-full h-full object-contain" /> : <Building2 className="w-6 h-6 text-slate-200" />}
+                                                        </div>
+                                                        <span className="text-sm font-black text-slate-900 truncate">{clinic.name}</span>
+                                                        {formData.invitedClinicIds?.includes(clinic.id) && <CheckCircle2 className="w-5 h-5 text-alteha-violet ml-auto" />}
+                                                    </div>
                                                 ))}
-                                            </select>
-                                            <p className="text-[9px] text-slate-400 font-medium ml-1 italic">Define qué tipo de especialista podrá ver y participar en esta subasta.</p>
-                                        </div>
-                                        <div className="space-y-1">
-                                            <div className="flex justify-between items-center mb-1">
-                                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Prioridad del Caso</label>
                                             </div>
-                                            <select
-                                                value={formData.urgencyLevel}
-                                                onChange={(e) => setFormData({ ...formData, urgencyLevel: e.target.value })}
-                                                className="w-full p-4 bg-slate-50 border-2 border-transparent focus:border-alteha-violet focus:bg-white rounded-2xl font-bold text-slate-900 transition-all appearance-none outline-none"
-                                            >
-                                                <option value="LOW">Baja / Consultiva</option>
-                                                <option value="MEDIUM">Media / Programada</option>
-                                                <option value="HIGH">Alta / Prioritaria</option>
-                                                <option value="CRITICAL">Urgente / Crítica</option>
-                                            </select>
-                                            <p className="text-[9px] text-slate-400 font-medium ml-1 italic">Indica la rapidez con la que se necesita realizar la intervención.</p>
                                         </div>
-                                    </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div className="space-y-2">
-                                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">¿Requiere Hospitalización?</label>
-                                            <div className="flex bg-slate-100 p-1 rounded-2xl w-fit">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setFormData({ ...formData, requiresHospitalization: true })}
-                                                    className={`px-6 py-2 rounded-xl text-xs font-black transition-all ${formData.requiresHospitalization ? 'bg-white text-alteha-violet shadow-sm' : 'text-slate-400'}`}
-                                                >
-                                                    SÍ
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setFormData({ ...formData, requiresHospitalization: false })}
-                                                    className={`px-6 py-2 rounded-xl text-xs font-black transition-all ${!formData.requiresHospitalization ? 'bg-white text-alteha-violet shadow-sm' : 'text-slate-400'}`}
-                                                >
-                                                    NO
-                                                </button>
+                                        <div className="space-y-4">
+                                            <div className="flex items-center justify-between">
+                                                <h4 className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                                    <Users className="w-4 h-4" /> Médicos
+                                                </h4>
                                             </div>
-                                            <p className="text-[9px] text-slate-400 font-medium ml-1 italic">Determina si el paciente deberá permanecer internado tras la cirugía.</p>
+                                            <div className="relative">
+                                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Filtrar médicos..." 
+                                                    value={doctorSearch}
+                                                    onChange={(e) => setDoctorSearch(e.target.value)}
+                                                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border-2 border-transparent focus:border-alteha-violet focus:bg-white rounded-xl text-xs font-bold text-slate-900 transition-all outline-none"
+                                                />
+                                            </div>
+                                            <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                                                {filteredDoctors
+                                                    .filter(d => `${d.firstName} ${d.lastName}`.toLowerCase().includes(doctorSearch.toLowerCase()))
+                                                    .map(doctor => (
+                                                    <div
+                                                        key={doctor.id}
+                                                        onClick={() => {
+                                                            const ids = formData.invitedDoctorIds || [];
+                                                            setFormData({ ...formData, invitedDoctorIds: ids.includes(doctor.id) ? ids.filter(id => id !== doctor.id) : [...ids, doctor.id] });
+                                                        }}
+                                                        className={`p-4 rounded-2xl border-2 transition-all flex items-center gap-3 cursor-pointer ${formData.invitedDoctorIds?.includes(doctor.id) ? 'border-emerald-500 bg-emerald-50' : 'border-slate-100 hover:border-slate-200'}`}
+                                                    >
+                                                        <div className="w-10 h-10 bg-white rounded-full border overflow-hidden shadow-sm">
+                                                            {doctor.profileImageUrl ? <img src={doctor.profileImageUrl} className="w-full h-full object-cover" /> : <User className="w-6 h-6 text-slate-200" />}
+                                                        </div>
+                                                        <span className="text-sm font-black text-slate-900 truncate">{doctor.firstName} {doctor.lastName}</span>
+                                                        {formData.invitedDoctorIds?.includes(doctor.id) && <CheckCircle2 className="w-5 h-5 text-emerald-500 ml-auto" />}
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
-                                        <FormInput
-                                            label="Duración Estimada (Días)"
-                                            type="number"
-                                            value={formData.estimatedDurationDays}
-                                            onChange={(v: string) => setFormData({ ...formData, estimatedDurationDays: parseInt(v) })}
-                                            description="Días aproximados que durará el proceso médico completo (incluyendo post-operatorio inicial)."
-                                        />
-                                    </div>
-
-                                    <FormInput
-                                        label="Requerimientos Especiales"
-                                        value={formData.specialRequirements}
-                                        onChange={(v: string) => setFormData({ ...formData, specialRequirements: v })}
-                                        placeholder="Ej: Se requiere instrumentista especializado en robótica..."
-                                        description="Cualquier necesidad técnica adicional que el médico deba prever."
-                                    />
-
-                                    <div className="space-y-1">
-                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Informe Médico (PDF)</label>
-                                        <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-slate-200 rounded-[2rem] hover:bg-slate-50 transition-all cursor-pointer group">
-                                            <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                                                <Upload className="w-8 h-8 text-slate-300 group-hover:text-alteha-violet transition-colors mb-2" />
-                                                <p className="text-xs font-black text-slate-400 uppercase tracking-widest">
-                                                    {medicalReport ? medicalReport.name : 'Haz clic para subir archivo'}
-                                                </p>
-                                            </div>
-                                            <input type="file" className="hidden" accept="application/pdf" onChange={(e) => setMedicalReport(e.target.files?.[0] || null)} />
-                                        </label>
-                                        <p className="text-[9px] text-slate-400 font-medium ml-1 italic text-center">Adjunta exámenes o informes que respalden la necesidad quirúrgica.</p>
                                     </div>
                                 </div>
                             </motion.div>
@@ -424,468 +982,60 @@ export default function NewAuctionPage() {
                                 className="space-y-8"
                             >
                                 <div className="space-y-6">
-                                    <h3 className="text-2xl font-black text-slate-900 border-b pb-4">Presupuesto y Plazos</h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <FormInput
-                                            label="Presupuesto Máximo ($)"
-                                            type="number"
-                                            value={formData.maxBudget}
-                                            disabled={true}
-                                            description="Calculado automáticamente: Honorarios + Gastos de Clínica."
-                                        />
-                                        <FormInput
-                                            label="Fecha Estimada de Cirugía"
-                                            type="date"
-                                            value={formData.estimatedSurgeryDate}
-                                            onChange={(v: string) => setFormData({ ...formData, estimatedSurgeryDate: v })}
-                                            description="La fecha ideal en la que te gustaría que se realice el procedimiento."
-                                        />
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <FormInput
-                                            label="Honorarios Médicos sugeridos ($)"
-                                            type="number"
-                                            value={formData.doctorBudget}
-                                            onChange={(v: string) => {
-                                                const doctorBudget = parseFloat(v) || 0;
-                                                setFormData({
-                                                    ...formData,
-                                                    doctorBudget,
-                                                    maxBudget: doctorBudget + (formData.clinicBudget || 0)
-                                                });
-                                            }}
-                                            description="Monto referencial destinado específicamente a los honorarios del especialista."
-                                        />
-                                        <FormInput
-                                            label="Gastos de Clínica sugeridos ($)"
-                                            type="number"
-                                            value={formData.clinicBudget}
-                                            onChange={(v: string) => {
-                                                const clinicBudget = parseFloat(v) || 0;
-                                                setFormData({
-                                                    ...formData,
-                                                    clinicBudget,
-                                                    maxBudget: clinicBudget + (formData.doctorBudget || 0)
-                                                });
-                                            }}
-                                            description="Monto referencial destinado a los gastos de hospitalización e insumos de la clínica."
-                                        />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Ubicación Preferida</label>
-                                        <div className="relative">
-                                            <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                                            <input
-                                                type="text"
-                                                value={formData.preferredLocation}
-                                                onChange={(e) => setFormData({ ...formData, preferredLocation: e.target.value })}
-                                                className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-transparent focus:border-alteha-violet focus:bg-white rounded-2xl font-bold text-slate-900 transition-all"
-                                            />
-                                        </div>
-                                        <p className="text-[9px] text-slate-400 font-medium ml-1 italic">Zona geográfica de preferencia para la intervención.</p>
-                                    </div>
-
-                                    <div className="space-y-6 pt-6 border-t">
-                                        <div className="flex justify-between items-center">
-                                            <h3 className="text-xl font-black text-slate-900 italic underline decoration-alteha-violet underline-offset-8">Insumos Necesarios</h3>
-                                            <Button
-                                                type="button"
-                                                onClick={() => setFormData({
-                                                    ...formData,
-                                                    requiredSupplies: [...(formData.requiredSupplies || []), { itemName: '', description: '', quantity: 1, referenceAmount: 0 }]
-                                                })}
-                                                className="bg-alteha-violet text-white px-4 py-2 rounded-xl font-bold text-xs"
-                                            >
-                                                + Agregar Insumo
-                                            </Button>
-                                        </div>
-
-                                        <div className="space-y-4">
-                                            {(formData.requiredSupplies || []).map((supply, index) => (
-                                                <div key={index} className="p-6 bg-slate-50 rounded-2xl border border-slate-100 space-y-4 relative group">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => {
-                                                            const newSupplies = [...(formData.requiredSupplies || [])];
-                                                            newSupplies.splice(index, 1);
-                                                            setFormData({ ...formData, requiredSupplies: newSupplies });
-                                                        }}
-                                                        className="absolute top-4 right-4 text-slate-300 hover:text-red-500 transition-colors"
-                                                    >
-                                                        <AlertCircle className="w-5 h-5" />
-                                                    </button>
-                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                        <FormInput
-                                                            label="Nombre del Insumo"
-                                                            value={supply.itemName}
-                                                            onChange={(v: string) => {
-                                                                const newSupplies = [...(formData.requiredSupplies || [])];
-                                                                newSupplies[index].itemName = v;
-                                                                setFormData({ ...formData, requiredSupplies: newSupplies });
-                                                            }}
-                                                            placeholder="Ej: Malla Prolene 15x15"
-                                                            description="Nombre específico del material o insumo requerido."
-                                                        />
-                                                        <FormInput
-                                                            label="Descripción / Ref"
-                                                            value={supply.description}
-                                                            onChange={(v: string) => {
-                                                                const newSupplies = [...(formData.requiredSupplies || [])];
-                                                                newSupplies[index].description = v;
-                                                                setFormData({ ...formData, requiredSupplies: newSupplies });
-                                                            }}
-                                                            placeholder="Especificaciones técnicas..."
-                                                        />
-                                                    </div>
-                                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                                                        <FormInput
-                                                            label="Cantidad"
-                                                            type="number"
-                                                            value={supply.quantity}
-                                                            onChange={(v: string) => {
-                                                                const newSupplies = [...(formData.requiredSupplies || [])];
-                                                                newSupplies[index].quantity = parseInt(v);
-                                                                setFormData({ ...formData, requiredSupplies: newSupplies });
-                                                            }}
-                                                        />
-                                                        <FormInput
-                                                            label="Precio Ref. Unitario ($)"
-                                                            type="number"
-                                                            value={supply.referenceAmount}
-                                                            onChange={(v: string) => {
-                                                                const newSupplies = [...(formData.requiredSupplies || [])];
-                                                                newSupplies[index].referenceAmount = parseFloat(v);
-                                                                setFormData({ ...formData, requiredSupplies: newSupplies });
-                                                            }}
-                                                        />
-                                                        <div className="flex flex-col justify-end">
-                                                            <div className="p-4 bg-white rounded-xl border border-slate-200 text-right">
-                                                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Subtotal Ref.</p>
-                                                                <p className="text-lg font-black text-slate-900">${((supply.quantity || 0) * (supply.referenceAmount || 0)).toLocaleString()}</p>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                            {formData.requiredSupplies?.length === 0 && (
-                                                <div className="py-10 border-2 border-dashed border-slate-100 rounded-3xl flex flex-col items-center justify-center text-slate-400 italic font-medium text-sm">
-                                                    No se han agregado insumos específicos
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            </motion.div>
-                        )}
-
-                        {step === 4 && (
-                            <motion.div
-                                key="step4"
-                                initial={{ opacity: 0, x: 20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                exit={{ opacity: 0, x: -20 }}
-                                className="space-y-8"
-                            >
-                                <div className="space-y-6">
-                                    <h3 className="text-2xl font-black text-slate-900 border-b pb-4">Reglas de la Subasta</h3>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div className="space-y-1">
-                                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Cierre de Recepción de Ofertas</label>
-                                            <input
+                                    <h3 className="text-2xl font-black text-slate-900 border-b pb-4">Reglas de Cierre</h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                        <div className="space-y-6">
+                                            <FormInput
+                                                label="Fecha Límite de Recepción"
                                                 type="datetime-local"
-                                                defaultValue={formData.endDate.slice(0, 16)}
-                                                onChange={(e) => {
-                                                    const value = e.target.value;
-                                                    if (!value) return;
-                                                    const date = new Date(value);
-                                                    if (!isNaN(date.getTime())) {
-                                                        setFormData({ ...formData, endDate: date.toISOString() });
-                                                    }
-                                                }}
-                                                className="w-full p-4 bg-slate-50 border-2 border-transparent focus:border-alteha-violet focus:bg-white rounded-2xl font-bold text-slate-900 transition-all"
+                                                value={formData.endDate.slice(0, 16)}
+                                                onChange={(v: string) => { const date = new Date(v); if (!isNaN(date.getTime())) setFormData({ ...formData, endDate: date.toISOString() }); }}
+                                                icon={Clock}
+                                                description="Fecha y hora en la que se dejarán de recibir ofertas para esta subasta."
                                             />
-                                            <p className="text-[9px] text-slate-400 font-medium ml-1 italic">Fecha y hora límite para que los médicos envíen sus propuestas.</p>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Mostrar Precio Máximo</label>
-                                            <div className="flex bg-slate-100 p-1 rounded-2xl w-fit">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setFormData({ ...formData, showPrice: true })}
-                                                    className={`px-6 py-2 rounded-xl text-xs font-black transition-all ${formData.showPrice ? 'bg-white text-alteha-violet shadow-sm' : 'text-slate-400'}`}
-                                                >
-                                                    PÚBLICO
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setFormData({ ...formData, showPrice: false })}
-                                                    className={`px-6 py-2 rounded-xl text-xs font-black transition-all ${!formData.showPrice ? 'bg-white text-alteha-violet shadow-sm' : 'text-slate-400'}`}
-                                                >
-                                                    OCULTO
-                                                </button>
-                                            </div>
-                                            <p className="text-[9px] text-slate-400 font-medium ml-1 italic">Indica si los médicos pueden ver tu presupuesto máximo al ofertar.</p>
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <FormInput
-                                            label="Ofertas Mínimas"
-                                            type="number"
-                                            min="0"
-                                            value={formData.minBidsRequired}
-                                            onChange={(v: string) => setFormData({ ...formData, minBidsRequired: Math.max(0, parseInt(v) || 0) })}
-                                            description="Cantidad mínima de propuestas requeridas para considerar válida la subasta."
-                                        />
-                                        <FormInput
-                                            label="Auto-extensión (Minutos)"
-                                            type="number"
-                                            min="0"
-                                            max="60"
-                                            value={formData.autoExtendMinutes}
-                                            onChange={(v: string) => {
-                                                let val = parseInt(v) || 0;
-                                                if (val > 60) val = 60;
-                                                if (val < 0) val = 0;
-                                                setFormData({ ...formData, autoExtendMinutes: val });
-                                            }}
-                                            description="Tiempo adicional añadido si se recibe una oferta al final. (Máx 60m)."
-                                        />
-                                    </div>
-                                </div>
-                            </motion.div>
-                        )}
-
-                        {step === 5 && (
-                            <motion.div
-                                key="step4"
-                                initial={{ opacity: 0, x: 20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                exit={{ opacity: 0, x: -20 }}
-                                className="space-y-8"
-                            >
-                                <div className="space-y-6">
-                                    <div className="flex justify-between items-end border-b pb-4">
-                                        <h3 className="text-2xl font-black text-slate-900">Selección de Clínicas</h3>
-                                        <p className="text-[10px] font-black text-alteha-violet uppercase tracking-widest leading-none mb-1">{formData.invitedClinicIds?.length || 0} Seleccionadas</p>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {(Array.isArray(clinics) ? clinics : []).map(clinic => (
-                                            <div
-                                                key={clinic.id}
-                                                onClick={() => {
-                                                    const ids = formData.invitedClinicIds || [];
-                                                    if (ids.includes(clinic.id)) {
-                                                        const newClinicIds = ids.filter(id => id !== clinic.id);
-                                                        // Also remove doctors that don't belong to any of the remaining clinics
-                                                        const remainingDocs = doctors.filter(d =>
-                                                            d.preferredClinics?.some(pc => newClinicIds.includes(pc.id))
-                                                        ).map(d => d.id);
-
-                                                        setFormData({
-                                                            ...formData,
-                                                            invitedClinicIds: newClinicIds,
-                                                            invitedDoctorIds: formData.invitedDoctorIds?.filter(id => remainingDocs.includes(id)) || []
-                                                        });
-                                                    } else {
-                                                        setFormData({ ...formData, invitedClinicIds: [...ids, clinic.id] });
-                                                    }
-                                                }}
-                                                className={`p-6 rounded-[2rem] border-2 cursor-pointer transition-all flex items-center gap-4 group ${formData.invitedClinicIds?.includes(clinic.id)
-                                                    ? 'border-alteha-violet bg-violet-50/50 shadow-lg shadow-violet-100'
-                                                    : 'border-slate-100 bg-white hover:border-slate-200'
-                                                    }`}
-                                            >
-                                                <div className="w-14 h-14 bg-white rounded-2xl shadow-sm border flex items-center justify-center p-2 group-hover:scale-110 transition-transform">
-                                                    {clinic.logoUrl ? <img src={clinic.logoUrl} className="w-full h-full object-contain" /> : <Building2 className="w-8 h-8 text-slate-300" />}
-                                                </div>
-                                                <div>
-                                                    <span className="font-black text-slate-900 block">{clinic.name}</span>
-                                                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{clinic.cityName || 'Ciudad'}, {clinic.stateProvinceName || 'Estado'}</span>
-                                                </div>
-                                                {formData.invitedClinicIds?.includes(clinic.id) && (
-                                                    <CheckCircle2 className="w-6 h-6 text-alteha-violet ml-auto" />
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>
-                                    {clinics.length === 0 && (
-                                        <div className="py-20 text-center">
-                                            <Loader2 className="w-10 h-10 animate-spin mx-auto text-slate-200 mb-4" />
-                                            <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Cargando clínicas disponibles...</p>
-                                        </div>
-                                    )}
-                                </div>
-                            </motion.div>
-                        )}
-
-                        {step === 6 && (
-                            <motion.div
-                                key="step5"
-                                initial={{ opacity: 0, x: 20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                exit={{ opacity: 0, x: -20 }}
-                                className="space-y-8"
-                            >
-                                <div className="space-y-6">
-                                    <div className="flex justify-between items-end border-b pb-4">
-                                        <h3 className="text-2xl font-black text-slate-900">Selección de Médicos</h3>
-                                        <p className="text-[10px] font-black text-alteha-turquoise uppercase tracking-widest leading-none mb-1">{formData.invitedDoctorIds?.length || 0} Seleccionados</p>
-                                    </div>
-
-                                    {formData.invitedClinicIds?.length === 0 ? (
-                                        <div className="py-20 text-center px-10 bg-slate-50 rounded-[3rem] border-2 border-dashed border-slate-200">
-                                            <Building2 className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-                                            <h4 className="text-lg font-black text-slate-900 mb-2">Selecciona una clínica primero</h4>
-                                            <p className="text-slate-500 font-medium text-sm">Debes elegir al menos una clínica para ver los médicos disponibles que trabajan en ellas.</p>
-                                            <Button type="button" onClick={handleBack} className="mt-6 bg-slate-900 text-white px-6 py-2 rounded-xl text-xs font-black">Volver a Clínicas</Button>
-                                        </div>
-                                    ) : (
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            {filteredDoctors.map(doctor => (
-                                                <div
-                                                    key={doctor.id}
-                                                    onClick={() => {
-                                                        const ids = formData.invitedDoctorIds || [];
-                                                        if (ids.includes(doctor.id)) {
-                                                            setFormData({ ...formData, invitedDoctorIds: ids.filter(id => id !== doctor.id) });
-                                                        } else {
-                                                            setFormData({ ...formData, invitedDoctorIds: [...ids, doctor.id] });
-                                                        }
-                                                    }}
-                                                    className={`p-6 rounded-[2rem] border-2 cursor-pointer transition-all flex items-center gap-4 group ${formData.invitedDoctorIds?.includes(doctor.id)
-                                                        ? 'border-alteha-turquoise bg-alteha-turquoise/5 shadow-lg shadow-alteha-turquoise/10'
-                                                        : 'border-slate-100 bg-white hover:border-slate-200'
-                                                        }`}
-                                                >
-                                                    <div className="w-14 h-14 bg-white rounded-2xl shadow-sm border flex items-center justify-center overflow-hidden group-hover:scale-110 transition-transform">
-                                                        {doctor.profileImageUrl ? <img src={doctor.profileImageUrl} className="w-full h-full object-cover" /> : <User className="w-8 h-8 text-slate-300" />}
-                                                    </div>
-                                                    <div className="flex-1">
-                                                        <span className="font-black text-slate-900 block leading-tight text-base">Dr. {doctor.firstName} {doctor.lastName}</span>
-                                                        <span className="text-[10px] text-alteha-turquoise font-black uppercase tracking-widest block mt-1">{doctor.specialties?.[0]?.name || 'Especialista'}</span>
-                                                        <div className="flex flex-wrap gap-1 mt-2">
-                                                            {doctor.preferredClinics?.filter(pc => formData.invitedClinicIds?.includes(pc.id)).map(pc => (
-                                                                <span key={pc.id} className="px-2 py-0.5 bg-slate-100 rounded-full text-[8px] font-black text-slate-500 uppercase">{pc.name}</span>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                    {formData.invitedDoctorIds?.includes(doctor.id) && (
-                                                        <CheckCircle2 className="w-6 h-6 text-alteha-turquoise ml-auto" />
-                                                    )}
-                                                </div>
-                                            ))}
-                                            {filteredDoctors.length === 0 && (
-                                                <div className="col-span-2 py-20 text-center bg-slate-50 rounded-[3rem] border-2 border-dashed border-slate-200">
-                                                    <Users className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-                                                    <h4 className="text-lg font-black text-slate-900">No se encontraron médicos</h4>
-                                                    <p className="text-slate-500 font-medium text-sm">No hay médicos registrados que trabajen en las clínicas seleccionadas.</p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-                            </motion.div>
-                        )}
-
-                        {step === 7 && (
-                            <motion.div
-                                key="step6"
-                                initial={{ opacity: 0, x: 20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                exit={{ opacity: 0, x: -20 }}
-                                className="space-y-8"
-                            >
-                                <div className="space-y-6">
-                                    <h3 className="text-2xl font-black text-slate-900 border-b pb-4">Revisión Final</h3>
-                                    <div className="p-8 bg-slate-50 rounded-[2.5rem] space-y-6">
-                                        <div className="flex justify-between items-center bg-white p-6 rounded-3xl shadow-sm">
-                                            <div className="flex items-center gap-4">
-                                                <User className="text-alteha-violet" />
-                                                <div>
-                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Paciente</p>
-                                                    <p className="font-black text-slate-900">{foundPatient?.firstName} {foundPatient?.lastName}</p>
-                                                </div>
-                                            </div>
-                                            <div className="text-right">
-                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Edad/Género</p>
-                                                <p className="font-black text-slate-900">{formData.patientAge} años • {formData.patientGender}</p>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <FormInput 
+                                                    label="Ofertas Mínimas" 
+                                                    type="number" 
+                                                    value={formData.minBidsRequired} 
+                                                    onChange={(v: string) => setFormData({ ...formData, minBidsRequired: parseInt(v) })} 
+                                                    icon={Target}
+                                                    description="Cantidad mínima de propuestas necesarias para que la subasta sea válida."
+                                                />
+                                                <FormInput 
+                                                    label="Auto-extensión (Horas)" 
+                                                    type="number" 
+                                                    value={formData.autoExtendMinutes / 60} 
+                                                    onChange={(v: string) => setFormData({ ...formData, autoExtendMinutes: Math.round(parseFloat(v) * 60) })} 
+                                                    icon={Zap}
+                                                    description="Si llega la hora límite y no hay ofertas suficientes, la subasta se extenderá por este tiempo (en horas)."
+                                                />
                                             </div>
                                         </div>
-                                        <div className="flex justify-between items-center bg-white p-6 rounded-3xl shadow-sm">
-                                            <div className="flex items-center gap-4">
-                                                <Gavel className="text-alteha-turquoise" />
-                                                <div>
-                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Procedimiento</p>
-                                                    <p className="font-black text-slate-900">{formData.title}</p>
-                                                </div>
-                                            </div>
-                                            <div className="text-right">
-                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Subasta</p>
-                                                <p className="font-black text-slate-900">${formData.maxBudget.toLocaleString()}</p>
-                                            </div>
-                                        </div>
-
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
-                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Hospitalización</p>
-                                                <p className="text-sm font-black text-slate-900">{formData.requiresHospitalization ? 'SÍ' : 'NO'}</p>
-                                            </div>
-                                            <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
-                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Duración (Días)</p>
-                                                <p className="text-sm font-black text-slate-900">{formData.estimatedDurationDays}</p>
-                                            </div>
-                                            <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
-                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Visibilidad Precio</p>
-                                                <p className="text-sm font-black text-slate-900">{formData.showPrice ? 'PÚBLICO' : 'OCULTO'}</p>
-                                            </div>
-                                            <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
-                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Ofertas Min.</p>
-                                                <p className="text-sm font-black text-slate-900">{formData.minBidsRequired}</p>
-                                            </div>
-                                            <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
-                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Clínicas Invitadas</p>
-                                                <p className="text-2xl font-black text-alteha-violet leading-none">{formData.invitedClinicIds?.length || 0}</p>
-                                            </div>
-                                            <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
-                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Médicos Invitados</p>
-                                                <p className="text-2xl font-black text-alteha-turquoise leading-none">{formData.invitedDoctorIds?.length || 0}</p>
-                                            </div>
-                                        </div>
-
-                                        {formData.requiredSupplies && formData.requiredSupplies.length > 0 && (
-                                            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
-                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Insumos Especiales ({formData.requiredSupplies.length})</p>
-                                                <div className="space-y-2">
-                                                    {formData.requiredSupplies.map((s, i) => (
-                                                        <div key={i} className="flex justify-between items-center text-sm font-bold">
-                                                            <span className="text-slate-600">{s.itemName} x{s.quantity}</span>
-                                                            <span className="text-slate-900">${(s.quantity * s.referenceAmount).toLocaleString()}</span>
-                                                        </div>
-                                                    ))}
-                                                    <div className="pt-2 border-t mt-2 flex justify-between items-center">
-                                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Insumos</span>
-                                                        <span className="text-lg font-black text-alteha-violet">
-                                                            ${formData.requiredSupplies.reduce((acc, s) => acc + (s.quantity * s.referenceAmount), 0).toLocaleString()}
-                                                        </span>
+                                        <div className="p-8 bg-slate-900 rounded-[2.5rem] text-white space-y-6">
+                                            <h4 className="text-xl font-black italic">Resumen de Publicación</h4>
+                                            <div className="space-y-3">
+                                                <div className="flex justify-between text-xs border-b border-white/10 pb-2"><span className="text-white/40 font-black">PACIENTE:</span><span className="font-black">{selectedPatient?.firstName} {selectedPatient?.lastName}</span></div>
+                                                <div className="flex justify-between text-xs border-b border-white/10 pb-2">
+                                                    <span className="text-white/40 font-black">INTERVENCIÓN:</span>
+                                                    <div className="text-right">
+                                                        <span className="font-black block truncate max-w-[150px]">{formData.title}</span>
+                                                        {procedureTypes.find(t => t.id === selectedProcedureTypeId)?.code && (
+                                                            <span className="text-[10px] text-alteha-violet font-black uppercase tracking-widest">{procedureTypes.find(t => t.id === selectedProcedureTypeId)?.code}</span>
+                                                        )}
                                                     </div>
                                                 </div>
+                                                <div className="flex justify-between text-xs border-b border-white/10 pb-2"><span className="text-white/40 font-black">PRESUPUESTO:</span><span className="font-black text-emerald-400">${formData.maxBudget.toLocaleString()}</span></div>
+                                                <div className="flex justify-between text-xs border-b border-white/10 pb-2"><span className="text-white/40 font-black">INVITADOS:</span><span className="font-black">{(formData.invitedClinicIds?.length || 0) + (formData.invitedDoctorIds?.length || 0)} actores</span></div>
                                             </div>
-                                        )}
+                                        </div>
                                     </div>
 
-                                    {error && (
-                                        <div className="p-4 bg-red-50 text-red-600 rounded-2xl flex items-center gap-3 font-bold text-sm">
-                                            <AlertCircle className="w-5 h-5" />
-                                            {error}
-                                        </div>
-                                    )}
+
                                 </div>
                             </motion.div>
                         )}
-                    </AnimatePresence>
+
 
                     <div className="mt-12 flex justify-between items-center pt-8 border-t">
                         {step > 1 ? (
@@ -899,12 +1049,12 @@ export default function NewAuctionPage() {
                             </Button>
                         ) : <div />}
 
-                        {step < 7 ? (
+                        {step < 3 ? (
                             <Button
                                 type="button"
                                 onClick={handleNext}
-                                disabled={(step === 1 && !foundPatient) || (step === 5 && (!formData.invitedClinicIds || formData.invitedClinicIds.length === 0))}
-                                className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black hover:bg-slate-800 transition-all flex items-center gap-2 border-2 border-transparent"
+                                disabled={(step === 1 && (!selectedPatient || !medicalReport)) || (step === 2 && (!formData.invitedClinicIds || formData.invitedClinicIds.length === 0))}
+                                className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black hover:bg-slate-800 transition-all flex items-center gap-2 border-2 border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 Siguiente
                                 <ChevronRight className="w-5 h-5" />
@@ -932,35 +1082,169 @@ export default function NewAuctionPage() {
                     </div>
                 </form>
             </div>
+
+            <AnimatePresence>
+                {showAdvancedSearch && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[100] bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4"
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9, y: 20 }}
+                            animate={{ scale: 1, y: 0 }}
+                            exit={{ scale: 0.9, y: 20 }}
+                            className="bg-white w-full max-w-5xl rounded-[3rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+                        >
+                            <div className="p-8 bg-slate-50 border-b flex justify-between items-center">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 bg-alteha-violet rounded-2xl flex items-center justify-center text-white">
+                                        <Filter className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-black text-slate-900 italic">Explorar Catálogo Alteha</h3>
+                                        <p className="text-slate-500 font-bold text-[10px] uppercase tracking-widest">Busca por especialidad y tipo de intervención</p>
+                                    </div>
+                                </div>
+                                <button onClick={() => { setShowAdvancedSearch(false); setAdvSearchSpecialtyId(null); }} className="w-12 h-12 bg-white rounded-full flex items-center justify-center border hover:bg-slate-100 transition-colors">
+                                    <ChevronLeft className="rotate-45 w-6 h-6 text-slate-400" />
+                                </button>
+                            </div>
+
+                            <div className="flex flex-1 overflow-hidden">
+                                {/* Specialties Sidebar */}
+                                <div className="w-1/3 border-r bg-slate-50/50 p-6 overflow-y-auto space-y-3">
+                                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Especialidades</h4>
+                                    {specialties.map(s => (
+                                        <button
+                                            key={s.id}
+                                            onClick={() => setAdvSearchSpecialtyId(s.id)}
+                                            className={`w-full text-left p-4 rounded-2xl font-black transition-all flex items-center justify-between group ${advSearchSpecialtyId === s.id ? 'bg-alteha-violet text-white shadow-lg shadow-alteha-violet/20' : 'bg-white border hover:border-alteha-violet/50 hover:shadow-md'}`}
+                                        >
+                                            <span className="truncate">{s.name || s.code}</span>
+                                            {advSearchSpecialtyId === s.id && <ChevronRight className="w-4 h-4" />}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {/* Results Area */}
+                                <div className="flex-1 p-8 overflow-y-auto bg-white">
+                                    {!advSearchSpecialtyId ? (
+                                        <div className="h-full flex flex-col items-center justify-center text-center space-y-6">
+                                            <div className="w-24 h-24 bg-slate-100 rounded-[2.5rem] flex items-center justify-center">
+                                                <Stethoscope className="w-10 h-10 text-slate-300" />
+                                            </div>
+                                            <div>
+                                                <h4 className="text-xl font-black text-slate-900 mb-2">Selecciona una Especialidad</h4>
+                                                <p className="text-slate-400 font-medium max-w-[300px]">Navega por nuestro catálogo estructurado para encontrar el procedimiento exacto.</p>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-6">
+                                            <div className="flex items-center gap-3">
+                                                <button onClick={() => setAdvSearchSpecialtyId(null)} className="p-2 hover:bg-slate-100 rounded-xl transition-colors"><ArrowLeft className="w-5 h-5 text-alteha-violet" /></button>
+                                                <h4 className="text-lg font-black text-slate-900 italic">Intervenciones en {specialties.find(s => s.id === advSearchSpecialtyId)?.name}</h4>
+                                            </div>
+                                            
+                                            {procedureTypes.length === 0 ? (
+                                                <div className="py-20 text-center">
+                                                    <Loader2 className="w-10 h-10 animate-spin mx-auto text-slate-200 mb-4" />
+                                                    <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Consultando catálogo de Alteha...</p>
+                                                </div>
+                                            ) : (
+                                                <div className="grid grid-cols-1 gap-3">
+                                                    {procedureTypes
+                                                        .filter(t => t.specialty?.id === advSearchSpecialtyId)
+                                                        .length === 0 ? (
+                                                            <div className="py-20 text-center bg-slate-50 rounded-[2rem] border-2 border-dashed">
+                                                                <AlertCircle className="w-10 h-10 mx-auto text-slate-300 mb-4" />
+                                                                <p className="text-slate-500 font-bold">No hay procedimientos registrados para esta especialidad.</p>
+                                                            </div>
+                                                        ) : (
+                                                            procedureTypes
+                                                                .filter(t => t.specialty?.id === advSearchSpecialtyId)
+                                                                .map(type => (
+                                                                    <button
+                                                                        key={type.id}
+                                                                        onClick={() => {
+                                                                            setSelectedProcedureTypeId(type.id);
+                                                                            setSearchProcedure(type.name || type.code || '');
+                                                                            setShowAdvancedSearch(false);
+                                                                            setAdvSearchSpecialtyId(null);
+                                                                            setShowProcedureResults(true);
+                                                                        }}
+                                                                        className="text-left p-6 rounded-3xl border-2 border-slate-100 hover:border-alteha-violet hover:bg-violet-50/30 transition-all group"
+                                                                    >
+                                                                        <div className="flex justify-between items-center">
+                                                                            <div>
+                                                                                <p className="font-black text-slate-900 group-hover:text-alteha-violet transition-colors">{type.name || type.code}</p>
+                                                                                <p className="text-xs text-slate-500 font-bold mt-1 line-clamp-1">{type.description}</p>
+                                                                            </div>
+                                                                            <CheckCircle2 className="w-6 h-6 text-alteha-violet opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                                        </div>
+                                                                    </button>
+                                                                ))
+                                                        )
+                                                    }
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }
 
-function FormInput({ label, type = "text", value, onChange, disabled = false, placeholder, description, min, max }: any) {
+function FormInput({ label, type = "text", value, onChange, disabled = false, placeholder, description, icon: IconComponent, isPrefilled }: any) {
+    const [showHelp, setShowHelp] = React.useState(false);
+
     return (
-        <div className="space-y-1 group">
-            <div className="flex justify-between items-center mb-1">
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{label}</label>
+        <div className="space-y-1.5 group">
+            <div className="flex justify-between items-center mb-1 px-1">
+                <div className="flex items-center gap-2">
+                    {IconComponent && <IconComponent className="w-3.5 h-3.5 text-alteha-violet/60" />}
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</label>
+                </div>
                 {description && (
-                    <div className="relative group/tooltip">
-                        <AlertCircle className="w-3.5 h-3.5 text-slate-300 hover:text-alteha-violet transition-colors cursor-help" />
-                        <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-slate-800 text-[10px] text-white rounded-lg opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all z-10 font-bold leading-tight">
-                            {description}
-                        </div>
-                    </div>
+                    <button 
+                        type="button"
+                        onClick={() => setShowHelp(!showHelp)}
+                        className={`p-1 rounded-md transition-all ${showHelp ? 'bg-alteha-violet text-white' : 'text-slate-300 hover:text-alteha-violet hover:bg-alteha-violet/5'}`}
+                    >
+                        <HelpCircle className="w-3.5 h-3.5" />
+                    </button>
                 )}
             </div>
+            
+            <AnimatePresence>
+                {showHelp && (
+                    <motion.div 
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden"
+                    >
+                        <div className="bg-slate-800 text-[10px] text-white p-3 rounded-xl mb-2 font-bold leading-relaxed border-l-4 border-alteha-violet shadow-lg">
+                            {description}
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             <input
                 type={type}
                 value={value}
                 disabled={disabled}
                 placeholder={placeholder}
-                min={min}
-                max={max}
                 onChange={(e) => onChange(e.target.value)}
-                className={`w-full p-4 bg-slate-50 border-2 border-transparent focus:border-alteha-violet focus:bg-white rounded-2xl font-bold text-slate-900 transition-all outline-none ${disabled ? 'opacity-60 cursor-not-allowed bg-slate-100' : ''}`}
+                className={`w-full p-4 border-2 border-transparent focus:border-alteha-violet focus:bg-white rounded-2xl font-bold text-sm text-slate-900 transition-all outline-none ${disabled ? 'opacity-60 cursor-not-allowed bg-slate-100' : ''} ${isPrefilled ? 'bg-violet-50/50 border-alteha-violet/10' : 'bg-slate-50'}`}
             />
-            {description && <p className="text-[9px] text-slate-400 font-medium ml-1 italic">{description}</p>}
         </div>
     );
 }

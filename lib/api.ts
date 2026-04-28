@@ -101,6 +101,34 @@ export interface DoctorRegistration {
     status?: 'PENDING' | 'ACTIVE';
 }
 
+export interface MedicalPackageItem {
+    id?: number;
+    itemName: string;
+    description: string;
+    quantity: number;
+    unitPrice: number;
+}
+
+export interface MedicalPackage {
+    id?: number;
+    packageName: string;
+    packageCode: string;
+    description: string;
+    basePrice: number;
+    discountedPrice: number;
+    isActive?: boolean;
+    validFrom: string;
+    validUntil: string;
+    createdAt?: string;
+    updatedAt?: string;
+    clinic?: any;
+    doctor?: any;
+    pharmacy?: any;
+    specialty?: any;
+    procedureType?: any;
+    packageItems: MedicalPackageItem[];
+}
+
 export interface PatientRegistration {
     email: string;
     password?: string;
@@ -134,6 +162,35 @@ export interface Patient {
     dateOfBirth: string;
     status: string;
     createdAt: string;
+}
+
+export interface ProcedureType {
+    id: number;
+    name: string;
+    code: string;
+    description: string;
+    isActive: boolean;
+}
+
+export interface ProcedureTemplate {
+    id: number;
+    procedureName: string;
+    description: string;
+    clinicBudget: number;
+    doctorBudget: number;
+    hospitalizationTime: number;
+    active: boolean;
+    patientGender: string | null;
+    requiresHospitalization: boolean | null;
+    estimatedDuration: number | null;
+    anesthesiologist: boolean | null;
+    biopsyRequired: boolean | null;
+    numberOfAssistants: number | null;
+    protocol: string | null;
+    subSpecialty: string | null;
+    equipment: string | null;
+    specialty: Specialty | null;
+    procedureType: ProcedureType;
 }
 
 // Auctions
@@ -198,6 +255,13 @@ export interface AuctionPayload {
     preferredLocation: string;
     requiresHospitalization: boolean;
     estimatedDurationDays: number;
+    estimatedDuration?: number | null;
+    anesthesiologist?: boolean | null;
+    biopsyRequired?: boolean | null;
+    numberOfAssistants?: number | null;
+    protocol?: string | null;
+    subSpecialty?: string | null;
+    equipment?: string | null;
     specialRequirements: string;
     termsAndConditions: string;
     termsAndConditionsAccepted: boolean;
@@ -374,6 +438,18 @@ export interface Service {
 // Get Services
 export async function getServices(page: number = 0, size: number = 100): Promise<Service[]> {
     const response = await fetch(`/api/services?page=${page}&size=${size}`);
+    return response.json();
+}
+
+// Get Procedure Types
+export async function getProcedureTypes(page: number = 0, size: number = 100): Promise<ProcedureType[]> {
+    const response = await fetch(`/api/procedure-types?page=${page}&size=${size}`);
+    return response.json();
+}
+
+// Get Procedure Templates
+export async function getProcedureTemplates(procedureTypeId: number): Promise<ProcedureTemplate[]> {
+    const response = await fetch(`/api/procedure-templates/by-procedure-type/${procedureTypeId}`);
     return response.json();
 }
 
@@ -611,6 +687,100 @@ export async function getProfile(role: string = 'DOCTOR'): Promise<ApiResponse<A
     return response.json();
 }
 
+/**
+ * Updates the doctor profile by sending multipart/form-data to the backend.
+ * @param formData FormData containing 'doctor' JSON string and optional files
+ */
+export async function updateDoctorProfile(formData: FormData): Promise<ApiResponse> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+
+    const response = await fetch(`/api/actor/profile/update`, {
+        method: 'PUT',
+        headers: {
+            'X-Alteha-Token': token
+        },
+        body: formData
+    });
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Error al actualizar el perfil');
+    }
+    return response.json();
+}
+
+// Get Doctor Additional Files
+export async function getDoctorFiles(): Promise<any[]> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+
+    const response = await fetch(`/api/actor/files`, {
+        method: 'GET',
+        headers: {
+            'X-Alteha-Token': token
+        }
+    });
+    if (!response.ok) {
+        throw new Error('Failed to load doctor files');
+    }
+    return response.json();
+}
+
+// Upload Doctor Additional File
+export async function uploadDoctorFile(formData: FormData): Promise<any> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+
+    const response = await fetch(`/api/actor/files`, {
+        method: 'POST',
+        headers: {
+            'X-Alteha-Token': token
+        },
+        body: formData
+    });
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Error al subir el archivo');
+    }
+    return response.json();
+}
+
+// Update Doctor Additional File
+export async function updateDoctorFile(id: number | string, formData: FormData): Promise<any> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+
+    const response = await fetch(`/api/actor/files/${id}`, {
+        method: 'PUT',
+        headers: {
+            'X-Alteha-Token': token
+        },
+        body: formData
+    });
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Error al actualizar el archivo');
+    }
+    return response.json();
+}
+
+// Delete Doctor Additional File
+export async function deleteDoctorFile(id: number | string): Promise<void> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+
+    const response = await fetch(`/api/actor/files/${id}`, {
+        method: 'DELETE',
+        headers: {
+            'X-Alteha-Token': token
+        }
+    });
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Error al eliminar el archivo');
+    }
+}
+
 // Get Dashboard Ads
 export async function getDashboardAds(
     role: string = 'DOCTOR',
@@ -687,7 +857,11 @@ export async function registerPatient(
     if (!token) throw new Error('No token found');
 
     const formData = new FormData();
-    const registrationBlob = new Blob([JSON.stringify(registration)], { type: 'application/json' });
+    const registrationWithSex = {
+        ...registration,
+        sex: registration.gender // Add sex field as some backend versions use it instead of gender
+    };
+    const registrationBlob = new Blob([JSON.stringify(registrationWithSex)], { type: 'application/json' });
     formData.append('registration', registrationBlob);
 
     if (profileImage) {
@@ -727,6 +901,60 @@ export async function searchPatient(
     return response.json();
 }
 
+export async function searchPatientByPhone(
+    phone: string,
+    role: string = 'PATIENT'
+): Promise<ApiResponse<Patient | Patient[]>> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+
+    // Try with phone.equals first (JHipster standard)
+    let response = await fetch(`/api/actor-register/search-patient?role=${role}&phone.equals=${phone}`, {
+        method: 'GET',
+        headers: { 'X-Alteha-Token': token }
+    });
+    let result = await response.json();
+
+    // If not found, try with simple phone parameter as fallback
+    if ((!result.data || (Array.isArray(result.data) && result.data.length === 0)) && response.status === 200) {
+        console.log('[API] phone.equals failed, trying phone fallback...');
+        response = await fetch(`/api/actor-register/search-patient?role=${role}&phone=${phone}`, {
+            method: 'GET',
+            headers: { 'X-Alteha-Token': token }
+        });
+        result = await response.json();
+    }
+    
+    return result;
+}
+
+export async function searchPatientByEmail(
+    email: string,
+    role: string = 'PATIENT'
+): Promise<ApiResponse<Patient | Patient[]>> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+
+    // Try with email.equals first
+    let response = await fetch(`/api/actor-register/search-patient?role=${role}&email.equals=${email}`, {
+        method: 'GET',
+        headers: { 'X-Alteha-Token': token }
+    });
+    let result = await response.json();
+
+    // Fallback to simple email parameter
+    if ((!result.data || (Array.isArray(result.data) && result.data.length === 0)) && response.status === 200) {
+        console.log('[API] email.equals failed, trying email fallback...');
+        response = await fetch(`/api/actor-register/search-patient?role=${role}&email=${email}`, {
+            method: 'GET',
+            headers: { 'X-Alteha-Token': token }
+        });
+        result = await response.json();
+    }
+    
+    return result;
+}
+
 export async function updatePatient(
     patientId: number | string,
     updateData: Partial<PatientRegistration>
@@ -734,15 +962,61 @@ export async function updatePatient(
     const token = getStoredToken();
     if (!token) throw new Error('No token found');
 
+    // Add sex field for compatibility
+    const dataWithSex = {
+        ...updateData,
+        sex: updateData.gender
+    };
+
     const response = await fetch(`/api/actor-register/insurance-update-patient/${patientId}`, {
         method: 'PUT',
         headers: {
             'X-Alteha-Token': token,
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify(updateData)
+        body: JSON.stringify(dataWithSex)
     });
     return response.json();
+}
+
+export async function getPatient(patientId: string | number): Promise<ApiResponse<Patient>> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+
+    try {
+        // Try direct fetch first
+        const response = await fetch(`/api/actor-register/insurance-update-patient/${patientId}`, {
+            method: 'GET',
+            headers: {
+                'X-Alteha-Token': token
+            }
+        });
+        
+        const result = await response.json();
+        
+        // If 405 or not found, try searching by document number as a fallback
+        // Many times the ID in the URL is actually the identificationNumber or can be used to find it
+        if (response.status === 405 || response.status === 404 || result.code !== '00') {
+            console.log(`[API] GET by ID not supported or not found (Status ${response.status}). Trying fallback search...`);
+            
+            // Try searching as a patient with default document type 'V'
+            const searchResult = await searchPatient('V', String(patientId));
+            if (searchResult.code === '00' && searchResult.data) {
+                const data = Array.isArray(searchResult.data) ? searchResult.data[0] : searchResult.data;
+                return {
+                    code: '00',
+                    message: 'Found via fallback search',
+                    data: data
+                };
+            }
+        }
+        
+        return result;
+    } catch (error) {
+        console.error('getPatient error:', error);
+        // Try fallback even on network error
+        return searchPatient('V', String(patientId)) as any;
+    }
 }
 
 // Auction Management Hooks
@@ -965,3 +1239,40 @@ export function clearToken(): void {
         localStorage.removeItem('id_token');
     }
 }
+
+export const createMedicalPackage = async (data: Partial<MedicalPackage>): Promise<ApiResponse<MedicalPackage>> => {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+
+    try {
+        const response = await fetch('/api/medical-packages/my/packages', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-Alteha-Token': token
+            },
+            body: JSON.stringify(data),
+        });
+        return await response.json();
+    } catch (error) {
+        console.error('Error creating medical package:', error);
+        throw error;
+    }
+};
+
+export const getMyMedicalPackages = async (page: number = 0, size: number = 20): Promise<ApiResponse<MedicalPackage[]>> => {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+
+    try {
+        const response = await fetch(`/api/medical-packages/my/packages?page=${page}&size=${size}`, {
+            headers: {
+                'X-Alteha-Token': token
+            }
+        });
+        return await response.json();
+    } catch (error) {
+        console.error('Error fetching my medical packages:', error);
+        throw error;
+    }
+};

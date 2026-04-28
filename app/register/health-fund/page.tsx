@@ -73,6 +73,7 @@ interface FormData {
     commercialName: string;
     legalName: string;
     identificationType: string;
+    nationality: string;
     identificationNumber: string;
     healthFundLicenseNumber: string;
     website: string;
@@ -101,6 +102,7 @@ export default function HealthFundRegistrationPage() {
         commercialName: '',
         legalName: '',
         identificationType: 'RIF',
+        nationality: 'J',
         identificationNumber: '',
         healthFundLicenseNumber: '',
         website: '',
@@ -249,7 +251,11 @@ export default function HealthFundRegistrationPage() {
                 if (isResend) setEmailResendAttempts(prev => prev + 1);
                 toast.success('Código enviado a su correo');
             } else {
-                setError(result.message || 'Error al enviar el código de verificación');
+                const rawMsg: string = result.message || '';
+                const isDbError = rawMsg.toLowerCase().includes('jdbc') || rawMsg.toLowerCase().includes('unknown column') || rawMsg.toLowerCase().includes('sql');
+                setError(isDbError
+                    ? 'El servicio de verificación no está disponible temporalmente. Por favor intenta de nuevo en unos minutos o contacta a soporte.'
+                    : (rawMsg || 'Error al enviar el código de verificación'));
             }
         } catch (err) {
             setError('Error de conexión con el servidor');
@@ -377,7 +383,7 @@ export default function HealthFundRegistrationPage() {
                 className="relative z-10 w-full max-w-2xl bg-white/90 backdrop-blur-xl rounded-[3rem] shadow-2xl p-10 border border-white/50"
             >
                 {/* Inicio Button */}
-                <Link href="/" className="absolute top-6 left-6 flex items-center gap-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-sm font-bold transition-all">
+                <Link href="/" className="absolute top-6 left-6 flex items-center gap-1.5 px-4 py-2 bg-alteha-turquoise/10 hover:bg-alteha-turquoise/20 text-alteha-turquoise border border-alteha-turquoise/20 rounded-xl text-sm font-bold transition-all">
                     <ArrowLeft className="w-4 h-4" />
                     Inicio
                 </Link>
@@ -458,20 +464,35 @@ export default function HealthFundRegistrationPage() {
                                         onChange={(e) => updateFormData('legalName', e.target.value)}
                                     />
                                 </div>
-                                <div>
+                                <div className="col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                                    <div className="flex gap-4">
+                                        <div className="w-24">
+                                            <Select
+                                                label="Nac."
+                                                options={[
+                                                    { id: 'V', label: 'V' },
+                                                    { id: 'E', label: 'E' },
+                                                    { id: 'J', label: 'J' },
+                                                    { id: 'G', label: 'G' },
+                                                ]}
+                                                value={formData.nationality || 'J'}
+                                                onChange={(val) => updateFormData('nationality', val)}
+                                            />
+                                        </div>
+                                        <div className="flex-1">
+                                            <Input
+                                                label="Número de Identificación" alwaysFloat
+                                                placeholder="12345678"
+                                                value={formData.identificationNumber}
+                                                onChange={(e) => updateFormData('identificationNumber', e.target.value)}
+                                            />
+                                        </div>
+                                    </div>
                                     <Select
                                         label="Tipo ID"
                                         options={IDENTIFICATION_TYPES}
                                         value={formData.identificationType}
                                         onChange={(val) => updateFormData('identificationType', val)}
-                                    />
-                                </div>
-                                <div>
-                                    <Input
-                                        label="Número de Identificación (RIF)"
-                                        placeholder="J-12345678-9"
-                                        value={formData.identificationNumber}
-                                        onChange={(e) => updateFormData('identificationNumber', e.target.value)}
                                     />
                                 </div>
                                 <div>
@@ -492,13 +513,22 @@ export default function HealthFundRegistrationPage() {
                                 </div>
                             </div>
 
-                            <div className="flex justify-end pt-4">
+                            <div className="flex items-center justify-between pt-6 border-t border-slate-100 mt-8">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => router.push('/')}
+                                    className="border-alteha-turquoise text-alteha-turquoise bg-alteha-turquoise/5 hover:bg-alteha-turquoise/10 px-8 rounded-2xl"
+                                >
+                                    <ArrowLeft className="w-4 h-4 mr-2" />
+                                    Inicio
+                                </Button>
                                 <Button
                                     onClick={() => setStep(2)}
                                     disabled={!canProceedStep1}
-                                    className="bg-slate-900 px-8 py-4 rounded-2xl font-black text-white hover:bg-slate-800 transition-all flex items-center gap-2"
+                                    className="bg-alteha-turquoise px-8 py-4 rounded-2xl font-black text-white hover:bg-alteha-turquoise/90 transition-all flex items-center gap-2"
                                 >
-                                    Siguiente <ArrowRight className="w-5 h-5" />
+                                    Siguiente
+                                    <ArrowRight className="w-5 h-5" />
                                 </Button>
                             </div>
                         </motion.div>
@@ -582,14 +612,14 @@ export default function HealthFundRegistrationPage() {
                             <div className={`p-6 rounded-[2rem] border-2 transition-all ${phoneVerified ? 'bg-rose-50 border-rose-200' : 'bg-white border-slate-100'}`}>
                                 <div className="flex items-center gap-3 mb-4">
                                     <Phone className={`w-5 h-5 ${phoneVerified ? 'text-rose-500' : 'text-slate-400'}`} />
-                                    <span className="font-bold text-slate-900">Teléfono</span>
+                                    <span className="font-bold text-slate-900">Teléfono Celular</span>
                                     {phoneVerified && <CheckCircle className="w-5 h-5 text-rose-500 ml-auto" />}
                                 </div>
 
                                 {!phoneVerified && (
                                     <div className="space-y-4">
                                         <Input
-                                            label="Teléfono"
+                                            label="Teléfono Celular"
                                             value={formData.phone}
                                             onChange={(e) => updateFormData('phone', e.target.value.replace(/\D/g, ''))}
                                             placeholder="58412..."
@@ -626,16 +656,22 @@ export default function HealthFundRegistrationPage() {
                                 )}
                             </div>
 
-                            <div className="flex justify-between pt-4">
-                                <button onClick={() => setStep(1)} className="px-8 py-4 rounded-2xl border border-slate-200 text-slate-500 font-bold hover:bg-slate-50 transition-all">
-                                    Volver
-                                </button>
+                            <div className="flex items-center justify-between pt-6 border-t border-slate-100 mt-8">
                                 <Button
-                                    onClick={() => setStep(3)}
-                                    disabled={!canProceedStep2}
-                                    className="bg-slate-900 px-8 py-4 rounded-2xl font-black text-white hover:bg-slate-800 transition-all flex items-center gap-2"
+                                    variant="outline"
+                                    onClick={() => { setStep(1); setError(''); }}
+                                    className="border-alteha-turquoise text-alteha-turquoise bg-alteha-turquoise/5 hover:bg-alteha-turquoise/10 px-8 rounded-2xl"
                                 >
-                                    Siguiente <ArrowRight className="w-5 h-5" />
+                                    <ArrowLeft className="w-4 h-4 mr-2" />
+                                    Volver
+                                </Button>
+                                <Button
+                                    onClick={() => { setStep(3); setError(''); }}
+                                    disabled={!canProceedStep2}
+                                    className="bg-alteha-turquoise px-8 py-4 rounded-2xl font-black text-white hover:bg-alteha-turquoise/90 transition-all flex items-center gap-2"
+                                >
+                                    Siguiente
+                                    <ArrowRight className="w-5 h-5" />
                                 </Button>
                             </div>
                         </motion.div>
@@ -670,11 +706,11 @@ export default function HealthFundRegistrationPage() {
 
                             <div className="p-4 bg-slate-50 rounded-2xl space-y-2">
                                 <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Requisitos</p>
-                                <PasswordRequirement met={passwordChecks.minLength} text="Mínimo 8 caracteres" />
-                                <PasswordRequirement met={passwordChecks.hasUppercase} text="Mayúscula" />
-                                <PasswordRequirement met={passwordChecks.hasLowercase} text="Minúscula" />
-                                <PasswordRequirement met={passwordChecks.hasNumber} text="Número" />
-                                <PasswordRequirement met={passwordChecks.hasSpecial} text="Carácter Especial" />
+                                <PasswordRequirement met={passwordChecks.minLength} active={formData.password.length > 0} text="Mínimo 8 caracteres" />
+                                <PasswordRequirement met={passwordChecks.hasUppercase} active={formData.password.length > 0} text="Mayúscula" />
+                                <PasswordRequirement met={passwordChecks.hasLowercase} active={formData.password.length > 0} text="Minúscula" />
+                                <PasswordRequirement met={passwordChecks.hasNumber} active={formData.password.length > 0} text="Número" />
+                                <PasswordRequirement met={passwordChecks.hasSpecial} active={formData.password.length > 0} text="Al menos uno de estos caracteres especiales (!@#$%^&*)" />
                             </div>
 
                             <Input
@@ -685,16 +721,22 @@ export default function HealthFundRegistrationPage() {
                                 placeholder="••••••••"
                             />
 
-                            <div className="flex justify-between pt-4">
-                                <button onClick={() => setStep(2)} className="px-8 py-4 rounded-2xl border border-slate-200 text-slate-500 font-bold hover:bg-slate-50 transition-all">
-                                    Volver
-                                </button>
+                            <div className="flex items-center justify-between pt-6 border-t border-slate-100 mt-8">
                                 <Button
-                                    onClick={() => setStep(4)}
-                                    disabled={!canProceedStep3}
-                                    className="bg-slate-900 px-8 py-4 rounded-2xl font-black text-white hover:bg-slate-800 transition-all flex items-center gap-2"
+                                    variant="outline"
+                                    onClick={() => { setStep(2); setError(''); }}
+                                    className="border-alteha-turquoise text-alteha-turquoise bg-alteha-turquoise/5 hover:bg-alteha-turquoise/10 px-8 rounded-2xl"
                                 >
-                                    Siguiente <ArrowRight className="w-5 h-5" />
+                                    <ArrowLeft className="w-4 h-4 mr-2" />
+                                    Volver
+                                </Button>
+                                <Button
+                                    onClick={() => { setStep(4); setError(''); }}
+                                    disabled={!canProceedStep3}
+                                    className="bg-alteha-turquoise px-8 py-4 rounded-2xl font-black text-white hover:bg-alteha-turquoise/90 transition-all flex items-center gap-2"
+                                >
+                                    Siguiente
+                                    <ArrowRight className="w-5 h-5" />
                                 </Button>
                             </div>
                         </motion.div>
@@ -757,7 +799,7 @@ export default function HealthFundRegistrationPage() {
                                                     onChange={(e) => updateAdditionalUser(index, 'email', e.target.value)}
                                                 />
                                                 <Input
-                                                    label="Teléfono"
+                                                    label="Teléfono Celular"
                                                     type="tel"
                                                     value={user.phone}
                                                     onChange={(e) => updateAdditionalUser(index, 'phone', e.target.value)}
@@ -774,15 +816,21 @@ export default function HealthFundRegistrationPage() {
                                 </div>
                             )}
 
-                            <div className="flex justify-between pt-4">
-                                <button onClick={() => setStep(3)} className="px-8 py-4 rounded-2xl border border-slate-200 text-slate-500 font-bold hover:bg-slate-50 transition-all">
-                                    Volver
-                                </button>
+                            <div className="flex items-center justify-between pt-6 border-t border-slate-100 mt-8">
                                 <Button
-                                    onClick={() => setStep(5)}
-                                    className="bg-slate-900 px-8 py-4 rounded-2xl font-black text-white hover:bg-slate-800 transition-all flex items-center gap-2"
+                                    variant="outline"
+                                    onClick={() => { setStep(3); setError(''); }}
+                                    className="border-alteha-turquoise text-alteha-turquoise bg-alteha-turquoise/5 hover:bg-alteha-turquoise/10 px-8 rounded-2xl"
                                 >
-                                    Siguiente <ArrowRight className="w-5 h-5" />
+                                    <ArrowLeft className="w-4 h-4 mr-2" />
+                                    Volver
+                                </Button>
+                                <Button
+                                    onClick={() => { setStep(5); setError(''); }}
+                                    className="bg-alteha-turquoise px-8 py-4 rounded-2xl font-black text-white hover:bg-alteha-turquoise/90 transition-all flex items-center gap-2"
+                                >
+                                    Siguiente
+                                    <ArrowRight className="w-5 h-5" />
                                 </Button>
                             </div>
                         </motion.div>
@@ -842,14 +890,19 @@ export default function HealthFundRegistrationPage() {
                                 <PuzzleCaptcha onVerify={setIsVerified} />
                             </div>
 
-                            <div className="flex justify-between pt-8">
-                                <button onClick={() => setStep(4)} className="px-8 py-4 rounded-2xl border border-slate-200 text-slate-500 font-bold hover:bg-slate-50 transition-all">
+                            <div className="flex items-center justify-between pt-6 border-t border-slate-100 mt-8">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => { setStep(4); setError(''); }}
+                                    className="border-alteha-turquoise text-alteha-turquoise bg-alteha-turquoise/5 hover:bg-alteha-turquoise/10 px-8 rounded-2xl"
+                                >
+                                    <ArrowLeft className="w-4 h-4 mr-2" />
                                     Volver
-                                </button>
+                                </Button>
                                 <Button
                                     onClick={handleSubmit}
                                     disabled={loading || !canProceedStep5 || !isVerified}
-                                    className="bg-rose-500 px-8 py-4 rounded-2xl font-black text-white hover:bg-rose-600 transition-all flex items-center gap-2"
+                                    className="bg-alteha-turquoise px-8 py-4 rounded-2xl font-black text-white hover:bg-alteha-turquoise/90 transition-all flex items-center gap-2"
                                 >
                                     {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Finalizar Registro'}
                                 </Button>
@@ -885,11 +938,24 @@ export default function HealthFundRegistrationPage() {
     );
 }
 
-function PasswordRequirement({ met, text }: { met: boolean; text: string }) {
+function PasswordRequirement({ met, active = false, text }: { met: boolean; active?: boolean; text: string }) {
+    const color = met
+        ? 'text-alteha-turquoise'
+        : active
+            ? 'text-red-500'
+            : 'text-slate-400';
     return (
-        <div className={`flex items-center gap-2 text-sm ${met ? 'text-rose-600' : 'text-slate-400'}`}>
-            {met ? <CheckCircle className="w-4 h-4" /> : <div className="w-4 h-4 rounded-full border border-current" />}
-            <span className="font-medium">{text}</span>
+        <div className={`flex items-center gap-2 transition-all duration-300 ${color}`}>
+            {met ? (
+                <CheckCircle className="w-4 h-4" />
+            ) : active ? (
+                <div className="w-4 h-4 rounded-full border-2 border-current flex items-center justify-center">
+                    <div className="w-1.5 h-1.5 rounded-full bg-current" />
+                </div>
+            ) : (
+                <div className="w-4 h-4 rounded-full border-2 border-current" />
+            )}
+            <span className={`text-sm font-medium transition-all duration-300 ${color}`}>{text}</span>
         </div>
     );
 }

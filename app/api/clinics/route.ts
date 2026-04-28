@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getAppToken } from '@/lib/auth-service';
 
@@ -11,12 +13,11 @@ export async function GET(request: NextRequest) {
         const sort = searchParams.get('sort') || 'desc';
         const token = await getAppToken();
 
-        const response = await fetch(`${API_BASE}/clinics/paginated-list?page=${page}&size=${size}&sort=${sort}`, {
+        const response = await fetch(`${API_BASE}/clinics?page=${page}&size=${size}`, {
             method: 'GET',
             headers: {
                 'Accept': '*/*',
-                'Authorization': `Bearer ${token}`,
-                'X-Alteha-Token': token
+                'Authorization': `Bearer ${token}`
             }
         });
 

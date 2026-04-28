@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getAppToken } from '@/lib/auth-service';
 
@@ -33,6 +35,7 @@ export async function POST(request: NextRequest) {
         }
 
         const data = await response.json();
+        console.log(`[SMS Send] phone=${body.phone} role=${body.role} | Status: ${response.status} | Response:`, JSON.stringify(data));
         return NextResponse.json(data);
     } catch (error) {
         console.error('SMS verification error:', error);

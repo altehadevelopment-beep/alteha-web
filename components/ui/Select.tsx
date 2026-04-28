@@ -16,14 +16,16 @@ interface MultiSelectProps {
     selected: (string | number)[];
     onChange: (selected: (string | number)[]) => void;
     placeholder?: string;
+    alwaysFloat?: boolean;
 }
 
-export const MultiSelect = ({ label, options, selected, onChange, placeholder = "Seleccionar..." }: MultiSelectProps) => {
+export const MultiSelect = ({ label, options, selected, onChange, placeholder = "Seleccionar...", alwaysFloat }: MultiSelectProps) => {
     const [isOpen, setIsOpen] = useState(false);
     const [search, setSearch] = useState("");
 
     const selectedOptions = options.filter(opt => selected.includes(opt.id));
     const filteredOptions = options.filter(opt => opt.label.toLowerCase().includes(search.toLowerCase()));
+    const hasValue = selected.length > 0;
 
     const toggleOption = (id: string | number) => {
         if (selected.includes(id)) {
@@ -35,7 +37,24 @@ export const MultiSelect = ({ label, options, selected, onChange, placeholder = 
 
     return (
         <div className="relative mb-6 z-10">
-            <label className="block text-sm font-medium text-slate-700 mb-2">{label}</label>
+            <motion.label
+                animate={isOpen || hasValue || alwaysFloat ? { 
+                    y: -14, 
+                    scale: 0.75, 
+                    color: '#7B5BFF',
+                    fontWeight: 700
+                } : { 
+                    y: 30, 
+                    scale: 1, 
+                    color: '#94a3b8',
+                    fontWeight: 500
+                }}
+                initial={false}
+                transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                className="absolute z-20 origin-left pointer-events-none uppercase tracking-widest text-[10px] left-4 transition-all duration-300"
+            >
+                {label}
+            </motion.label>
 
             {/* Selected Chips */}
             <div className="flex flex-wrap gap-2 mb-2">
@@ -66,7 +85,7 @@ export const MultiSelect = ({ label, options, selected, onChange, placeholder = 
             <button
                 type="button"
                 onClick={() => setIsOpen(!isOpen)}
-                className={`w-full text-left px-4 py-3 bg-white border rounded-xl flex items-center justify-between transition-all duration-300
+                className={`w-full text-left px-4 pt-5 pb-1.5 min-h-[60px] bg-white border rounded-xl flex items-center justify-between transition-all duration-300
           ${isOpen ? 'border-alteha-violet ring-2 ring-alteha-violet/20' : 'border-slate-200 hover:border-alteha-violet/50'}
         `}
             >
@@ -148,12 +167,14 @@ interface SelectProps {
     value: string | number;
     onChange: (value: string | number) => void;
     placeholder?: string;
+    alwaysFloat?: boolean;
 }
 
-export const Select = ({ label, options, value, onChange, placeholder = "Seleccionar..." }: SelectProps) => {
+export const Select = ({ label, options, value, onChange, placeholder = "Seleccionar...", alwaysFloat }: SelectProps) => {
     const [isOpen, setIsOpen] = useState(false);
 
     const selectedOption = options.find(opt => opt.id === value);
+    const hasValue = value !== '' && value !== undefined && value !== null;
 
     const handleSelect = (id: string | number) => {
         onChange(id);
@@ -162,13 +183,30 @@ export const Select = ({ label, options, value, onChange, placeholder = "Selecci
 
     return (
         <div className="relative mb-6 z-20">
-            <label className="block text-sm font-medium text-slate-700 mb-2">{label}</label>
+            <motion.label
+                animate={isOpen || hasValue || alwaysFloat ? { 
+                    y: -14, 
+                    scale: 0.75, 
+                    color: '#7B5BFF',
+                    fontWeight: 700
+                } : { 
+                    y: 30, 
+                    scale: 1, 
+                    color: '#94a3b8',
+                    fontWeight: 500
+                }}
+                initial={false}
+                transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                className="absolute z-20 origin-left pointer-events-none uppercase tracking-widest text-[10px] left-4 transition-all duration-300"
+            >
+                {label}
+            </motion.label>
 
             {/* Trigger */}
             <button
                 type="button"
                 onClick={() => setIsOpen(!isOpen)}
-                className={`w-full text-left px-4 py-3 bg-white border rounded-xl flex items-center justify-between transition-all duration-300
+                className={`w-full text-left px-4 pt-5 pb-1.5 min-h-[60px] bg-white border rounded-xl flex items-center justify-between transition-all duration-300
           ${isOpen ? 'border-alteha-violet ring-2 ring-alteha-violet/20' : 'border-slate-200 hover:border-alteha-violet/50'}
         `}
             >

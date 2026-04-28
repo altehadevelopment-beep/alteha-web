@@ -14,7 +14,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     ({ className, variant = 'primary', isLoading, children, ...props }, ref) => {
 
         const variants = {
-            primary: "bg-gradient-to-r from-alteha-turquoise/90 via-alteha-violet/90 to-alteha-turquoise/90 bg-[length:200%_auto] text-white shadow-[0_10px_25px_-5px_rgba(106,77,254,0.4)] hover:shadow-[0_15px_30px_-5px_rgba(106,77,254,0.5)] border border-white/20 animate-gradient",
+            primary: "bg-gradient-to-r from-alteha-turquoise/90 via-alteha-violet/90 to-alteha-turquoise/90 bg-[length:200%_auto] text-white shadow-[0_10px_25px_-5px_rgba(123,91,255,0.4)] hover:shadow-[0_15px_30px_-5px_rgba(123,91,255,0.5)] border border-white/20 animate-gradient",
             outline: "border-2 border-slate-200 text-slate-600 bg-white/50 backdrop-blur-md hover:border-alteha-violet hover:text-alteha-violet hover:bg-white",
             ghost: "bg-transparent text-slate-500 hover:text-alteha-violet hover:bg-alteha-violet/5"
         };
