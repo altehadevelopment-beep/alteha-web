@@ -90,7 +90,7 @@ export default function NewAuctionPage() {
         termsAndConditionsAccepted: true,
         showPrice: true,
         durationHours: 240,
-        autoExtendMinutes: 1440,
+        autoExtendMinutes: 60,
         minBidsRequired: 10,
         estimatedSurgeryDate: new Date(Date.now() + 20 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         patient: { id: 0 },
@@ -321,7 +321,7 @@ export default function NewAuctionPage() {
     const handleNext = () => setStep(prev => prev + 1);
     const handleBack = () => setStep(prev => prev - 1);
 
-    const handleAction = async (finalStatus: 'DRAFT' | 'PUBLISHED') => {
+    const handleAction = async (finalStatus: 'DRAFT' | 'PUBLISHED' | 'ACTIVE') => {
         setIsLoading(true);
         setError(null);
 
@@ -1003,12 +1003,16 @@ export default function NewAuctionPage() {
                                                     description="Cantidad mínima de propuestas necesarias para que la subasta sea válida."
                                                 />
                                                 <FormInput 
-                                                    label="Auto-extensión (Horas)" 
+                                                    label="Auto-extensión (Minutos)" 
                                                     type="number" 
-                                                    value={formData.autoExtendMinutes / 60} 
-                                                    onChange={(v: string) => setFormData({ ...formData, autoExtendMinutes: Math.round(parseFloat(v) * 60) })} 
+                                                    value={formData.autoExtendMinutes} 
+                                                    onChange={(v: string) => {
+                                                        const val = parseInt(v) || 0;
+                                                        // Prevent exceeding backend limit of 60 minutes
+                                                        setFormData({ ...formData, autoExtendMinutes: Math.min(val, 60) });
+                                                    }} 
                                                     icon={Zap}
-                                                    description="Si llega la hora límite y no hay ofertas suficientes, la subasta se extenderá por este tiempo (en horas)."
+                                                    description="La subasta se extenderá por este tiempo si no hay suficientes ofertas al cierre (Máximo 60 minutos)."
                                                 />
                                             </div>
                                         </div>
@@ -1060,12 +1064,12 @@ export default function NewAuctionPage() {
                                 <ChevronRight className="w-5 h-5" />
                             </Button>
                         ) : (
-                            <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-3">
                                 <Button
                                     type="button"
                                     disabled={isLoading}
                                     onClick={() => handleAction('DRAFT')}
-                                    className="bg-slate-100 text-slate-600 px-8 py-5 rounded-[1.5rem] font-black hover:bg-slate-200 transition-all flex items-center gap-2"
+                                    className="bg-slate-100 text-slate-600 px-6 py-4 rounded-2xl font-black hover:bg-slate-200 transition-all flex items-center gap-2 text-sm"
                                 >
                                     Guardar Borrador
                                 </Button>
@@ -1073,9 +1077,17 @@ export default function NewAuctionPage() {
                                     type="button"
                                     disabled={isLoading}
                                     onClick={() => handleAction('PUBLISHED')}
-                                    className="bg-alteha-violet text-white px-12 py-5 rounded-[1.5rem] font-black shadow-xl shadow-violet-200 hover:scale-105 transition-all flex items-center gap-3"
+                                    className="bg-slate-800 text-white px-6 py-4 rounded-2xl font-black hover:bg-slate-900 transition-all flex items-center gap-2 text-sm shadow-md"
                                 >
-                                    {isLoading ? <Loader2 className="w-6 h-6 animate-spin" /> : 'Publicar Subasta'}
+                                    Solo Publicar
+                                </Button>
+                                <Button
+                                    type="button"
+                                    disabled={isLoading}
+                                    onClick={() => handleAction('ACTIVE')}
+                                    className="bg-alteha-violet text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-violet-200 hover:scale-105 transition-all flex items-center gap-3 text-sm"
+                                >
+                                    {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Publicar y Activar'}
                                 </Button>
                             </div>
                         )}
