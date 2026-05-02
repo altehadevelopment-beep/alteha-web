@@ -16,17 +16,53 @@ import {
     Star,
     DollarSign,
     Clock,
-    ArrowRight
+    ArrowRight,
+    Package
 } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { getMyAuctions, type Auction } from '@/lib/api';
+import { getMyAuctions, getAllMedicalPackages, type Auction, type MedicalPackage } from '@/lib/api';
 import { useState, useEffect } from 'react';
+import { Modal } from '@/components/ui/Modal';
+import { Button } from '@/components/ui/Button';
 
 export default function InsuranceDashboard() {
     const { userProfile, isLoadingProfile } = useAuth();
     const [recentAuctions, setRecentAuctions] = useState<Auction[]>([]);
     const [isLoadingAuctions, setIsLoadingAuctions] = useState(true);
+    const [auctionBidCounts, setAuctionBidCounts] = useState<Record<number, number>>({});
+    const [medicalPackages, setMedicalPackages] = useState<MedicalPackage[]>([]);
+    const [isLoadingPackages, setIsLoadingPackages] = useState(true);
+    const [selectedPackage, setSelectedPackage] = useState<MedicalPackage | null>(null);
+
+    // Helper to get the most accurate author name
+    const getAuthorName = (pkg: any) => {
+        if (!pkg) return 'Proveedor Verificado';
+        
+        // Try Doctor object (Camel & Snake)
+        const d = pkg.doctor || {};
+        const doctorName = d.fullName || d.full_name || 
+            (d.firstName ? `${d.firstName} ${d.lastName || ''}` : null) ||
+            (d.first_name ? `${d.first_name} ${d.last_name || ''}` : null);
+        if (doctorName && doctorName.trim()) return doctorName;
+
+        // Try Clinic object
+        const c = pkg.clinic || {};
+        const clinicName = c.commercialName || c.commercial_name || c.name || c.legalName || c.legal_name;
+        if (clinicName && clinicName.trim()) return clinicName;
+
+        // Try root level doctor/clinic name fields (BUT NOT package name)
+        const rootName = pkg.doctorName || pkg.doctor_name || pkg.clinicName || pkg.clinic_name;
+        if (rootName && rootName.trim()) return rootName;
+        
+        // Try account/user objects
+        const a = pkg.account || pkg.user || pkg.author || {};
+        const accountName = a.fullName || a.full_name || a.name || 
+            (a.firstName ? `${a.firstName} ${a.lastName || ''}` : null);
+        if (accountName && accountName.trim()) return accountName;
+
+        return 'Especialista Alteha';
+    };
 
     const displayProfile = userProfile || {
         commercialName: 'Cargando...',
@@ -34,23 +70,99 @@ export default function InsuranceDashboard() {
         logoUrl: null,
         status: 'PENDING'
     };
-
     useEffect(() => {
-        const loadRecent = async () => {
+        const loadData = async () => {
             setIsLoadingAuctions(true);
+            setIsLoadingPackages(true);
             try {
-                // Fetch specifically ACTIVE auctions for the main list
-                const result = await getMyAuctions('ACTIVE', 0, 10);
-                if (result.code === '00') {
-                    setRecentAuctions(result.data || []);
-                }
+                // Fetch 5 auctions
+                const res = await getMyAuctions(undefined, 0, 5);
+                
+                // Robust data handling
+                let auctions: Auction[] = [];
+                if (Array.isArray(res)) auctions = res;
+                else if (res.code === '00' && res.data) auctions = Array.isArray(res.data) ? res.data : [res.data];
+                else if ((res as any).content) auctions = (res as any).content;
+
+                setRecentAuctions(auctions);
+                console.log('[Dashboard] Raw Auctions:', auctions);
+
+                // Fetch real-time bid counts for each auction
+                auctions.forEach(async (auction) => {
+                    try {
+                        const token = localStorage.getItem('id_token');
+                        const countRes = await fetch(`/api/bids/count?auctionId=${auction.id}`, {
+                            headers: { 'X-Alteha-Token': token || '' }
+                        });
+                        const countData = await countRes.json();
+                        if (typeof countData.count === 'number') {
+                            setAuctionBidCounts(prev => ({ ...prev, [auction.id]: countData.count }));
+                        }
+                    } catch (err) {
+                        console.error(`Error fetching count for auction ${auction.id}:`, err);
+                    }
+                });
+                
+                // Fetch Medical Packages
+                const pkgRes = await getAllMedicalPackages(0, 5);
+                console.log('[Dashboard] Raw Packages Response:', pkgRes);
+                let pkgs: MedicalPackage[] = [];
+                if (Array.isArray(pkgRes)) pkgs = pkgRes;
+                else if (pkgRes.code === '00' && pkgRes.data) pkgs = Array.isArray(pkgRes.data) ? pkgRes.data : [pkgRes.data];
+                else if ((pkgRes as any).content) pkgs = (pkgRes as any).content;
+                
+                // Hydrate missing names for packages
+                const hydratedPkgs = await Promise.all(pkgs.map(async (pkg) => {
+                    const hasDoctorName = pkg.doctor?.fullName || pkg.doctor?.full_name || pkg.doctor?.firstName || pkg.doctorName;
+                    const hasClinicName = pkg.clinic?.name || pkg.clinic?.commercialName || pkg.clinicName;
+                    
+                    // If we have an ID but no name, fetch it
+                    if ((pkg.doctor?.id && !hasDoctorName) || (pkg.clinic?.id && !hasClinicName)) {
+                        try {
+                            const actorType = pkg.doctor?.id ? 'doctors' : 'clinics';
+                            const actorId = pkg.doctor?.id || pkg.clinic?.id;
+                            const token = localStorage.getItem('id_token');
+                            
+                            const actorRes = await fetch(`/api/${actorType}/${actorId}`, {
+                                headers: { 'X-Alteha-Token': token || '' }
+                            });
+                            
+                            if (actorRes.ok) {
+                                let actorData = await actorRes.json();
+                                if (actorData.data) actorData = actorData.data;
+                                
+                                console.log(`[Dashboard] Hydrated ${actorType} ${actorId}:`, actorData);
+                                if (pkg.doctor) {
+                                    const name = actorData.fullName || actorData.full_name || `${actorData.firstName || actorData.first_name || ''} ${actorData.lastName || actorData.last_name || ''}`.trim();
+                                    pkg.doctor.fullName = name;
+                                    pkg.doctor.firstName = actorData.firstName || actorData.first_name;
+                                    pkg.doctor.lastName = actorData.lastName || actorData.last_name;
+                                } else if (pkg.clinic) {
+                                    const name = actorData.commercialName || actorData.commercial_name || actorData.name || actorData.legalName || actorData.legal_name;
+                                    pkg.clinic.name = name;
+                                    pkg.clinic.commercialName = name;
+                                }
+                            } else {
+                                const errorText = await actorRes.text();
+                                console.warn(`[Dashboard] Hydration failed for ${actorType} ${actorId}:`, actorRes.status, errorText);
+                            }
+                        } catch (err) {
+                            console.error(`[Dashboard] Critical error hydrating ${pkg.doctor?.id || pkg.clinic?.id}:`, err);
+                        }
+                    }
+                    return { ...pkg }; // Return a copy to ensure React detects the change
+                }));
+                
+                setMedicalPackages(hydratedPkgs);
+                console.log('[Dashboard] Processed Packages:', hydratedPkgs);
             } catch (err) {
-                console.error('Error loading recent auctions:', err);
+                console.error('Error loading dashboard data:', err);
             } finally {
                 setIsLoadingAuctions(false);
+                setIsLoadingPackages(false);
             }
         };
-        loadRecent();
+        loadData();
     }, []);
 
     const rating = 5.0; // Default or from profile if available
@@ -101,7 +213,11 @@ export default function InsuranceDashboard() {
 
             {/* Quick Stats */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <StatCard label="Subastas Abiertas" value={isLoadingAuctions ? '...' : recentAuctions.length.toString()} icon={Gavel} trend="Tiempo Real" color="text-alteha-violet" />
+                <StatCard 
+                    label="Subastas Abiertas" 
+                    value={isLoadingAuctions ? '...' : recentAuctions.filter(a => a.status === 'ACTIVE').length.toString()} 
+                    icon={Gavel} trend="Activas" color="text-alteha-violet" 
+                />
                 <StatCard label="Ahorro en Siniestros" value="$128k" icon={TrendingDown} trend="22% vs mes anterior" color="text-emerald-600" />
                 <StatCard label="Subastas Draft" value="..." icon={FileText} trend="Pendientes" color="text-blue-600" />
                 <StatCard label="Médicos Conectados" value="156" icon={Users} trend="+12 este mes" color="text-amber-600" />
@@ -131,9 +247,9 @@ export default function InsuranceDashboard() {
                 </Link>
             </motion.div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-                {/* Active Auctions List */}
-                <div className="lg:col-span-2 space-y-6">
+            <div className="space-y-12">
+                {/* Active Auctions List - Full Width Top */}
+                <div className="space-y-6">
                     <div className="flex items-center justify-between px-2">
                         <h3 className="text-2xl font-black text-slate-900">Subastas en Curso</h3>
                         <Link href="/dashboard/insurance/auctions" className="text-sm font-bold text-alteha-violet hover:underline">Ver todas</Link>
@@ -149,42 +265,276 @@ export default function InsuranceDashboard() {
                                 <p className="text-slate-400 font-bold">No hay subastas recientes</p>
                             </div>
                         ) : (
-                            recentAuctions.map(auction => (
-                                <AuctionItem
-                                    key={auction.id}
-                                    id={auction.auctionNumber}
-                                    title={auction.title}
-                                    status={auction.status}
-                                    bids={auction.totalBids || 0}
-                                    bestBid={auction.currentLowestBid ? `$${auction.currentLowestBid.toLocaleString()}` : 'N/A'}
-                                    timeLeft={new Date(auction.endDate).toLocaleDateString()}
-                                    savings="-"
-                                />
-                            ))
+                            <>
+                                <div className="grid grid-cols-1 gap-4">
+                                    {recentAuctions.map(auction => (
+                                        <AuctionItem
+                                            key={auction.id}
+                                            id={auction.auctionNumber}
+                                            title={auction.title}
+                                            status={auction.status}
+                                            bids={auctionBidCounts[auction.id] !== undefined ? auctionBidCounts[auction.id] : ((auction as any).totalBids || (auction as any).bidCount || 0)}
+                                            bestBid={auction.currentLowestBid ? `$${auction.currentLowestBid.toLocaleString()}` : 'N/A'}
+                                            timeLeft={new Date(auction.endDate).toLocaleDateString()}
+                                            savings="-"
+                                        />
+                                    ))}
+                                </div>
+                                <div className="flex justify-center pt-2">
+                                    <Link href="/dashboard/insurance/auctions">
+                                        <button className="px-6 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-full text-xs font-black uppercase tracking-widest transition-all">
+                                            Ver más subastas
+                                        </button>
+                                    </Link>
+                                </div>
+                            </>
                         )}
                     </div>
                 </div>
 
-                {/* Activity Feed */}
+                {/* Medical Packages List - Full Width Bottom */}
                 <div className="space-y-6">
-                    <h3 className="text-2xl font-black text-slate-900 px-2">Actividad Reciente</h3>
-                    <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100 divide-y divide-slate-50">
-                        <ActivityItem icon={DollarSign} text="Puja ganadora en Subasta #4520" time="Hace 5m" color="bg-emerald-50 text-emerald-500" />
-                        <ActivityItem icon={Users} text="Dr. Martínez aceptó la orden" time="Hace 20m" color="bg-blue-50 text-blue-500" />
-                        <ActivityItem icon={Gavel} text="Nueva oferta en Subasta #4521" time="Hace 45m" color="bg-violet-50 text-alteha-violet" />
-                        <ActivityItem icon={Clock} text="Subasta #4518 finalizada" time="Hace 2h" color="bg-slate-50 text-slate-500" />
+                    <div className="flex items-center justify-between px-2">
+                        <h3 className="text-2xl font-black text-slate-900">Paquetes Médicos</h3>
+                        <Link href="/dashboard/insurance/directory" className="text-sm font-bold text-alteha-turquoise hover:underline">Ver más</Link>
                     </div>
+                    <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100">
+                        {isLoadingPackages ? (
+                            <div className="flex justify-center py-10">
+                                <Loader2 className="w-6 h-6 text-alteha-violet animate-spin" />
+                            </div>
+                        ) : medicalPackages.length === 0 ? (
+                            <p className="text-center py-10 text-slate-400 font-medium">No hay paquetes disponibles</p>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {medicalPackages.map((pkg) => (
+                                    <PackageMiniItem 
+                                        key={pkg.id}
+                                        title={pkg.packageName || (pkg as any).name}
+                                        price={pkg.discountedPrice || pkg.basePrice || (pkg as any).totalPrice || 0}
+                                        doctor={getAuthorName(pkg)}
+                                        specialty={pkg.specialty?.name || (pkg as any).specialtyName || 'Medicina'}
+                                        description={pkg.description}
+                                        image={pkg.doctor?.profileImageUrl || pkg.clinic?.logoUrl}
+                                        type={pkg.clinic?.id ? 'CLINIC' : 'DOCTOR'}
+                                        onClick={() => setSelectedPackage(pkg)}
+                                    />
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
 
-                    <div className="bg-alteha-violet/5 p-6 rounded-[2rem] border border-alteha-violet/10">
-                        <h4 className="font-black text-alteha-violet mb-3 flex items-center gap-2">
-                            <TrendingDown className="w-5 h-5" />
-                            Ahorro del Mes
-                        </h4>
-                        <p className="text-4xl font-black text-slate-900">$128,450</p>
-                        <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">vs. precios tradicionales</p>
+                {/* Monthly Savings Summary */}
+                <div className="bg-alteha-violet/5 p-8 rounded-[3rem] border border-alteha-violet/10 flex flex-col md:flex-row items-center justify-between gap-6">
+                    <div className="flex items-center gap-4">
+                        <div className="p-4 bg-white rounded-2xl text-alteha-violet shadow-sm">
+                            <TrendingDown className="w-8 h-8" />
+                        </div>
+                        <div>
+                            <h4 className="font-black text-alteha-violet text-lg">Ahorro del Mes</h4>
+                            <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">Vs. precios tradicionales del mercado</p>
+                        </div>
+                    </div>
+                    <div className="text-center md:text-right">
+                        <p className="text-5xl font-black text-slate-900">$128,450</p>
+                        <p className="text-xs text-emerald-500 font-black uppercase tracking-widest mt-1">↑ 22% incremento este mes</p>
                     </div>
                 </div>
             </div>
+
+            {/* Medical Package Detail Modal */}
+            <Modal
+                isOpen={!!selectedPackage}
+                onClose={() => setSelectedPackage(null)}
+                title="Expediente de Paquete Médico"
+                maxWidth="max-w-3xl"
+            >
+                {selectedPackage && (
+                    <div className="space-y-8">
+                        {/* Header with Title and Price */}
+                        <div className="flex flex-col md:flex-row md:items-start justify-between gap-6 border-b border-slate-100 pb-8">
+                            <div className="space-y-4">
+                                <div className="space-y-1">
+                                    <div className="flex items-center gap-2">
+                                        <div className="px-2 py-0.5 bg-slate-900 text-[9px] font-black text-white rounded-md uppercase tracking-widest">
+                                            Publicado por: {getAuthorName(selectedPackage)}
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <h3 className="text-3xl font-black text-slate-900 leading-tight">{selectedPackage.packageName || (selectedPackage as any).name}</h3>
+                                        <div className="px-3 py-1 bg-slate-100 text-[10px] font-black text-slate-500 rounded-lg uppercase tracking-tighter">
+                                            {selectedPackage.packageCode || 'N/A'}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <div className="px-4 py-1.5 bg-alteha-turquoise/10 text-alteha-turquoise rounded-full flex items-center gap-2">
+                                        <Star className="w-3.5 h-3.5 fill-alteha-turquoise" />
+                                        <span className="text-xs font-black uppercase tracking-widest">
+                                            {selectedPackage.specialty?.name || (selectedPackage as any).specialtyName || 'Medicina General'}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 text-slate-400">
+                                        <Calendar className="w-4 h-4" />
+                                        <span className="text-xs font-bold">Válido hasta: {selectedPackage.validUntil ? new Date(selectedPackage.validUntil).toLocaleDateString() : 'Indefinido'}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="bg-violet-50 p-6 rounded-3xl border border-violet-100 text-center md:text-right min-w-[200px]">
+                                <p className="text-4xl font-black text-alteha-violet">
+                                    ${(selectedPackage.discountedPrice || selectedPackage.basePrice || (selectedPackage as any).totalPrice || 0).toLocaleString()}
+                                </p>
+                                <p className="text-[10px] font-black text-alteha-violet/60 uppercase tracking-widest mt-1">Costo Total del Paquete</p>
+                            </div>
+                        </div>
+
+                        {/* Description */}
+                        <div className="space-y-3">
+                            <h4 className="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
+                                <FileText className="w-4 h-4 text-alteha-violet" />
+                                Descripción del Servicio
+                            </h4>
+                            <p className="text-slate-600 leading-relaxed font-medium bg-slate-50/50 p-6 rounded-2xl border border-slate-100/50">
+                                {selectedPackage.description || 'No hay una descripción detallada disponible para este paquete médico.'}
+                            </p>
+                        </div>
+
+                        {/* Items List */}
+                        <div className="space-y-4">
+                            <h4 className="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
+                                <Package className="w-4 h-4 text-alteha-violet" />
+                                Desglose de Insumos y Honorarios
+                            </h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {selectedPackage.packageItems && selectedPackage.packageItems.length > 0 ? (
+                                    selectedPackage.packageItems.map((item, idx) => (
+                                        <div key={idx} className="flex justify-between items-center bg-white p-5 rounded-2xl border border-slate-100 hover:shadow-md transition-all group">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-alteha-violet/10 group-hover:text-alteha-violet transition-colors">
+                                                    <span className="text-xs font-black">{idx + 1}</span>
+                                                </div>
+                                                <div>
+                                                    <p className="font-bold text-slate-800 text-sm">{item.itemName || (item as any).name}</p>
+                                                    <p className="text-[10px] text-slate-400 font-medium">Cant: {item.quantity}</p>
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="font-black text-slate-900 text-sm">${(item.unitPrice || 0).toLocaleString()}</p>
+                                            </div>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="col-span-full py-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-center">
+                                        <p className="text-slate-400 font-medium italic">No se especificaron ítems detallados</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Extended Provider Info */}
+                        <div className="space-y-4">
+                            <h4 className="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
+                                <ShieldCheck className="w-4 h-4 text-alteha-violet" />
+                                Información del Prestador
+                            </h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {/* Doctor / Clinic Profile Card */}
+                                <div className="bg-slate-900 text-white p-8 rounded-[2.5rem] shadow-xl relative overflow-hidden group">
+                                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                                        <Users className="w-24 h-24 rotate-12" />
+                                    </div>
+                                    <div className="relative z-10 space-y-4">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-16 h-16 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20">
+                                                {selectedPackage.doctor?.profileImageUrl || selectedPackage.clinic?.logoUrl ? (
+                                                    <img 
+                                                        src={selectedPackage.doctor?.profileImageUrl || selectedPackage.clinic?.logoUrl} 
+                                                        className="w-full h-full object-cover rounded-2xl"
+                                                    />
+                                                ) : (
+                                                    <Users className="w-8 h-8 text-alteha-turquoise" />
+                                                )}
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-black text-alteha-turquoise uppercase tracking-widest">
+                                                    {selectedPackage.doctor ? 'Especialista' : 'Centro Clínico'}
+                                                </p>
+                                                <p className="text-xl font-black leading-tight">
+                                                    {getAuthorName(selectedPackage)}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2 pt-2">
+                                            <div className="flex items-center gap-2 text-slate-400">
+                                                <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+                                                <span className="text-xs font-bold text-white">
+                                                    {(selectedPackage.doctor?.rating || selectedPackage.clinic?.rating || 5.0).toFixed(1)}
+                                                </span>
+                                                <span className="text-[10px] font-medium text-slate-500">(Verificado)</span>
+                                            </div>
+                                            <div className="flex items-center gap-2 text-slate-400">
+                                                <FileText className="w-4 h-4" />
+                                                <span className="text-xs font-medium">
+                                                    {selectedPackage.doctor?.medicalLicenseNumber || selectedPackage.clinic?.identificationNumber || 'ID: Alt-Verificado'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Location & Contact Info */}
+                                <div className="bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100 space-y-6">
+                                    <div className="space-y-4">
+                                        <div className="flex items-start gap-4">
+                                            <div className="p-3 bg-white rounded-xl shadow-sm text-alteha-violet">
+                                                <Calendar className="w-5 h-5" />
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Ubicación de Atención</p>
+                                                <p className="text-sm font-bold text-slate-700 mt-0.5">
+                                                    {selectedPackage.clinic?.address || selectedPackage.doctor?.address || 'Disponible en Centros Afiliados Alteha'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-start gap-4">
+                                            <div className="p-3 bg-white rounded-xl shadow-sm text-alteha-violet">
+                                                <FileText className="w-5 h-5" />
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Teléfono de Enlace</p>
+                                                <p className="text-sm font-bold text-slate-700 mt-0.5">
+                                                    {selectedPackage.doctor?.phone || selectedPackage.clinic?.phone || '+58 212-000-0000'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="pt-2">
+                                        <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl w-fit">
+                                            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                            <span className="text-[10px] font-black uppercase tracking-widest">Disponible Ahora</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Footer Actions */}
+                        <div className="flex gap-4 pt-4">
+                            <Button className="flex-1 bg-alteha-violet text-white py-5 rounded-[1.5rem] font-black uppercase tracking-widest shadow-xl shadow-violet-200 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3">
+                                Solicitar este Paquete
+                                <ArrowRight className="w-5 h-5" />
+                            </Button>
+                            <Button 
+                                onClick={() => setSelectedPackage(null)}
+                                className="px-10 bg-white text-slate-400 border border-slate-200 py-5 rounded-[1.5rem] font-black uppercase tracking-widest hover:bg-slate-50 transition-all"
+                            >
+                                Volver
+                            </Button>
+                        </div>
+                    </div>
+                )}
+            </Modal>
         </div>
     );
 }
@@ -247,15 +597,43 @@ const Loader2 = ({ className }: { className?: string }) => (
     </motion.div>
 );
 
-function ActivityItem({ icon: Icon, text, time, color }: any) {
+function PackageMiniItem({ title, price, doctor, specialty, description, image, type, onClick }: any) {
     return (
-        <div className="flex items-center gap-4 py-4 first:pt-0 last:pb-0">
-            <div className={`p-3 rounded-xl ${color}`}>
-                <Icon className="w-4 h-4" />
+        <div 
+            onClick={onClick}
+            className="flex flex-col gap-4 p-6 rounded-[2rem] bg-white border border-slate-100 hover:border-alteha-violet/30 hover:shadow-xl hover:shadow-violet-500/5 transition-all group cursor-pointer h-full"
+        >
+            <div className="flex items-center justify-between gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-alteha-violet/5 flex items-center justify-center text-alteha-violet flex-shrink-0 group-hover:scale-110 transition-transform overflow-hidden border border-slate-50">
+                    {image ? (
+                        <img src={image} className="w-full h-full object-cover" alt={doctor} />
+                    ) : (
+                        <Package className="w-7 h-7" />
+                    )}
+                </div>
+                <div className="text-right">
+                    <p className="text-xl font-black text-slate-900">${price.toLocaleString()}</p>
+                    <div className="flex items-center justify-end gap-1.5 mt-0.5">
+                        <div className={`w-1.5 h-1.5 rounded-full ${type === 'CLINIC' ? 'bg-alteha-turquoise' : 'bg-alteha-violet'}`} />
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                            {type === 'CLINIC' ? 'Clínica' : 'Médico'}
+                        </p>
+                    </div>
+                </div>
             </div>
-            <div className="flex-1">
-                <p className="text-sm font-bold text-slate-800">{text}</p>
-                <p className="text-xs text-slate-400 font-medium">{time}</p>
+            
+            <div className="flex-1 min-w-0 space-y-2">
+                <p className="text-lg font-black text-slate-900 leading-tight group-hover:text-alteha-violet transition-colors line-clamp-2 min-h-[3.5rem]">{title}</p>
+                <p className="text-xs text-slate-400 line-clamp-2 font-medium italic h-8">
+                    {description || 'Consulta los detalles para ver la descripción completa de este servicio médico.'}
+                </p>
+                <div className="flex items-center gap-2 pt-2 border-t border-slate-50">
+                    <div className="flex-1 min-w-0">
+                        <p className="text-[10px] font-bold text-slate-600 truncate">{doctor}</p>
+                        <p className="text-[9px] font-black text-alteha-turquoise uppercase tracking-widest truncate">{specialty}</p>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-slate-200 group-hover:text-alteha-violet transition-colors" />
+                </div>
             </div>
         </div>
     );

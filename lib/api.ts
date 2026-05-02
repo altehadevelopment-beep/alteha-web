@@ -1410,3 +1410,19 @@ export const getMyMedicalPackages = async (page: number = 0, size: number = 20):
         throw error;
     }
 };
+
+export const getAllMedicalPackages = async (page: number = 0, size: number = 10): Promise<ApiResponse<MedicalPackage[]>> => {
+    const token = getStoredToken();
+    
+    try {
+        const response = await fetch(`/api/medical-packages/all?page=${page}&size=${size}`, {
+            headers: {
+                ...(token && { 'X-Alteha-Token': token })
+            }
+        });
+        return await response.json();
+    } catch (error) {
+        console.error('Error fetching all medical packages:', error);
+        throw error;
+    }
+};

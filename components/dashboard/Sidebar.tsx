@@ -48,8 +48,6 @@ const insuranceItems = [
     { title: 'Dashboard', icon: LayoutDashboard, href: '/dashboard/insurance' },
     { title: 'Crear Subasta', icon: Plus, href: '/dashboard/insurance/auctions/new' },
     { title: 'Mis Subastas', icon: Gavel, href: '/dashboard/insurance/auctions' },
-    { title: 'Órdenes Emitidas', icon: FileText, href: '/dashboard/insurance/orders' },
-    { title: 'Pagos y Siniestros', icon: CreditCard, href: '/dashboard/insurance/payments' },
     { title: 'Chat Corporativo', icon: MessageSquare, href: '/dashboard/insurance/chat' },
     { title: 'Directorio Médico', icon: Users, href: '/dashboard/insurance/directory' },
 ];

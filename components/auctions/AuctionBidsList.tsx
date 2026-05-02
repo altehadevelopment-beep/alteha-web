@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     Loader2, User, AlertCircle, RefreshCw, Phone, Mail,
     DollarSign, Stethoscope, Building2, Clock, Trophy, ChevronDown, ChevronUp,
-    Calendar, Timer, ShieldCheck, Info, ExternalLink, Medal, X, MapPin
+    Calendar, Timer, ShieldCheck, Info, ExternalLink, Medal, X, MapPin, MessageSquare
 } from 'lucide-react';
 import { getAuctionBids, getTopOffers, getDoctorById, type BidDetailed, type TopOffer } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';

@@ -19,10 +19,7 @@ export async function GET(
 
         const adminToken = await getAppToken();
 
-        // Log for debugging
-        console.log(`[API Proxy] Fetching doctor ${id} from ${API_BASE}/doctors/${id}`);
-
-        const response = await fetch(`${API_BASE}/doctors/${id}`, {
+        const response = await fetch(`${API_BASE}/clinics/${id}`, {
             method: 'GET',
             headers: {
                 'Accept': '*/*',
@@ -31,15 +28,13 @@ export async function GET(
         });
 
         if (!response.ok) {
-            const errorText = await response.text();
-            console.error(`[API Proxy] Error fetching doctor ${id}:`, response.status, errorText);
-            return NextResponse.json({ code: 'ERROR', message: errorText }, { status: response.status });
+            return NextResponse.json({ code: 'ERROR', message: 'Error fetching clinic' }, { status: response.status });
         }
 
         const data = await response.json();
         return NextResponse.json(data, { status: 200 });
     } catch (error) {
-        console.error('Doctor profile proxy error:', error);
+        console.error('Clinic profile proxy error:', error);
         return NextResponse.json({ code: 'ERROR', message: 'Error de conexión' }, { status: 500 });
     }
 }
