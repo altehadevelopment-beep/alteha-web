@@ -17,7 +17,10 @@ import {
     DollarSign,
     Clock,
     ArrowRight,
-    Package
+    Package,
+    MapPin,
+    Phone,
+    Mail
 } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
@@ -25,6 +28,8 @@ import { getMyAuctions, getAllMedicalPackages, type Auction, type MedicalPackage
 import { useState, useEffect } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
+import { Badge } from '@/components/ui/Badge';
+import { AuctionCard } from '@/components/auctions/AuctionCard';
 
 export default function InsuranceDashboard() {
     const { userProfile, isLoadingProfile } = useAuth();
@@ -34,6 +39,7 @@ export default function InsuranceDashboard() {
     const [medicalPackages, setMedicalPackages] = useState<MedicalPackage[]>([]);
     const [isLoadingPackages, setIsLoadingPackages] = useState(true);
     const [selectedPackage, setSelectedPackage] = useState<MedicalPackage | null>(null);
+    const [showProviderProfile, setShowProviderProfile] = useState(false);
 
     // Helper to get the most accurate author name
     const getAuthorName = (pkg: any) => {
@@ -137,10 +143,20 @@ export default function InsuranceDashboard() {
                                     pkg.doctor.fullName = name;
                                     pkg.doctor.firstName = actorData.firstName || actorData.first_name;
                                     pkg.doctor.lastName = actorData.lastName || actorData.last_name;
+                                    pkg.doctor.profileImageUrl = actorData.profileImageUrl || actorData.profile_image_url;
+                                    pkg.doctor.rating = actorData.rating;
+                                    pkg.doctor.yearsOfExperience = actorData.yearsOfExperience || actorData.years_of_experience;
+                                    pkg.doctor.email = actorData.email;
+                                    pkg.doctor.mobilePhone = actorData.mobilePhone || actorData.mobile_phone || actorData.phone;
                                 } else if (pkg.clinic) {
                                     const name = actorData.commercialName || actorData.commercial_name || actorData.name || actorData.legalName || actorData.legal_name;
                                     pkg.clinic.name = name;
                                     pkg.clinic.commercialName = name;
+                                    pkg.clinic.logoUrl = actorData.logoUrl || actorData.logo_url;
+                                    pkg.clinic.rating = actorData.rating;
+                                    pkg.clinic.cityName = actorData.cityName || actorData.city_name;
+                                    pkg.clinic.email = actorData.email;
+                                    pkg.clinic.phone = actorData.phone || actorData.emergencyPhone;
                                 }
                             } else {
                                 const errorText = await actorRes.text();
@@ -440,7 +456,10 @@ export default function InsuranceDashboard() {
                             </h4>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {/* Doctor / Clinic Profile Card */}
-                                <div className="bg-slate-900 text-white p-8 rounded-[2.5rem] shadow-xl relative overflow-hidden group">
+                                <div 
+                                    onClick={() => setShowProviderProfile(true)}
+                                    className="bg-slate-900 text-white p-8 rounded-[2.5rem] shadow-xl relative overflow-hidden group cursor-pointer hover:ring-4 hover:ring-alteha-turquoise/30 transition-all"
+                                >
                                     <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                                         <Users className="w-24 h-24 rotate-12" />
                                     </div>
@@ -463,6 +482,7 @@ export default function InsuranceDashboard() {
                                                 <p className="text-xl font-black leading-tight">
                                                     {getAuthorName(selectedPackage)}
                                                 </p>
+                                                <p className="text-[10px] font-bold text-alteha-turquoise/60 mt-1 uppercase">Hacer clic para ver perfil completo</p>
                                             </div>
                                         </div>
                                         <div className="space-y-2 pt-2">
@@ -530,6 +550,128 @@ export default function InsuranceDashboard() {
                                 className="px-10 bg-white text-slate-400 border border-slate-200 py-5 rounded-[1.5rem] font-black uppercase tracking-widest hover:bg-slate-50 transition-all"
                             >
                                 Volver
+                            </Button>
+                        </div>
+                    </div>
+                )}
+            </Modal>
+            
+            {/* Provider Detailed Profile Modal */}
+            <Modal
+                isOpen={showProviderProfile}
+                onClose={() => setShowProviderProfile(false)}
+                title={selectedPackage?.doctor ? 'Perfil del Especialista' : 'Perfil de la Institución'}
+                maxWidth="2xl"
+            >
+                {selectedPackage && (
+                    <div className="space-y-8 p-2">
+                        {/* Header Profile Section */}
+                        <div className="flex flex-col md:flex-row gap-8 items-center md:items-start text-center md:text-left">
+                            <div className="w-32 h-32 rounded-3xl bg-slate-100 flex items-center justify-center overflow-hidden border-4 border-white shadow-xl flex-shrink-0">
+                                {selectedPackage.doctor?.profileImageUrl || selectedPackage.clinic?.logoUrl ? (
+                                    <img 
+                                        src={selectedPackage.doctor?.profileImageUrl || selectedPackage.clinic?.logoUrl} 
+                                        className="w-full h-full object-cover"
+                                    />
+                                ) : (
+                                    <Users className="w-16 h-16 text-slate-300" />
+                                )}
+                            </div>
+                            <div className="space-y-4 flex-1">
+                                <div>
+                                    <div className="flex items-center justify-center md:justify-start gap-2 mb-1">
+                                        <Badge className="bg-alteha-turquoise/10 text-alteha-turquoise border-alteha-turquoise/20">
+                                            {selectedPackage.doctor ? 'Médico Verificado' : 'Centro Afiliado'}
+                                        </Badge>
+                                        <div className="flex items-center gap-1 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-100">
+                                            <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                                            <span className="text-[10px] font-black text-amber-700">
+                                                {(selectedPackage.doctor?.rating || selectedPackage.clinic?.rating || 5.0).toFixed(1)}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <h2 className="text-3xl font-black text-slate-900 leading-tight">
+                                        {getAuthorName(selectedPackage)}
+                                    </h2>
+                                    <p className="text-alteha-violet font-black uppercase tracking-widest text-xs mt-1">
+                                        {selectedPackage.specialty?.name || (selectedPackage as any).specialtyName || 'Medicina General'}
+                                    </p>
+                                </div>
+                                
+                                <div className="flex flex-wrap gap-4 justify-center md:justify-start">
+                                    <div className="flex items-center gap-2 text-slate-500">
+                                        <MapPin className="w-4 h-4 text-alteha-turquoise" />
+                                        <span className="text-xs font-bold">
+                                            {selectedPackage.clinic?.cityName || selectedPackage.clinic?.stateProvinceName || 'Caracas, Venezuela'}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-slate-500">
+                                        <ShieldCheck className="w-4 h-4 text-alteha-turquoise" />
+                                        <span className="text-xs font-bold">
+                                            {selectedPackage.doctor?.medicalLicenseNumber || selectedPackage.clinic?.identificationNumber || 'ID: Verificado'}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Quick Stats */}
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-center">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Experiencia</p>
+                                <p className="text-lg font-black text-slate-900">{selectedPackage.doctor?.yearsOfExperience || 8}+ Años</p>
+                            </div>
+                            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-center">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Reputación</p>
+                                <p className="text-lg font-black text-slate-900">{(selectedPackage.doctor?.rating || 5.0).toFixed(1)}/5.0</p>
+                            </div>
+                            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-center col-span-2 md:col-span-1">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Telemedicina</p>
+                                <p className="text-lg font-black text-slate-900">{selectedPackage.doctor?.availableForTelemedicine ? 'Disponible' : 'Presencial'}</p>
+                            </div>
+                        </div>
+
+                        {/* Contact Info */}
+                        <div className="space-y-4">
+                            <h4 className="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
+                                <Phone className="w-4 h-4 text-alteha-turquoise" />
+                                Canales de Contacto
+                            </h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="flex items-center gap-4 p-4 rounded-2xl bg-white border border-slate-100 hover:border-alteha-turquoise/30 transition-all group">
+                                    <div className="w-10 h-10 rounded-xl bg-alteha-turquoise/10 flex items-center justify-center text-alteha-turquoise">
+                                        <Mail className="w-5 h-5" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Correo Electrónico</p>
+                                        <p className="text-sm font-bold text-slate-900 truncate">{selectedPackage.doctor?.email || selectedPackage.clinic?.email || 'contacto@alteha.com'}</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-4 p-4 rounded-2xl bg-white border border-slate-100 hover:border-alteha-turquoise/30 transition-all group">
+                                    <div className="w-10 h-10 rounded-xl bg-alteha-turquoise/10 flex items-center justify-center text-alteha-turquoise">
+                                        <Phone className="w-5 h-5" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Teléfono de Enlace</p>
+                                        <p className="text-sm font-bold text-slate-900 truncate">{selectedPackage.doctor?.mobilePhone || selectedPackage.doctor?.phone || selectedPackage.clinic?.phone || '+58 212-000-0000'}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="pt-4 border-t border-slate-100 flex justify-end gap-3">
+                            <Button 
+                                variant="outline" 
+                                onClick={() => setShowProviderProfile(false)}
+                                className="rounded-2xl px-8 font-black uppercase text-xs tracking-widest"
+                            >
+                                Cerrar Perfil
+                            </Button>
+                            <Button 
+                                className="bg-alteha-turquoise hover:bg-alteha-turquoise/90 text-white rounded-2xl px-8 font-black uppercase text-xs tracking-widest shadow-lg shadow-teal-500/20"
+                            >
+                                Contactar Ahora
                             </Button>
                         </div>
                     </div>
