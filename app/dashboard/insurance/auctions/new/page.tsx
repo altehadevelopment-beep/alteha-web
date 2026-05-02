@@ -361,6 +361,25 @@ export default function NewAuctionPage() {
         return doctor.preferredClinics?.some(pc => formData.invitedClinicIds?.includes(pc.id));
     });
 
+    const allClinicsSelected = clinics.length > 0 && clinics.every(c => formData.invitedClinicIds?.includes(c.id));
+    const allDoctorsSelected = doctors.length > 0 && doctors.every(d => formData.invitedDoctorIds?.includes(d.id));
+
+    const handleSelectAllClinics = () => {
+        if (allClinicsSelected) {
+            setFormData({ ...formData, invitedClinicIds: [], invitedDoctorIds: [] });
+        } else {
+            setFormData({ ...formData, invitedClinicIds: clinics.map(c => c.id) });
+        }
+    };
+
+    const handleSelectAllDoctors = () => {
+        if (allDoctorsSelected) {
+            setFormData({ ...formData, invitedDoctorIds: [] });
+        } else {
+            setFormData({ ...formData, invitedDoctorIds: doctors.map(d => d.id) });
+        }
+    };
+
     return (
         <div className="max-w-4xl mx-auto font-outfit pb-20">
             <Link href="/dashboard/insurance/auctions" className="flex items-center gap-2 text-slate-400 hover:text-alteha-violet transition-colors mb-6 font-bold group w-fit">
@@ -892,6 +911,17 @@ export default function NewAuctionPage() {
                                                 <h4 className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                                                     <Building2 className="w-4 h-4" /> Clínicas
                                                 </h4>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleSelectAllClinics}
+                                                    className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-xl transition-all ${
+                                                        allClinicsSelected
+                                                            ? 'bg-alteha-violet text-white'
+                                                            : 'bg-slate-100 text-slate-500 hover:bg-alteha-violet/10 hover:text-alteha-violet'
+                                                    }`}
+                                                >
+                                                    {allClinicsSelected ? '✓ Todas Selec.' : 'Todas las Clínicas'}
+                                                </button>
                                             </div>
                                             <div className="relative">
                                                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
@@ -936,6 +966,17 @@ export default function NewAuctionPage() {
                                                 <h4 className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                                                     <Users className="w-4 h-4" /> Médicos
                                                 </h4>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleSelectAllDoctors}
+                                                    className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-xl transition-all ${
+                                                        allDoctorsSelected
+                                                            ? 'bg-emerald-500 text-white'
+                                                            : 'bg-slate-100 text-slate-500 hover:bg-emerald-50 hover:text-emerald-600'
+                                                    }`}
+                                                >
+                                                    {allDoctorsSelected ? '✓ Todos Selec.' : 'Todos los Médicos'}
+                                                </button>
                                             </div>
                                             <div className="relative">
                                                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />

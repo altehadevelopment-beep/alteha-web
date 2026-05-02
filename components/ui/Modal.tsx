@@ -60,7 +60,7 @@ export const Modal = ({
                         animate={{ scale: 1, opacity: 1, y: 0 }}
                         exit={{ scale: 0.9, opacity: 0, y: 20 }}
                         transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                        className={`relative w-full ${maxWidth} bg-white rounded-[2.5rem] shadow-2xl overflow-hidden z-10`}
+                        className={`relative w-full ${maxWidth} max-h-[90vh] bg-white rounded-[2.5rem] shadow-2xl overflow-hidden z-10 flex flex-col`}
                         onClick={(e) => e.stopPropagation()}
                     >
                         {/* Header */}
@@ -83,7 +83,7 @@ export const Modal = ({
                         )}
 
                         {/* Body */}
-                        <div className="p-8">
+                        <div className="p-8 overflow-y-auto custom-scrollbar">
                             {children}
                         </div>
                     </motion.div>

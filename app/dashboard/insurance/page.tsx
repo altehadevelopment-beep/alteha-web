@@ -39,7 +39,8 @@ export default function InsuranceDashboard() {
         const loadRecent = async () => {
             setIsLoadingAuctions(true);
             try {
-                const result = await getMyAuctions(undefined, 0, 3);
+                // Fetch specifically ACTIVE auctions for the main list
+                const result = await getMyAuctions('ACTIVE', 0, 10);
                 if (result.code === '00') {
                     setRecentAuctions(result.data || []);
                 }
@@ -100,9 +101,9 @@ export default function InsuranceDashboard() {
 
             {/* Quick Stats */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <StatCard label="Subastas Abiertas" value={isLoadingAuctions ? '...' : recentAuctions.filter(a => a.status === 'ACTIVE').length.toString()} icon={Gavel} trend="Tiempo Real" color="text-alteha-violet" />
+                <StatCard label="Subastas Abiertas" value={isLoadingAuctions ? '...' : recentAuctions.length.toString()} icon={Gavel} trend="Tiempo Real" color="text-alteha-violet" />
                 <StatCard label="Ahorro en Siniestros" value="$128k" icon={TrendingDown} trend="22% vs mes anterior" color="text-emerald-600" />
-                <StatCard label="Subastas Draft" value={isLoadingAuctions ? '...' : recentAuctions.filter(a => a.status === 'DRAFT').length.toString()} icon={FileText} trend="Pendientes" color="text-blue-600" />
+                <StatCard label="Subastas Draft" value="..." icon={FileText} trend="Pendientes" color="text-blue-600" />
                 <StatCard label="Médicos Conectados" value="156" icon={Users} trend="+12 este mes" color="text-amber-600" />
             </div>
 

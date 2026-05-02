@@ -1048,7 +1048,8 @@ export async function publishAuction(
 export async function changeAuctionStatus(
     auctionNumber: string,
     newStatus: string,
-    reason: string = 'Cambio de estado manual'
+    reason: string = 'Cambio de estado manual',
+    bidId?: number
 ): Promise<ApiResponse<Auction>> {
     const token = getStoredToken();
     if (!token) throw new Error('No token found');
@@ -1062,6 +1063,30 @@ export async function changeAuctionStatus(
         body: JSON.stringify({
             auctionNumber,
             newStatus,
+            reason,
+            bidId
+        })
+    });
+    return response.json();
+}
+
+export async function awardAuction(
+    auctionNumber: string,
+    bidId: number,
+    reason: string = 'Adjudicación de subasta'
+): Promise<ApiResponse<Auction>> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+
+    const response = await fetch('/api/auctions/award', {
+        method: 'POST',
+        headers: {
+            'X-Alteha-Token': token,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            auctionNumber,
+            bidId,
             reason
         })
     });
@@ -1185,6 +1210,19 @@ export async function getAuctionAttachments(
 
 
 
+export async function getDoctorById(id: number | string): Promise<ApiResponse<ActorProfile>> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+
+    const response = await fetch(`/api/doctors/${id}`, {
+        method: 'GET',
+        headers: {
+            'X-Alteha-Token': token
+        }
+    });
+    return response.json();
+}
+
 // Helper to get stored token
 export function getStoredToken(): string | null {
     if (typeof window !== 'undefined') {
@@ -1204,6 +1242,102 @@ export async function getAuctionDetailsAsDoctor(
         headers: {
             'X-Alteha-Token': token
         }
+    });
+    return response.json();
+}
+
+// Bid listing
+export interface BidItem {
+    id: number;
+    itemName: string;
+    quantity: number;
+    unitPrice: number;
+    totalPrice: number;
+}
+
+export interface BidDetailed {
+    id: number;
+    auctionId?: number;
+    auctionNumber?: string;
+    totalAmount?: number;
+    bidAmount?: number;
+    doctorFee?: number;
+    clinicFee?: number;
+    status?: string;
+    createdAt?: string;
+    notes?: string;
+    proposedStartDate?: string;
+    estimatedDurationDays?: number;
+    bidType?: string;
+    bidNumber?: string;
+    bidItems?: BidItem[];
+    doctor?: {
+        id: number;
+        firstName?: string;
+        lastName?: string;
+        fullName?: string;
+        profileImageUrl?: string | null;
+        specialties?: Array<{ id: number; name: string | null; code: string | null }>;
+    };
+    clinic?: {
+        id: number;
+        name?: string;
+        logoUrl?: string | null;
+    };
+}
+
+export interface TopOffer {
+    rank?: number;
+    bidId?: number;
+    totalAmount?: number;
+    bidAmount?: number;
+    doctorFee?: number;
+    clinicFee?: number;
+    doctorName?: string;
+    doctorProfileImageUrl?: string | null;
+    clinicName?: string;
+    specialties?: string[];
+    createdAt?: string;
+    status?: string;
+}
+
+export async function getAuctionBids(
+    auctionId: number | string,
+    page: number = 0,
+    size: number = 50
+): Promise<ApiResponse<BidDetailed[]>> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+
+    const response = await fetch(`/api/bids/list?auctionId=${auctionId}&page=${page}&size=${size}`, {
+        method: 'GET',
+        headers: { 'X-Alteha-Token': token }
+    });
+    return response.json();
+}
+
+export async function getAuctionBidsCount(
+    auctionId: number | string
+): Promise<{ count: number }> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+
+    const response = await fetch(`/api/bids/count?auctionId=${auctionId}`, {
+        method: 'GET',
+        headers: { 'X-Alteha-Token': token }
+    });
+    return response.json();
+}
+
+export async function getTopOffers(
+    auctionId: number | string
+): Promise<ApiResponse<TopOffer[]>> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+
+    const response = await fetch(`/api/auctions/${auctionId}/top-offers`, {
+        method: 'GET',
+        headers: { 'X-Alteha-Token': token }
     });
     return response.json();
 }

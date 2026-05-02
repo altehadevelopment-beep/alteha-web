@@ -20,7 +20,9 @@ import {
     Download,
     Plus,
     Edit,
-    Zap
+    Zap,
+    ShieldCheck,
+    Users
 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
@@ -35,6 +37,7 @@ import {
 } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
+import AuctionBidsList from '@/components/auctions/AuctionBidsList';
 
 const STATUS_CONFIG: Record<string, { label: string, color: string, icon: any }> = {
     'DRAFT': { label: 'Borrador', color: 'bg-slate-100 text-slate-600', icon: FileText },
@@ -68,7 +71,6 @@ export default function AuctionDetailsPage() {
                 getAuctionAttachments(auctionNumber, 'INSURANCE_COMPANY')
             ]);
 
-            // Handle possible raw auction object or wrapped response
             if (auctionRes.code === '00' && auctionRes.data) {
                 setAuction(auctionRes.data);
             } else if ((auctionRes as any).id) {
@@ -77,7 +79,6 @@ export default function AuctionDetailsPage() {
                 setError(auctionRes.message || 'Error al cargar detalles');
             }
 
-            // Handle possible raw array or wrapped response for attachments
             if (attachmentsRes.code === '00') {
                 setAttachments(attachmentsRes.data || []);
             } else if (Array.isArray(attachmentsRes)) {
@@ -102,17 +103,14 @@ export default function AuctionDetailsPage() {
         setIsUploading(true);
         try {
             const result = await addAuctionAttachments(auctionNumber, files);
-
-            // Handle both wrapped ApiResponse and raw result or array
             if (result.code === '00' && result.data) {
                 setAttachments(prev => [...result.data!, ...prev]);
             } else if (Array.isArray(result)) {
                 setAttachments(prev => [...result, ...prev]);
             } else if ((result as any).id) {
-                // If single attachment object returned
                 setAttachments(prev => [result as any, ...prev]);
             } else {
-                alert(result.message || 'Error al subir archivos (formato no soportado)');
+                alert(result.message || 'Error al subir archivos');
             }
         } catch (err) {
             alert('Error al conectar con el servidor');
@@ -227,62 +225,113 @@ export default function AuctionDetailsPage() {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-                {/* Left Column: Details */}
-                <div className="lg:col-span-2 space-y-8">
-                    <div className="bg-white rounded-[3rem] shadow-2xl shadow-slate-200 overflow-hidden border border-slate-100">
-                        <div className="bg-slate-900 p-10 text-white relative overflow-hidden">
-                            <div className="absolute right-0 top-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
-                            <div className="relative z-10">
-                                <span className={`px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest ${statusConfig.color} mb-4 inline-block`}>
-                                    {statusConfig.label}
+            <div className="bg-white rounded-[3rem] shadow-2xl shadow-slate-200 overflow-hidden border border-slate-100">
+                <div className="bg-slate-900 p-12 text-white relative overflow-hidden">
+                    {/* Decorative background elements */}
+                    <div className="absolute right-0 top-0 w-96 h-96 bg-alteha-turquoise/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
+                    <div className="absolute left-0 bottom-0 w-64 h-64 bg-alteha-violet/10 rounded-full translate-y-1/2 -translate-x-1/2 blur-3xl" />
+                    
+                    <div className="relative z-10 space-y-6">
+                        <div className="flex flex-wrap items-center gap-3">
+                            <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.2em] ${statusConfig.color} shadow-lg shadow-black/20`}>
+                                {statusConfig.label}
+                            </span>
+                            {(!auction.invitedDoctorIds?.length && !auction.invitedClinicIds?.length) && (
+                                <span className="px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.2em] bg-blue-500/20 text-blue-400 border border-blue-500/30 flex items-center gap-2">
+                                    <Users className="w-3 h-3" /> Convocatoria Pública
                                 </span>
-                                <h1 className="text-5xl font-black tracking-tight mb-2 leading-tight">{auction.title}</h1>
-                                <p className="text-slate-400 font-bold uppercase tracking-widest text-sm flex items-center gap-2">
-                                    #{auction.auctionNumber} • <Clock className="w-3.5 h-3.5" /> Creada el {new Date(auction.createdAt).toLocaleDateString()}
-                                </p>
+                            )}
+                            {auction.urgencyLevel === 'URGENT' && (
+                                <span className="px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.2em] bg-red-500 text-white shadow-lg shadow-red-500/20 flex items-center gap-2">
+                                    <Zap className="w-3 h-3 fill-current" /> Alta Prioridad
+                                </span>
+                            )}
+                        </div>
+                        
+                        <h1 className="text-2xl md:text-3xl font-black tracking-tight leading-tight max-w-3xl drop-shadow-sm uppercase">
+                            {auction.title}
+                        </h1>
+                        
+                        <div className="flex flex-wrap items-center gap-x-8 gap-y-4 pt-2 border-t border-white/10">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center border border-white/10">
+                                    <FileText className="w-5 h-5 text-alteha-turquoise" />
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Número de Subasta</p>
+                                    <p className="text-sm font-black text-white">#{auction.auctionNumber}</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center border border-white/10">
+                                    <Calendar className="w-5 h-5 text-alteha-violet" />
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Fecha de Creación</p>
+                                    <p className="text-sm font-black text-white">{new Date(auction.createdAt).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                                </div>
                             </div>
                         </div>
+                    </div>
+                </div>
 
-                        <div className="p-10 space-y-10">
+                <div className="p-10 space-y-12">
+                    {/* Main Content Grid inside the card */}
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+                        {/* Summary Section (Left inside) */}
+                        <div className="lg:col-span-8 space-y-10">
                             {/* Summary Cards */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="bg-slate-900 p-8 rounded-[2.5rem] border border-slate-800 text-white shadow-xl shadow-slate-200">
-                                    <div className="flex justify-between items-start mb-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                <div className="bg-slate-900 p-10 rounded-[3rem] border border-slate-800 text-white shadow-2xl shadow-slate-200 relative overflow-hidden group">
+                                    <div className="absolute top-0 right-0 w-32 h-32 bg-alteha-turquoise/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 group-hover:bg-alteha-turquoise/20 transition-all" />
+                                    
+                                    <div className="flex justify-between items-start mb-8 relative z-10">
                                         <div>
-                                            <p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-1">Presupuesto Máximo</p>
-                                            <p className="text-5xl font-black leading-none">${auction.maxBudget.toLocaleString()}</p>
+                                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2">Presupuesto Máximo</p>
+                                            <div className="flex items-baseline gap-1">
+                                                <span className="text-xl font-black text-alteha-turquoise">$</span>
+                                                <span className="text-4xl font-black tracking-tighter">{auction.maxBudget.toLocaleString()}</span>
+                                            </div>
                                         </div>
-                                        <div className="p-3 bg-white/5 rounded-2xl">
+                                        <div className="w-14 h-14 bg-white/5 rounded-[1.25rem] flex items-center justify-center border border-white/10 shadow-inner">
                                             <DollarSign className="w-7 h-7 text-alteha-turquoise" />
                                         </div>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="bg-white/5 p-5 rounded-2xl">
-                                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none mb-2">Hon. Médicos</p>
-                                            <p className="text-lg font-black text-white">${(auction.doctorBudget || 0).toLocaleString()}</p>
+                                    
+                                    <div className="grid grid-cols-2 gap-4 relative z-10">
+                                        <div className="bg-white/5 p-5 rounded-[1.5rem] border border-white/5 backdrop-blur-sm">
+                                            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest leading-none mb-2 flex items-center gap-2">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-alteha-turquoise" /> Hon. Médicos
+                                            </p>
+                                            <p className="text-xl font-black text-white">${(auction.doctorBudget || 0).toLocaleString()}</p>
                                         </div>
-                                        <div className="bg-white/5 p-5 rounded-2xl">
-                                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none mb-2">Gastos Clínica</p>
-                                            <p className="text-lg font-black text-white">${(auction.clinicBudget || 0).toLocaleString()}</p>
+                                        <div className="bg-white/5 p-5 rounded-[1.5rem] border border-white/5 backdrop-blur-sm">
+                                            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest leading-none mb-2 flex items-center gap-2">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-alteha-violet" /> Gastos Clínica
+                                            </p>
+                                            <p className="text-xl font-black text-white">${(auction.clinicBudget || 0).toLocaleString()}</p>
                                         </div>
                                     </div>
                                 </div>
+                                
                                 <div className="grid grid-cols-2 gap-6">
-                                    <div className="bg-alteha-turquoise/5 p-6 rounded-[2rem] border border-alteha-turquoise/10">
-                                        <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Ofertas Recibidas</p>
-                                        <p className="text-4xl font-black text-alteha-turquoise">{auction.totalBids || 0}</p>
-                                    </div>
-                                    <div className="bg-alteha-violet/5 p-6 rounded-[2rem] border border-alteha-violet/10">
-                                        <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Min. Solicitado</p>
-                                        <p className="text-4xl font-black text-alteha-violet">{auction.minBidsRequired}</p>
-                                    </div>
-                                    <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 col-span-2 flex items-center justify-between">
-                                        <div>
-                                            <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Tiempo de Subasta</p>
-                                            <p className="text-2xl font-black text-slate-900">{auction.durationHours} Horas</p>
+                                    <div className="bg-white p-8 rounded-[2.5rem] border-2 border-slate-50 shadow-xl shadow-slate-100 flex flex-col justify-between group hover:border-alteha-turquoise/30 transition-all">
+                                        <div className="w-12 h-12 bg-alteha-turquoise/10 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                                            <Gavel className="w-6 h-6 text-alteha-turquoise" />
                                         </div>
-                                        <Clock className="w-7 h-7 text-slate-300" />
+                                        <div>
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Ofertas Recibidas</p>
+                                            <p className="text-4xl font-black text-slate-900 tracking-tighter">{auction.totalBids || 0}</p>
+                                        </div>
+                                    </div>
+                                    <div className="bg-white p-8 rounded-[2.5rem] border-2 border-slate-50 shadow-xl shadow-slate-100 flex flex-col justify-between group hover:border-alteha-violet/30 transition-all">
+                                        <div className="w-12 h-12 bg-alteha-violet/10 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                                            <ShieldCheck className="w-6 h-6 text-alteha-violet" />
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Mín. Requerido</p>
+                                            <p className="text-4xl font-black text-slate-900 tracking-tighter">{auction.minBidsRequired}</p>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -296,205 +345,206 @@ export default function AuctionDetailsPage() {
                                     {auction.description}
                                 </p>
                             </div>
+                        </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-10 pt-6">
-                                <div className="space-y-4">
-                                    <h4 className="text-base font-black text-slate-400 uppercase tracking-widest">Información Médica</h4>
-                                    <div className="space-y-4">
-                                        <div className="flex items-start gap-3">
-                                            <div className="p-2.5 bg-alteha-violet/10 rounded-xl"><Stethoscope className="w-5 h-5 text-alteha-violet" /></div>
-                                            <div>
-                                                <p className="text-sm font-black text-slate-400 uppercase tracking-widest">Especialidad</p>
-                                                <p className="text-lg font-black text-slate-900">{auction.specialty?.name || auction.specialty?.code || 'No especificada'}</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-start gap-3">
-                                            <div className="p-2.5 bg-alteha-violet/10 rounded-xl"><AlertCircle className="w-5 h-5 text-alteha-violet" /></div>
-                                            <div>
-                                                <p className="text-sm font-black text-slate-400 uppercase tracking-widest">Antecedentes</p>
-                                                <p className="text-lg font-black text-slate-900 whitespace-pre-wrap leading-tight">{auction.medicalHistory || 'Sin antecedentes registrados.'}</p>
-                                            </div>
-                                        </div>
+                        {/* Patient & Attachments (Right inside) */}
+                        <div className="lg:col-span-4 space-y-8">
+                            {/* Patient Info Card (Clean version) */}
+                            <div className="bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100 relative overflow-hidden group">
+                                <div className="absolute top-0 right-0 w-24 h-24 bg-alteha-violet/5 rounded-full blur-2xl" />
+                                
+                                <div className="flex items-center gap-5 mb-8">
+                                    <div className="w-20 h-20 bg-slate-900 rounded-[1.5rem] flex items-center justify-center overflow-hidden shadow-xl border-4 border-white">
+                                        {auction.patient?.profileImageUrl ? (
+                                            <img src={auction.patient.profileImageUrl} alt="Patient" className="w-full h-full object-cover" />
+                                        ) : <User className="w-10 h-10 text-white/50" />}
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-black text-slate-900 leading-tight">
+                                            {auction.patient?.firstName}<br />{auction.patient?.lastName}
+                                        </h3>
+                                        <p className="text-alteha-violet font-black text-[9px] uppercase tracking-widest mt-1">Paciente Beneficiario</p>
                                     </div>
                                 </div>
-                                <div className="space-y-4">
-                                    <h4 className="text-base font-black text-slate-400 uppercase tracking-widest">Planificación y Logística</h4>
-                                    <div className="space-y-4">
-                                        <div className="flex items-start gap-3">
-                                            <div className="p-2.5 bg-alteha-turquoise/10 rounded-xl"><Calendar className="w-5 h-5 text-alteha-turquoise" /></div>
-                                            <div>
-                                                <p className="text-sm font-black text-slate-400 uppercase tracking-widest">Fecha Estimada Cirugía</p>
-                                                <p className="text-lg font-black text-slate-900">{auction.estimatedSurgeryDate ? new Date(auction.estimatedSurgeryDate).toLocaleDateString() : 'Por definir'}</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-start gap-3">
-                                            <div className="p-2.5 bg-alteha-turquoise/10 rounded-xl"><MapPin className="w-5 h-5 text-alteha-turquoise" /></div>
-                                            <div>
-                                                <p className="text-sm font-black text-slate-400 uppercase tracking-widest">Ubicación</p>
-                                                <p className="text-lg font-black text-slate-900">{auction.preferredLocation}</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-start gap-3">
-                                            <div className="p-2.5 bg-alteha-turquoise/10 rounded-xl"><Clock className="w-5 h-5 text-alteha-turquoise" /></div>
-                                            <div>
-                                                <p className="text-sm font-black text-slate-400 uppercase tracking-widest">Hospitalización / Duración</p>
-                                                <p className="text-lg font-black text-slate-900">
-                                                    {auction.requiresHospitalization ? 'SÍ requiere' : 'NO requiere'} • {auction.estimatedDurationDays} {auction.estimatedDurationDays === 1 ? 'día' : 'días'} est.
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-start gap-3">
-                                            <div className="p-2.5 bg-alteha-turquoise/10 rounded-xl"><AlertCircle className="w-5 h-5 text-alteha-turquoise" /></div>
-                                            <div>
-                                                <p className="text-sm font-black text-slate-400 uppercase tracking-widest">Prioridad</p>
-                                                <p className={`text-lg font-black ${auction.urgencyLevel === 'URGENT' || auction.urgencyLevel === 'HIGH' ? 'text-red-600' : 'text-slate-900'}`}>
-                                                    {auction.urgencyLevel === 'LOW' ? 'Baja' : auction.urgencyLevel === 'MEDIUM' ? 'Media' : auction.urgencyLevel === 'HIGH' ? 'Alta' : 'Urgente'}
-                                                </p>
-                                            </div>
-                                        </div>
+
+                                <div className="space-y-3">
+                                    <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
+                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Documento</span>
+                                        <span className="text-sm font-black text-slate-900">{auction.patient?.identificationNumber}</span>
+                                    </div>
+                                    <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
+                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Edad/Género</span>
+                                        <span className="text-sm font-black text-slate-900">
+                                            {auction.patientAge} años • {auction.patientGender === 'FEMALE' ? 'F' : 'M'}
+                                        </span>
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="space-y-6 pt-6 border-t">
-                                <h3 className="text-xl font-black text-slate-900 flex items-center gap-2">
-                                    <Zap className="w-5 h-5 text-alteha-violet" />
-                                    Reglas y Requerimientos
-                                </h3>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                    <div className="space-y-4 bg-slate-50 p-6 rounded-[2rem] border border-slate-100">
-                                        <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest border-b pb-2">Reglas de Cierre</h4>
-                                        <div className="space-y-3">
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-xs font-bold text-slate-500">Fecha Límite:</span>
-                                                <span className="text-xs font-black text-slate-900">{new Date(auction.endDate).toLocaleString()}</span>
-                                            </div>
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-xs font-bold text-slate-500">Auto-extensión:</span>
-                                                <span className="text-xs font-black text-slate-900">{(auction.autoExtendMinutes || 0) / 60} Horas</span>
-                                            </div>
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-xs font-bold text-slate-500">Mínimo de Ofertas:</span>
-                                                <span className="text-xs font-black text-slate-900">{auction.minBidsRequired}</span>
-                                            </div>
-                                        </div>
+                            {/* Mini Attachments inside card */}
+                            <div className="bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100">
+                                <div className="flex justify-between items-center mb-6">
+                                    <h3 className="text-base font-black text-slate-900 uppercase tracking-widest">Adjuntos</h3>
+                                    <div className="relative">
+                                        <input type="file" id="attach-file" className="hidden" multiple onChange={handleFileUpload} />
+                                        <label htmlFor="attach-file" className="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center cursor-pointer hover:scale-110 transition-transform">
+                                            {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                                        </label>
                                     </div>
-                                    <div className="space-y-4 bg-slate-50 p-6 rounded-[2rem] border border-slate-100">
-                                        <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest border-b pb-2">Requerimientos Especiales</h4>
-                                        <p className="text-sm font-bold text-slate-900 italic leading-tight">
-                                            {auction.specialRequirements || 'No se registraron requerimientos especiales.'}
+                                </div>
+                                <div className="space-y-2 max-h-[200px] overflow-y-auto thin-scrollbar pr-2">
+                                    {attachments.length === 0 ? (
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center py-4">Sin documentos</p>
+                                    ) : (
+                                        attachments.map(att => (
+                                            <div key={att.id} className="p-3 bg-white rounded-xl border border-transparent hover:border-alteha-violet transition-all flex items-center justify-between group shadow-sm">
+                                                <div className="flex items-center gap-2 min-w-0">
+                                                    <FileText className="w-4 h-4 text-slate-300 flex-shrink-0" />
+                                                    <p className="text-[10px] font-black text-slate-900 truncate">{att.fileName}</p>
+                                                </div>
+                                                <a href={att.fileUrl} target="_blank" rel="noreferrer" className="text-slate-400 hover:text-alteha-violet">
+                                                    <Download className="w-3.5 h-3.5" />
+                                                </a>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-10 pt-10 border-t border-slate-50">
+                        <div className="space-y-4">
+                            <h4 className="text-base font-black text-slate-400 uppercase tracking-widest">Información Médica</h4>
+                            <div className="space-y-4">
+                                <div className="flex items-start gap-3">
+                                    <div className="p-2.5 bg-alteha-violet/10 rounded-xl"><Stethoscope className="w-5 h-5 text-alteha-violet" /></div>
+                                    <div>
+                                        <p className="text-sm font-black text-slate-400 uppercase tracking-widest">Especialidad</p>
+                                        <p className="text-lg font-black text-slate-900">{auction.specialty?.name || auction.specialty?.code || 'No especificada'}</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-start gap-3">
+                                    <div className="p-2.5 bg-alteha-violet/10 rounded-xl"><AlertCircle className="w-5 h-5 text-alteha-violet" /></div>
+                                    <div>
+                                        <p className="text-sm font-black text-slate-400 uppercase tracking-widest">Antecedentes</p>
+                                        <p className="text-lg font-black text-slate-900 whitespace-pre-wrap leading-tight">{auction.medicalHistory || 'Sin antecedentes registrados.'}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="space-y-4">
+                            <h4 className="text-base font-black text-slate-400 uppercase tracking-widest">Planificación y Logística</h4>
+                            <div className="space-y-4">
+                                <div className="flex items-start gap-3">
+                                    <div className="p-2.5 bg-alteha-turquoise/10 rounded-xl"><Calendar className="w-5 h-5 text-alteha-turquoise" /></div>
+                                    <div>
+                                        <p className="text-sm font-black text-slate-400 uppercase tracking-widest">Fecha Estimada Cirugía</p>
+                                        <p className="text-lg font-black text-slate-900">{auction.estimatedSurgeryDate ? new Date(auction.estimatedSurgeryDate).toLocaleDateString() : 'Por definir'}</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-start gap-3">
+                                    <div className="p-2.5 bg-alteha-turquoise/10 rounded-xl"><MapPin className="w-5 h-5 text-alteha-turquoise" /></div>
+                                    <div>
+                                        <p className="text-sm font-black text-slate-400 uppercase tracking-widest">Ubicación</p>
+                                        <p className="text-lg font-black text-slate-900">{auction.preferredLocation}</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-start gap-3">
+                                    <div className="p-2.5 bg-alteha-turquoise/10 rounded-xl"><Clock className="w-5 h-5 text-alteha-turquoise" /></div>
+                                    <div>
+                                        <p className="text-sm font-black text-slate-400 uppercase tracking-widest">Hospitalización / Duración</p>
+                                        <p className="text-lg font-black text-slate-900">
+                                            {auction.requiresHospitalization ? 'SÍ requiere' : 'NO requiere'} • {auction.estimatedDurationDays} {auction.estimatedDurationDays === 1 ? 'día' : 'días'} est.
                                         </p>
                                     </div>
                                 </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="p-4 bg-violet-50 rounded-2xl border border-violet-100 flex items-center justify-between">
-                                        <span className="text-[10px] font-black text-alteha-violet uppercase tracking-widest">Clínicas Invitadas</span>
-                                        <span className="text-lg font-black text-alteha-violet">
-                                            {auction.invitedClinicIds?.length || (auction as any).invitedClinics?.length || 0}
-                                        </span>
-                                    </div>
-                                    <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center justify-between">
-                                        <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Médicos Invitados</span>
-                                        <span className="text-lg font-black text-emerald-600">
-                                            {auction.invitedDoctorIds?.length || (auction as any).invitedDoctors?.length || 0}
-                                        </span>
+                                <div className="flex items-start gap-3">
+                                    <div className="p-2.5 bg-alteha-turquoise/10 rounded-xl"><AlertCircle className="w-5 h-5 text-alteha-turquoise" /></div>
+                                    <div>
+                                        <p className="text-sm font-black text-slate-400 uppercase tracking-widest">Prioridad</p>
+                                        <p className={`text-lg font-black ${auction.urgencyLevel === 'URGENT' || auction.urgencyLevel === 'HIGH' ? 'text-red-600' : 'text-slate-900'}`}>
+                                            {auction.urgencyLevel === 'LOW' ? 'Baja' : auction.urgencyLevel === 'MEDIUM' ? 'Media' : auction.urgencyLevel === 'HIGH' ? 'Alta' : 'Urgente'}
+                                        </p>
                                     </div>
                                 </div>
                             </div>
-
-                            <div className="space-y-6 pt-6 border-t">
-                                <h3 className="text-xl font-black text-slate-900 flex items-center gap-2">
-                                    <Plus className="w-5 h-5 text-alteha-turquoise" />
-                                    Insumos Especiales
-                                </h3>
-                                {auction.requiredSupplies && auction.requiredSupplies.length > 0 ? (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {auction.requiredSupplies.map((s, i) => (
-                                            <div key={i} className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100 flex justify-between items-center group hover:bg-white hover:shadow-xl hover:shadow-slate-100 transition-all">
-                                                <div>
-                                                    <p className="text-lg font-black text-slate-900 mb-1">{s.itemName}</p>
-                                                    <p className="text-sm text-slate-400 font-bold max-w-[200px] leading-tight">{s.description}</p>
-                                                </div>
-                                                <div className="text-right">
-                                                    <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Cant x Precio</p>
-                                                    <p className="text-base font-black text-alteha-violet">{s.quantity} x ${s.referenceAmount.toLocaleString()}</p>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className="p-8 bg-slate-50/50 rounded-3xl border-2 border-dashed border-slate-100 text-center">
-                                        <p className="text-slate-400 font-bold text-sm italic">No se han requerido insumos específicos</p>
-                                    </div>
-                                )}
-                            </div>
                         </div>
                     </div>
-                </div>
 
-                {/* Right Column: Patient & Attachments */}
-                <div className="space-y-8">
-                    {/* Patient Card */}
-                    <div className="bg-white p-8 rounded-[3rem] shadow-xl shadow-slate-100 border border-slate-50 text-center">
-                        <div className="w-24 h-24 bg-slate-900 rounded-[2rem] mx-auto mb-6 flex items-center justify-center overflow-hidden shadow-2xl shadow-slate-200 border-4 border-white">
-                            {auction.patient?.profileImageUrl ? (
-                                <img src={auction.patient.profileImageUrl} alt="Patient" className="w-full h-full object-cover" />
-                            ) : <User className="w-12 h-12 text-white/50" />}
-                        </div>
-                        <h3 className="text-3xl font-black text-slate-900">{auction.patient?.firstName} {auction.patient?.lastName}</h3>
-                                        <p className="text-slate-400 font-bold text-base mb-6 uppercase tracking-widest">Paciente Beneficiario</p>
-
-                                        <div className="grid grid-cols-2 gap-4 text-left">
-                                            <div className="bg-slate-50 p-5 rounded-2xl">
-                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Documento</p>
-                                                <p className="text-sm font-bold text-slate-900">{auction.patient?.identificationNumber}</p>
-                                            </div>
-                                            <div className="bg-slate-50 p-5 rounded-2xl">
-                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Edad/Género</p>
-                                                <p className="text-sm font-bold text-slate-900">{auction.patientAge} años • {auction.patientGender}</p>
-                                            </div>
-                                        </div>
-                    </div>
-
-                    {/* Attachments Card */}
-                    <div className="bg-white rounded-[3rem] shadow-xl shadow-slate-100 border border-slate-50 overflow-hidden">
-                        <div className="p-8 border-b border-slate-50 flex justify-between items-center">
-                            <h3 className="text-xl font-black text-slate-900">Adjuntos</h3>
-                            <div className="relative">
-                                <input type="file" id="attach-file" className="hidden" multiple onChange={handleFileUpload} />
-                                <label htmlFor="attach-file" className="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center cursor-pointer hover:scale-110 transition-transform">
-                                    {isUploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
-                                </label>
-                            </div>
-                        </div>
-                        <div className="p-4 max-h-[400px] overflow-y-auto space-y-3 thin-scrollbar">
-                            {attachments.length === 0 ? (
-                                <div className="py-20 text-center px-6">
-                                    <FileText className="w-10 h-10 text-slate-200 mx-auto mb-4" />
-                                    <p className="text-slate-300 font-bold text-xs uppercase tracking-widest">Sin documentos adjuntos</p>
+                    <div className="space-y-6 pt-10 border-t border-slate-50">
+                        <h3 className="text-xl font-black text-slate-900 flex items-center gap-2">
+                            <Zap className="w-5 h-5 text-alteha-violet" />
+                            Reglas y Requerimientos
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div className="space-y-4 bg-slate-50 p-6 rounded-[2rem] border border-slate-100">
+                                <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest border-b pb-2">Reglas de Cierre</h4>
+                                <div className="space-y-3">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-xs font-bold text-slate-500">Fecha Límite:</span>
+                                        <span className="text-xs font-black text-slate-900">{new Date(auction.endDate).toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-xs font-bold text-slate-500">Auto-extensión:</span>
+                                        <span className="text-xs font-black text-slate-900">{(auction.autoExtendMinutes || 0) / 60} Horas</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-xs font-bold text-slate-500">Mínimo de Ofertas:</span>
+                                        <span className="text-xs font-black text-slate-900">{auction.minBidsRequired}</span>
+                                    </div>
                                 </div>
-                            ) : (
-                                attachments.map(att => (
-                                    <div key={att.id} className="p-4 bg-slate-50 rounded-2xl border border-transparent hover:border-alteha-violet transition-all flex items-center justify-between group">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-slate-400 group-hover:text-alteha-violet transition-colors">
-                                                <FileText className="w-5 h-5" />
-                                            </div>
-                                            <div className="max-w-[140px]">
-                                                <p className="text-xs font-black text-slate-900 truncate">{att.fileName}</p>
-                                                <p className="text-[10px] font-bold text-slate-400">{(att.fileSize / 1024).toFixed(0)} KB</p>
-                                            </div>
-                                        </div>
-                                        <a href={att.fileUrl} target="_blank" rel="noreferrer" className="w-8 h-8 rounded-lg bg-white flex items-center justify-center text-slate-400 hover:text-alteha-violet transition-colors shadow-sm">
-                                            <Download className="w-4 h-4" />
-                                        </a>
-                                    </div>
-                                ))
-                            )}
+                            </div>
+                            <div className="space-y-4 bg-slate-50 p-6 rounded-[2rem] border border-slate-100">
+                                <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest border-b pb-2">Requerimientos Especiales</h4>
+                                <p className="text-sm font-bold text-slate-900 italic leading-tight">
+                                    {auction.specialRequirements || 'No se registraron requerimientos especiales.'}
+                                </p>
+                            </div>
                         </div>
+
+                    </div>
+
+                    <div className="space-y-6 pt-10 border-t border-slate-50">
+                        <h3 className="text-xl font-black text-slate-900 flex items-center gap-2">
+                            <Plus className="w-5 h-5 text-alteha-turquoise" />
+                            Insumos Especiales
+                        </h3>
+                        {auction.requiredSupplies && auction.requiredSupplies.length > 0 ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {auction.requiredSupplies.map((s, i) => (
+                                    <div key={i} className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100 flex justify-between items-center group hover:bg-white hover:shadow-xl hover:shadow-slate-100 transition-all">
+                                        <div>
+                                            <p className="text-lg font-black text-slate-900 mb-1">{s.itemName}</p>
+                                            <p className="text-sm text-slate-400 font-bold max-w-[200px] leading-tight">{s.description}</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Cant x Precio</p>
+                                            <p className="text-base font-black text-alteha-violet">{s.quantity} x ${s.referenceAmount.toLocaleString()}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="p-8 bg-slate-50/50 rounded-3xl border-2 border-dashed border-slate-100 text-center">
+                                <p className="text-slate-400 font-bold text-sm italic">No se han requerido insumos específicos</p>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
+
+            {/* Bids Section */}
+            {auction.id && (
+                <div className="mt-10 bg-white rounded-[3rem] shadow-2xl shadow-slate-200 border border-slate-100 p-10">
+                    <AuctionBidsList
+                        auctionId={auction.id}
+                        auctionNumber={auction.auctionNumber}
+                        auctionStatus={auction.status}
+                        mode="insurance"
+                    />
+                </div>
+            )}
 
             {/* Activation Modal */}
             <Modal

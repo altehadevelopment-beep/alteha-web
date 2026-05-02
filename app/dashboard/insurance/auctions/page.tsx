@@ -15,7 +15,7 @@ import {
     Loader2
 } from 'lucide-react';
 import Link from 'next/link';
-import { getMyAuctions, type Auction } from '@/lib/api';
+import { getMyAuctions, getAuctionDetails, getAuctionBidsCount, type Auction } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import AuctionCountdown from '@/components/auctions/AuctionCountdown';
 
@@ -40,21 +40,53 @@ export default function AuctionsPage() {
         try {
             const result = await getMyAuctions(statusFilter || undefined);
 
-            // Handle different possible successful backend responses:
-            // 1. Wrapped in ApiResponse (result.code === '00')
-            // 2. Raw array (Array.isArray(result))
-            // 3. Paginated object (result.content exists)
+            let loaded: Auction[] = [];
 
             if (result.code === '00' && result.data) {
-                setAuctions(result.data);
+                loaded = result.data;
             } else if (Array.isArray(result)) {
-                setAuctions(result);
+                loaded = result;
             } else if ((result as any).content && Array.isArray((result as any).content)) {
-                setAuctions((result as any).content);
+                loaded = (result as any).content;
             } else {
                 console.error("Unexpected response format:", result);
                 setError(result.message || 'Error al cargar subastas (formato inesperado)');
+                return;
             }
+
+            setAuctions(loaded);
+
+            // Enrich totalBids for each auction in the background
+            loaded.forEach(async (auction) => {
+                try {
+                    const countRes = await getAuctionBidsCount(auction.id);
+                    if (typeof countRes.count === 'number') {
+                        setAuctions(prev =>
+                            prev.map(a =>
+                                a.id === auction.id
+                                    ? { ...a, totalBids: countRes.count }
+                                    : a
+                            )
+                        );
+                    } else {
+                        // Fallback to details if count endpoint fails
+                        const detail = await getAuctionDetails(auction.auctionNumber, 'INSURANCE_COMPANY');
+                        const detailData = detail.code === '00' && detail.data ? detail.data : (detail as any).id ? (detail as any) : null;
+                        if (detailData && detailData.totalBids != null) {
+                            setAuctions(prev =>
+                                prev.map(a =>
+                                    a.auctionNumber === auction.auctionNumber
+                                        ? { ...a, totalBids: detailData.totalBids }
+                                        : a
+                                )
+                            );
+                        }
+                    }
+                } catch {
+                    // silently fail enrichment
+                }
+            });
+
         } catch (err) {
             console.error('Error loading auctions:', err);
             setError('Error de conexión con el servidor');

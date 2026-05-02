@@ -25,9 +25,10 @@ import { useAuth } from '@/contexts/AuthContext';
 interface Props {
     auction: Auction;
     onSuccess?: () => void;
+    hideHeader?: boolean;
 }
 
-export default function AdvancedBidForm({ auction, onSuccess }: Props) {
+export default function AdvancedBidForm({ auction, onSuccess, hideHeader = false }: Props) {
     const { userProfile } = useAuth();
     const pathname = usePathname();
 
@@ -193,18 +194,20 @@ export default function AdvancedBidForm({ auction, onSuccess }: Props) {
     }
 
     return (
-        <form onSubmit={handleSubmit} className="bg-white rounded-[3rem] shadow-2xl shadow-slate-200 border border-slate-100 overflow-hidden font-outfit">
+        <form onSubmit={handleSubmit} className={`${hideHeader ? '' : 'bg-white rounded-[3rem] shadow-2xl shadow-slate-200 border border-slate-100'} overflow-hidden font-outfit`}>
             {/* Header */}
-            <div className="bg-slate-900 p-8 text-white relative">
-                <div className="absolute right-6 top-6 opacity-10">
-                    <Gavel className="w-20 h-20" />
+            {!hideHeader && (
+                <div className="bg-slate-900 p-8 text-white relative">
+                    <div className="absolute right-6 top-6 opacity-10">
+                        <Gavel className="w-20 h-20" />
+                    </div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-alteha-turquoise mb-1">Subasta #{auction.auctionNumber}</p>
+                    <h2 className="text-2xl font-black tracking-tight">Enviar Propuesta</h2>
+                    <p className="text-slate-400 text-sm font-medium mt-1">Completa los campos para participar en la subasta.</p>
                 </div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-alteha-turquoise mb-1">Subasta #{auction.auctionNumber}</p>
-                <h2 className="text-2xl font-black tracking-tight">Enviar Propuesta</h2>
-                <p className="text-slate-400 text-sm font-medium mt-1">Completa los campos para participar en la subasta.</p>
-            </div>
+            )}
 
-            <div className="p-8 space-y-8">
+            <div className={`${hideHeader ? 'p-2' : 'p-8'} space-y-6`}>
                 {/* Role Specific Selection */}
                 {(role === 'DOCTOR' || role === 'CLINIC') && (
                     <div className="space-y-4">

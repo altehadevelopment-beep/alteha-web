@@ -11,6 +11,8 @@ import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { PuzzleCaptcha } from '@/components/ui/PuzzleCaptcha';
+import { app } from '@/lib/firebase';
+import { getInstallations, getId } from 'firebase/installations';
 
 export default function LoginPage() {
     const [username, setUsername] = useState('');
@@ -111,6 +113,18 @@ export default function LoginPage() {
             if (result.code === '00' && result.data?.id_token) {
                 // Success - redirect to dashboard
                 setFailedAttempts(0);
+                
+                // --- PRUEBA FIREBASE DEVICE ID ---
+                try {
+                    const installations = getInstallations(app);
+                    const deviceId = await getId(installations);
+                    alert(`Firebase Conectado. Device ID generado: ${deviceId}`);
+                } catch (fbErr) {
+                    console.error('Error getting Firebase ID:', fbErr);
+                    alert('Login exitoso, pero hubo un problema conectando con Firebase. Revisa las reglas de Firestore.');
+                }
+                // ---------------------------------
+
                 const destination = role ? `/dashboard/${role}` : '/dashboard/specialist';
                 router.push(destination);
             } else {

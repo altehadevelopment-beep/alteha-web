@@ -7,9 +7,10 @@ interface AuctionCountdownProps {
     endDate: string;
     onEnd?: () => void;
     className?: string;
+    variant?: 'default' | 'white';
 }
 
-export default function AuctionCountdown({ endDate, onEnd, className = "" }: AuctionCountdownProps) {
+export default function AuctionCountdown({ endDate, onEnd, className = "", variant = 'default' }: AuctionCountdownProps) {
     const [timeLeft, setTimeLeft] = useState<{
         days: number;
         hours: number;
@@ -51,17 +52,21 @@ export default function AuctionCountdown({ endDate, onEnd, className = "" }: Auc
         );
     }
 
+    const textColor = variant === 'white' ? 'text-white' : 'text-slate-900';
+    const iconColor = variant === 'white' ? 'text-white' : 'text-alteha-violet';
+    const borderColor = variant === 'white' ? 'border-white/20' : 'border-slate-200';
+
     return (
         <div className={`flex items-center gap-2 ${className}`}>
-            <Clock className="w-4 h-4 text-alteha-violet animate-pulse" />
+            <Clock className={`w-4 h-4 ${iconColor} animate-pulse`} />
             <div className="flex gap-1.5">
                 {timeLeft.days > 0 && (
                     <div className="flex flex-col items-center">
-                        <span className="text-sm font-black text-slate-900 leading-none">{timeLeft.days}d</span>
+                        <span className={`text-sm font-black ${textColor} leading-none`}>{timeLeft.days}d</span>
                     </div>
                 )}
-                <div className="flex flex-col items-center border-l border-slate-200 pl-1.5 ml-1.5">
-                    <span className="text-sm font-black text-slate-900 leading-none">
+                <div className={`flex flex-col items-center border-l ${borderColor} pl-1.5 ml-1.5`}>
+                    <span className={`text-sm font-black ${textColor} leading-none`}>
                         {String(timeLeft.hours).padStart(2, '0')}:
                         {String(timeLeft.minutes).padStart(2, '0')}:
                         {String(timeLeft.seconds).padStart(2, '0')}
