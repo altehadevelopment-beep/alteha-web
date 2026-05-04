@@ -50,6 +50,7 @@ export default function AdvancedBidForm({ auction, onSuccess, hideHeader = false
     const [estimatedDurationDays, setEstimatedDurationDays] = useState('1');
     const [notes, setNotes] = useState('');
     const [selectedClinicId, setSelectedClinicId] = useState<string>('');
+    const [selectedDoctorId, setSelectedDoctorId] = useState<string>('');
 
     const priceGuidance = useMemo(() => {
         const amount = parseFloat(bidAmount);
@@ -119,14 +120,42 @@ export default function AdvancedBidForm({ auction, onSuccess, hideHeader = false
                 bidAmount: parseFloat(bidAmount) || 0,
             };
 
-            if (role === 'DOCTOR' && bidType === 'BOTH') {
-                if (!selectedClinicId) {
-                    setStatus('error');
-                    setMessage('Por favor selecciona la clínica para el paquete completo');
-                    setIsLoading(false);
-                    return;
+            if (role === 'DOCTOR') {
+                if (userProfile?.id) {
+                    payload.doctor = { id: userProfile.id };
+                    payload.doctorId = userProfile.id;
                 }
-                payload.clinic = { id: parseInt(selectedClinicId) };
+                
+                if (bidType === 'BOTH' || bidType === 'DOCTOR_ONLY') {
+                    if (!selectedClinicId) {
+                        setStatus('error');
+                        setMessage('Por favor selecciona la clínica asociada a tu propuesta');
+                        setIsLoading(false);
+                        return;
+                    }
+                    const cId = parseInt(selectedClinicId);
+                    payload.clinic = { id: cId };
+                    payload.clinicId = cId;
+                }
+            }
+
+            if (role === 'CLINIC') {
+                if (userProfile?.id) {
+                    payload.clinic = { id: userProfile.id };
+                    payload.clinicId = userProfile.id;
+                }
+                
+                if (bidType === 'BOTH' || bidType === 'CLINIC_ONLY') {
+                    if (!selectedDoctorId) {
+                        setStatus('error');
+                        setMessage('Por favor selecciona el médico asociado a tu propuesta');
+                        setIsLoading(false);
+                        return;
+                    }
+                    const dId = parseInt(selectedDoctorId);
+                    payload.doctor = { id: dId };
+                    payload.doctorId = dId;
+                }
             }
 
             if (role !== 'PHARMACY') {
@@ -141,6 +170,7 @@ export default function AdvancedBidForm({ auction, onSuccess, hideHeader = false
                 }));
             }
 
+            console.log('[AdvancedBidForm] Sending payload:', JSON.stringify(payload, null, 2));
             const response = await placeAdvancedBid(payload);
 
             if (response.code === '00' || (response as any).id) {
@@ -251,8 +281,8 @@ export default function AdvancedBidForm({ auction, onSuccess, hideHeader = false
                             </motion.div>
                         )}
 
-                        {/* Clinic Selection for Doctors doing BOTH */}
-                        {role === 'DOCTOR' && bidType === 'BOTH' && (
+                        {/* Clinic Selection for Doctors */}
+                        {role === 'DOCTOR' && (bidType === 'BOTH' || bidType === 'DOCTOR_ONLY') && (
                             <motion.div
                                 initial={{ opacity: 0, height: 0 }}
                                 animate={{ opacity: 1, height: 'auto' }}
@@ -279,6 +309,38 @@ export default function AdvancedBidForm({ auction, onSuccess, hideHeader = false
                                 </div>
                                 <p className="text-[10px] text-amber-600 font-bold italic ml-1">
                                     * Es obligatorio indicar la clínica donde se realizará el procedimiento para este tipo de oferta.
+                                </p>
+                            </motion.div>
+                        )}
+
+                        {/* Doctor Selection for Clinics */}
+                        {role === 'CLINIC' && (bidType === 'BOTH' || bidType === 'CLINIC_ONLY') && (
+                            <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                className="space-y-3 pt-2"
+                            >
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-1">
+                                    Selecciona el Médico Asociado
+                                </label>
+                                <div className="relative group">
+                                    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 pointer-events-none transition-colors" />
+                                    <select
+                                        required
+                                        value={selectedDoctorId}
+                                        onChange={(e) => setSelectedDoctorId(e.target.value)}
+                                        className="w-full pl-4 pr-12 py-4 bg-slate-50 border-2 border-transparent focus:border-alteha-violet focus:bg-white rounded-2xl font-black text-slate-900 transition-all outline-none appearance-none cursor-pointer"
+                                    >
+                                        <option value="">-- Selecciona un médico --</option>
+                                        {(userProfile?.preferredDoctors || []).map((doctor: any) => (
+                                            <option key={doctor.id} value={doctor.id}>
+                                                {doctor.fullName || doctor.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <p className="text-[10px] text-amber-600 font-bold italic ml-1">
+                                    * Es obligatorio indicar el médico que realizará el procedimiento para este tipo de oferta.
                                 </p>
                             </motion.div>
                         )}

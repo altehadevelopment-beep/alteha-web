@@ -205,9 +205,12 @@ function AuctionCard({ auction, index }: { auction: Auction, index: number }) {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.05 }}
             whileHover={{ scale: 1.01 }}
-            className="bg-white p-8 rounded-[2.5rem] shadow-xl shadow-slate-100 border border-slate-50 flex flex-col md:flex-row items-center gap-8 group transition-all"
+            className={`p-8 rounded-[2.5rem] shadow-xl border transition-all flex flex-col md:flex-row items-center gap-8 group ${auction.status === 'AWARDED'
+                ? 'bg-gradient-to-br from-white to-violet-50 border-alteha-violet shadow-violet-100'
+                : 'bg-white border-slate-50 shadow-slate-100'
+                }`}
         >
-            <div className={`w-20 h-20 rounded-[1.5rem] ${config.color.split(' ')[0]} flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform`}>
+            <div className={`w-20 h-20 rounded-[1.5rem] ${config.color.split(' ')[0]} flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform ${auction.status === 'AWARDED' ? 'shadow-lg shadow-violet-200 ring-4 ring-white' : ''}`}>
                 <StatusIcon className={`w-10 h-10 ${config.color.split(' ')[1]}`} />
             </div>
 
@@ -219,8 +222,13 @@ function AuctionCard({ auction, index }: { auction: Auction, index: number }) {
                     <span className={`w-fit mx-auto md:mx-0 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${config.color}`}>
                         {config.label}
                     </span>
+                    {auction.status === 'AWARDED' && (
+                        <span className="w-fit mx-auto md:mx-0 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-alteha-violet text-white">
+                            Ganador Seleccionado
+                        </span>
+                    )}
                 </div>
-                <h3 className="text-2xl font-black text-slate-900 group-hover:text-alteha-violet transition-colors">
+                <h3 className={`text-2xl font-black group-hover:text-alteha-violet transition-colors ${auction.status === 'AWARDED' ? 'text-alteha-violet' : 'text-slate-900'}`}>
                     {auction.title}
                 </h3>
                 <div className="flex flex-wrap justify-center md:justify-start gap-4 mt-3">
@@ -242,7 +250,10 @@ function AuctionCard({ auction, index }: { auction: Auction, index: number }) {
             </div>
 
             <Link href={`/dashboard/insurance/auctions/${auction.auctionNumber}`}>
-                <Button className="w-14 h-14 rounded-[1.5rem] bg-slate-100 text-slate-400 hover:bg-alteha-violet hover:text-white flex items-center justify-center transition-all p-0">
+                <Button className={`w-14 h-14 rounded-[1.5rem] flex items-center justify-center transition-all p-0 ${auction.status === 'AWARDED'
+                    ? 'bg-alteha-violet text-white shadow-lg shadow-violet-200'
+                    : 'bg-slate-100 text-slate-400 hover:bg-alteha-violet hover:text-white'
+                    }`}>
                     <ChevronRight className="w-6 h-6" />
                 </Button>
             </Link>

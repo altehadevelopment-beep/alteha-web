@@ -1,5 +1,5 @@
-import SpecialistPaymentMethods from '@/components/dashboard/SpecialistPaymentMethods';
+import PaymentMethodsManager from '@/components/dashboard/PaymentMethodsManager';
 
 export default function PaymentsPage() {
-    return <SpecialistPaymentMethods />;
+    return <PaymentMethodsManager role="DOCTOR" />;
 }

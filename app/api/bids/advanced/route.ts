@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { getAppToken } from '@/lib/auth-service';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://alteha.chanceaapp.com:3232/api';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://qaback.alteha.com:3232/api';
 
 export async function POST(request: NextRequest) {
     try {
@@ -18,6 +18,8 @@ export async function POST(request: NextRequest) {
         }
 
         const adminToken = await getAppToken();
+
+        console.log('[API Proxy] POST /bids/advanced body:', JSON.stringify(body, null, 2));
 
         const response = await fetch(`${API_BASE}/bids/advanced`, {
             method: 'POST',

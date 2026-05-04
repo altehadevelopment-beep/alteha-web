@@ -105,6 +105,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 storeToken(newToken);
                 setToken(newToken);
                 const apiRole = role === 'specialist' ? 'DOCTOR' : (role === 'insurance' ? 'INSURANCE_COMPANY' : (role === 'provider' ? 'PHARMACY' : role.toUpperCase()));
+
                 await fetchProfile(apiRole);
                 resetTimer();
             }

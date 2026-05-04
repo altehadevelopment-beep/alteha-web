@@ -7,10 +7,10 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://qaback.alteha.com:3
 
 export async function POST(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: { id: string, bidId: string } }
 ) {
     try {
-        const id = params.id;
+        const { id: auctionNumber, bidId } = params;
         const userToken = request.headers.get('X-Alteha-Token');
 
         if (!userToken) {
@@ -22,23 +22,31 @@ export async function POST(
 
         const adminToken = await getAppToken();
 
-        // First try: POST /auctions/insurance/auctions/{id}/publish
-        const response = await fetch(`${API_BASE}/auctions/insurance/auctions/${id}/publish`, {
+        // New endpoint pattern: /api/auctions/{auctionNumber}/award/{bidId}
+        const url = `${API_BASE}/auctions/${auctionNumber}/award/${bidId}`;
+        
+        console.log(`[API Proxy] Adjudicando subasta ${auctionNumber} con oferta ${bidId}`);
+        console.log(`[API Proxy] URL final: ${url}`);
+
+        const response = await fetch(url, {
             method: 'POST',
             headers: {
                 'Accept': '*/*',
-                'Content-Type': 'application/json',
                 'Authorization': `Bearer ${adminToken}`,
                 'X-Alteha-Token': userToken
             }
         });
 
-        console.log(`[API Proxy] POST /auctions/insurance/auctions/${id}/publish - Status: ${response.status}`);
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`[API Proxy] Error en adjudicación: ${response.status}`, errorText);
+            return NextResponse.json({ code: 'ERROR', message: errorText }, { status: response.status });
+        }
 
         const data = await response.json();
-        return NextResponse.json(data, { status: response.status });
+        return NextResponse.json(data);
     } catch (error) {
-        console.error('Auction publish-existing error:', error);
+        console.error('Auction award error:', error);
         return NextResponse.json({
             code: 'ERROR',
             message: 'Error de conexión con el servidor'

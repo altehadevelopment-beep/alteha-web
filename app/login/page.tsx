@@ -108,22 +108,12 @@ export default function LoginPage() {
         }
 
         try {
+            console.log(`[Login] Attempting login with role: ${role || 'specialist'}`);
             const result = await login(trimmedUsername, trimmedPassword, role || 'specialist', isVerified ? 'human' : '');
 
             if (result.code === '00' && result.data?.id_token) {
                 // Success - redirect to dashboard
                 setFailedAttempts(0);
-                
-                // --- PRUEBA FIREBASE DEVICE ID ---
-                try {
-                    const installations = getInstallations(app);
-                    const deviceId = await getId(installations);
-                    alert(`Firebase Conectado. Device ID generado: ${deviceId}`);
-                } catch (fbErr) {
-                    console.error('Error getting Firebase ID:', fbErr);
-                    alert('Login exitoso, pero hubo un problema conectando con Firebase. Revisa las reglas de Firestore.');
-                }
-                // ---------------------------------
 
                 const destination = role ? `/dashboard/${role}` : '/dashboard/specialist';
                 router.push(destination);

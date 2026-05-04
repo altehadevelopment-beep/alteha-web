@@ -235,6 +235,7 @@ export interface Auction {
     requiredSupplies?: RequiredSupply[];
     invitedDoctorIds?: number[];
     invitedClinicIds?: number[];
+    winningBid?: any;
 }
 
 export interface AuctionPayload {
@@ -310,6 +311,9 @@ export interface BidPayload {
     notes: string;
     bidItems?: BidItem[];
     clinic?: { id: number };
+    clinicId?: number;
+    doctor?: { id: number };
+    doctorId?: number;
 }
 
 export interface Bid {
@@ -328,6 +332,40 @@ export interface Bid {
     clinic?: any;
     pharmacy?: any;
     bidItems?: any[];
+}
+
+export interface PaymentMethod {
+    id?: number;
+    actorRole: string;
+    methodType: 'BS_PAGO_MOVIL' | 'BS_BANK_TRANSFER' | 'USD_WIRE_SWIFT' | 'USD_ACH' | 'USD_IBAN' | 'BINANCE_PAY' | 'CRYPTO_WALLET';
+    beneficiaryType: 'PERSON' | 'BUSINESS';
+    verificationStatus?: string;
+    displayName: string;
+    active?: boolean;
+    binancePayId?: string;
+    binanceUserIdentifier?: string;
+    cryptoAsset?: string;
+    cryptoNetwork?: string;
+    cryptoWalletAddress?: string;
+    cryptoMemoOrTag?: string;
+    createdAt?: string;
+    updatedAt?: string;
+    country: { id: number; name?: string };
+    bankAccount?: {
+        id?: number;
+        currency: string;
+        holderFullName: string;
+        holderDocument: string;
+        phone?: string;
+        bankCode?: string;
+        bankName: string;
+        accountNumber?: string;
+        iban?: string;
+        swiftCode?: string;
+        abaRoutingNumber?: string;
+        bankCountry?: string;
+        bankAddress?: string;
+    };
 }
 
 export interface AuctionAttachment {
@@ -356,7 +394,8 @@ export async function authenticate(
     password: string,
     role: string = 'specialist',
     rememberMe: boolean = true,
-    captchaToken?: string
+    captchaToken?: string,
+    deviceId?: string
 ): Promise<AuthResponse> {
     const response = await fetch('/api/auth/login', {
         method: 'POST',
@@ -1072,23 +1111,16 @@ export async function changeAuctionStatus(
 
 export async function awardAuction(
     auctionNumber: string,
-    bidId: number,
-    reason: string = 'Adjudicación de subasta'
+    bidId: number
 ): Promise<ApiResponse<Auction>> {
     const token = getStoredToken();
     if (!token) throw new Error('No token found');
 
-    const response = await fetch('/api/auctions/award', {
+    const response = await fetch(`/api/auctions/${auctionNumber}/award/${bidId}`, {
         method: 'POST',
         headers: {
-            'X-Alteha-Token': token,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            auctionNumber,
-            bidId,
-            reason
-        })
+            'X-Alteha-Token': token
+        }
     });
     return response.json();
 }
@@ -1426,3 +1458,54 @@ export const getAllMedicalPackages = async (page: number = 0, size: number = 10)
         throw error;
     }
 };
+
+// Payment Methods
+export async function getPaymentMethods(role: string, page: number = 0, size: number = 20): Promise<ApiResponse<PaymentMethod[]>> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+    const response = await fetch(`/api/payment-receiving-methods/my/payment-methods?role=${role}&page=${page}&size=${size}`, {
+        headers: { 'X-Alteha-Token': token }
+    });
+    return response.json();
+}
+
+export async function createPaymentMethod(method: PaymentMethod): Promise<ApiResponse<PaymentMethod>> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+    const response = await fetch('/api/payment-receiving-methods/my/payment-methods', {
+        method: 'POST',
+        headers: { 
+            'Content-Type': 'application/json',
+            'X-Alteha-Token': token 
+        },
+        body: JSON.stringify(method)
+    });
+    return response.json();
+}
+
+export async function updatePaymentMethod(id: number, method: PaymentMethod, role: string): Promise<ApiResponse<PaymentMethod>> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+    const response = await fetch(`/api/payment-receiving-methods/my/payment-methods/${id}?role=${role}`, {
+        method: 'PUT',
+        headers: { 
+            'Content-Type': 'application/json',
+            'X-Alteha-Token': token 
+        },
+        body: JSON.stringify(method)
+    });
+    return response.json();
+}
+
+export async function updateDeviceId(role: string, deviceId: string): Promise<ApiResponse> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+
+    const response = await fetch(`/api/actor/update-device-id?role=${role}&deviceId=${deviceId}`, {
+        method: 'POST',
+        headers: {
+            'X-Alteha-Token': token
+        }
+    });
+    return response.json();
+}

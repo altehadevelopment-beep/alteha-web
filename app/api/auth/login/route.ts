@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAppToken } from '@/lib/auth-service';
 import { verifyCaptcha } from '@/lib/captcha-verify';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://alteha.chanceaapp.com:3232/api';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://qaback.alteha.com:3232/api';
 
 export async function POST(request: NextRequest) {
     try {
@@ -23,6 +23,8 @@ export async function POST(request: NextRequest) {
         const { captchaToken: _, ...authBody } = body;
 
         const token = await getAppToken();
+
+        console.log('[API Proxy] Sending auth request to backend:', JSON.stringify(authBody, null, 2));
 
         const response = await fetch(`${API_BASE}/actor-authenticate`, {
             method: 'POST',

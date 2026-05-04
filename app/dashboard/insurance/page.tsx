@@ -699,16 +699,27 @@ function StatCard({ label, value, icon: Icon, trend, color }: any) {
 }
 
 function AuctionItem({ id, title, status, bids, bestBid, timeLeft, savings }: any) {
+    const isAwarded = status === 'AWARDED';
     return (
-        <div className="group flex items-center justify-between p-6 bg-white rounded-[2.5rem] border border-slate-100 hover:border-violet-200 hover:shadow-xl hover:shadow-violet-500/5 transition-all duration-300">
+        <div className={`group flex items-center justify-between p-6 rounded-[2.5rem] border transition-all duration-300 ${isAwarded 
+            ? 'bg-violet-50/50 border-alteha-violet shadow-lg shadow-violet-500/5' 
+            : 'bg-white border-slate-100 hover:border-violet-200 hover:shadow-xl hover:shadow-violet-500/5'
+        }`}>
             <div className="flex items-center gap-6">
-                <div className="w-16 h-16 rounded-2xl bg-violet-50/50 flex items-center justify-center text-alteha-violet group-hover:scale-110 transition-transform">
+                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 ${isAwarded ? 'bg-alteha-violet text-white' : 'bg-violet-50/50 text-alteha-violet'}`}>
                     <Gavel className="w-8 h-8" />
                 </div>
                 <div>
-                    <h4 className="font-bold text-slate-900 group-hover:text-alteha-violet transition-colors">{title}</h4>
+                    <div className="flex items-center gap-3">
+                        <h4 className={`font-bold transition-colors ${isAwarded ? 'text-alteha-violet' : 'text-slate-900 group-hover:text-alteha-violet'}`}>{title}</h4>
+                        {isAwarded && (
+                            <span className="px-2 py-0.5 bg-alteha-violet text-white text-[8px] font-black uppercase tracking-widest rounded-md">
+                                Adjudicada
+                            </span>
+                        )}
+                    </div>
                     <div className="flex items-center gap-3 mt-1">
-                        <span className="text-[10px] font-black text-alteha-violet uppercase tracking-widest">{status}</span>
+                        <span className={`text-[10px] font-black uppercase tracking-widest ${isAwarded ? 'text-alteha-violet' : 'text-slate-400'}`}>{status}</span>
                         <span className="w-1 h-1 rounded-full bg-slate-200" />
                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{id}</span>
                         <span className="w-1 h-1 rounded-full bg-slate-200" />
@@ -726,7 +737,7 @@ function AuctionItem({ id, title, status, bids, bestBid, timeLeft, savings }: an
                     <p className="text-sm font-bold text-slate-600">{timeLeft}</p>
                 </div>
                 <Link href={`/dashboard/insurance/auctions/${id}`}>
-                    <ChevronRight className="w-6 h-6 text-slate-200 group-hover:text-alteha-violet group-hover:translate-x-1 transition-all" />
+                    <ChevronRight className={`w-6 h-6 transition-all ${isAwarded ? 'text-alteha-violet translate-x-1' : 'text-slate-200 group-hover:text-alteha-violet group-hover:translate-x-1'}`} />
                 </Link>
             </div>
         </div>

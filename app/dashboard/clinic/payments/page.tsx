@@ -1,5 +1,5 @@
-import ClinicPaymentMethods from '@/components/dashboard/ClinicPaymentMethods';
+import PaymentMethodsManager from '@/components/dashboard/PaymentMethodsManager';
 
 export default function ClinicPaymentsPage() {
-    return <ClinicPaymentMethods />;
+    return <PaymentMethodsManager role="CLINIC" />;
 }
