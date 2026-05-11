@@ -21,16 +21,51 @@ import {
     ShieldCheck,
     Zap,
     Timer,
-    Plus
+    Plus,
+    MessageSquare
 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { getAuctionDetailsAsDoctor, type Auction } from '@/lib/api';
+import { getAuctionDetailsAsDoctor, getInsuranceCompanyById, type Auction } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
+import { ChatWindow } from '@/components/chat/ChatWindow';
+import { useUnreadCount } from '@/hooks/useChat';
 import AdvancedBidForm from '@/components/auctions/AdvancedBidForm';
 import AuctionCountdown from '@/components/auctions/AuctionCountdown';
 import AuctionBidsList from '@/components/auctions/AuctionBidsList';
+
+const ChatButtonWithBadge: React.FC<{
+    auctionId: string;
+    currentUserId: string;
+    participantId: string;
+    onClick: (e: React.MouseEvent) => void;
+    title: string;
+    className?: string;
+}> = ({ auctionId, currentUserId, participantId, onClick, title, className }) => {
+    const unreadCount = useUnreadCount(auctionId, currentUserId, participantId);
+    
+    return (
+        <Button 
+            onClick={onClick}
+            className={`relative group ${className || ''}`}
+            title={title}
+        >
+            <MessageSquare className="w-3.5 h-3.5" />
+            {title === "Chat con Seguro" ? "Chat con Seguro" : ""}
+            {unreadCount > 0 && (
+                <motion.span 
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-sm"
+                >
+                    {unreadCount}
+                </motion.span>
+            )}
+        </Button>
+    );
+};
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; dotColor: string }> = {
     'DRAFT': { label: 'Borrador', color: 'bg-slate-100 text-slate-600', dotColor: 'bg-slate-400' },
@@ -56,16 +91,42 @@ export default function DoctorAuctionDetailPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [isBidModalOpen, setIsBidModalOpen] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const { userProfile } = useAuth();
+    const [activeChat, setActiveChat] = useState<{
+        participantId: string;
+        participantName: string;
+        participantPhoto?: string;
+    } | null>(null);
 
     useEffect(() => {
         const load = async () => {
             setIsLoading(true);
             try {
                 const res = await getAuctionDetailsAsDoctor(auctionNumber);
+                let auctionData = null;
                 if (res.code === '00' && res.data) {
-                    setAuction(res.data);
+                    auctionData = res.data;
                 } else if ((res as any).id) {
-                    setAuction(res as any);
+                    auctionData = res as any;
+                }
+                
+                if (auctionData) {
+                    setAuction(auctionData);
+                    
+                    // Handle deep link to chat
+                    if (typeof window !== 'undefined') {
+                        const params = new URLSearchParams(window.location.search);
+                        if (params.get('openChat') === 'true') {
+                            const pId = params.get('participantId');
+                            if (pId && auctionData.insuranceCompany?.id === Number(pId)) {
+                                setActiveChat({
+                                    participantId: String(pId),
+                                    participantName: auctionData.insuranceCompany?.name || 'Compañía de Seguros',
+                                    participantPhoto: auctionData.insuranceCompany?.logoUrl || (auctionData.insuranceCompany as any)?.logo
+                                });
+                            }
+                        }
+                    }
                 } else {
                     setError(res.message || 'No se pudo cargar la subasta');
                 }
@@ -150,9 +211,40 @@ export default function DoctorAuctionDetailPage() {
                                     </div>
                                 </div>
                             </div>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <ChatButtonWithBadge
+                                    auctionId={String(auction.id)}
+                                    currentUserId={String(userProfile?.id || 'guest')}
+                                    participantId={String(auction.insuranceCompany?.id)}
+                                    title="Chat con Seguro"
+                                    onClick={async () => {
+                                        const insuranceId = auction.insuranceCompany?.id;
+                                        const insuranceName = auction.insuranceCompany?.name || 'Compañía de Seguros';
+                                        if (insuranceId) {
+                                            // Try to get photo from auction data first, then fetch if missing
+                                            let photo = auction.insuranceCompany?.logoUrl || (auction.insuranceCompany as any)?.logo || (auction.insuranceCompany as any)?.profileImageUrl;
+                                            if (!photo) {
+                                                try {
+                                                    const res = await getInsuranceCompanyById(insuranceId);
+                                                    const data = res.code === '00' && res.data ? res.data : (res as any).id ? res as any : null;
+                                                    if (data) photo = data.logoUrl || data.profileImageUrl || (data as any).logo;
+                                                } catch { /* use initials fallback in ChatWindow */ }
+                                            }
+                                            setActiveChat({
+                                                participantId: String(insuranceId),
+                                                participantName: insuranceName,
+                                                participantPhoto: photo
+                                            });
+                                        } else {
+                                            alert('No se pudo identificar a la compañía de seguros para iniciar el chat.');
+                                        }
+                                    }}
+                                    className="bg-alteha-turquoise text-slate-900 px-6 py-2 rounded-xl font-black text-xs uppercase tracking-widest flex items-center gap-2 hover:bg-white transition-all shadow-lg shadow-alteha-turquoise/20"
+                                />
+                            </div>
                         </div>
-                    </div>
-                </div>
 
                 <div className="p-10 lg:p-12 space-y-12">
                     {/* TOP SUMMARY ROW: Budget, Time & Patient */}
@@ -341,7 +433,10 @@ export default function DoctorAuctionDetailPage() {
                     <AuctionBidsList
                         auctionId={auction.id}
                         auctionNumber={auction.auctionNumber}
+                        auctionStatus={auction.status}
                         mode="doctor"
+                        insuranceId={auction.insuranceCompany?.id}
+                        insuranceName={auction.insuranceCompany?.name}
                     />
                 </div>
             )}
@@ -362,6 +457,29 @@ export default function DoctorAuctionDetailPage() {
                             window.location.reload();
                         }} 
                     />
+                </div>
+            </Modal>
+            {/* Chat Modal */}
+            <Modal
+                isOpen={!!activeChat}
+                onClose={() => setActiveChat(null)}
+                title="Mensajería Directa"
+                maxWidth="max-w-xl"
+            >
+                <div className="h-[600px] -m-6">
+                    {activeChat && (
+                        <ChatWindow 
+                            auctionId={String(auction.id)}
+                            auctionNumber={auction.auctionNumber}
+                            participantId={activeChat.participantId}
+                            participantName={activeChat.participantName}
+                            participantPhoto={activeChat.participantPhoto}
+                            currentUserId={String(userProfile?.id || 'guest')}
+                            currentUserName={userProfile?.firstName ? `${userProfile.firstName} ${userProfile.lastName}` : (userProfile?.name || 'Usuario')}
+                            currentUserPhoto={userProfile?.profileImageUrl || userProfile?.logoUrl || (userProfile as any)?.imageUrl || (userProfile as any)?.avatarUrl}
+                            onClose={() => setActiveChat(null)}
+                        />
+                    )}
                 </div>
             </Modal>
         </div>

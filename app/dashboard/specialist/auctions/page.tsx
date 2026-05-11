@@ -15,12 +15,48 @@ import {
     DollarSign,
     Calendar,
     Stethoscope,
-    Activity
+    Activity,
+    MessageSquare
 } from 'lucide-react';
 import Link from 'next/link';
 import { getMyInvitations, type Auction } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/Button';
+import { Modal } from '@/components/ui/Modal';
+import { ChatWindow } from '@/components/chat/ChatWindow';
+import { useUnreadCount } from '@/hooks/useChat';
 import AuctionCountdown from '@/components/auctions/AuctionCountdown';
+
+const ChatButtonWithBadge: React.FC<{
+    auctionId: string;
+    currentUserId: string;
+    participantId: string;
+    onClick: (e: React.MouseEvent) => void;
+    title: string;
+    className?: string;
+}> = ({ auctionId, currentUserId, participantId, onClick, title, className }) => {
+    const unreadCount = useUnreadCount(auctionId, currentUserId, participantId);
+    
+    return (
+        <Button 
+            onClick={onClick}
+            className={`relative group ${className || ''}`}
+            title={title}
+        >
+            <MessageSquare className="w-3.5 h-3.5" />
+            {title === "Chat con Seguro" ? "Chat con Seguro" : ""}
+            {unreadCount > 0 && (
+                <motion.span 
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-sm"
+                >
+                    {unreadCount}
+                </motion.span>
+            )}
+        </Button>
+    );
+};
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; dot: string; icon: any }> = {
     'DRAFT': { label: 'Borrador', color: 'bg-slate-100 text-slate-600', dot: 'bg-slate-400', icon: FileText },
@@ -45,6 +81,14 @@ export default function DoctorAuctionsPage() {
     const [error, setError] = useState<string | null>(null);
     const [statusFilter, setStatusFilter] = useState('');
     const [search, setSearch] = useState('');
+    const { userProfile } = useAuth();
+    const [activeChat, setActiveChat] = useState<{
+        auctionId: string;
+        auctionNumber?: string;
+        participantId: string;
+        participantName: string;
+        participantPhoto?: string;
+    } | null>(null);
 
     const loadAuctions = async () => {
         setIsLoading(true);
@@ -151,16 +195,60 @@ export default function DoctorAuctionsPage() {
                 <div className="space-y-4">
                     <AnimatePresence mode="popLayout">
                         {filtered.map((auction, idx) => (
-                            <AuctionCard key={auction.id} auction={auction} index={idx} />
+                            <AuctionCard 
+                                key={auction.id} 
+                                auction={auction} 
+                                index={idx} 
+                                onChat={() => {
+                                    const iId = auction.insuranceCompany?.id;
+                                    const iName = auction.insuranceCompany?.name || 'Compañía de Seguros';
+                                    if (iId) {
+                                        setActiveChat({
+                                            auctionId: String(auction.id),
+                                            auctionNumber: auction.auctionNumber,
+                                            participantId: String(iId),
+                                            participantName: iName,
+                                            participantPhoto: auction.insuranceCompany?.logoUrl || (auction.insuranceCompany as any)?.logo
+                                        });
+                                    } else {
+                                        alert('No se pudo identificar a la compañía de seguros.');
+                                    }
+                                }}
+                                currentUserId={String(userProfile?.id || 'guest')}
+                            />
                         ))}
                     </AnimatePresence>
                 </div>
             )}
+
+            {/* Chat Modal */}
+            <Modal
+                isOpen={!!activeChat}
+                onClose={() => setActiveChat(null)}
+                title="Mensajería Directa"
+                maxWidth="max-w-xl"
+            >
+                <div className="h-[600px] -m-6">
+                    {activeChat && (
+                        <ChatWindow 
+                            auctionId={activeChat.auctionId}
+                            auctionNumber={activeChat.auctionNumber}
+                            participantId={activeChat.participantId}
+                            participantName={activeChat.participantName}
+                            participantPhoto={activeChat.participantPhoto}
+                            currentUserId={String(userProfile?.id || 'guest')}
+                            currentUserName={userProfile?.firstName ? `${userProfile.firstName} ${userProfile.lastName}` : (userProfile?.name || 'Usuario')}
+                            currentUserPhoto={userProfile?.profileImageUrl || userProfile?.logoUrl || (userProfile as any)?.imageUrl || (userProfile as any)?.avatarUrl}
+                            onClose={() => setActiveChat(null)}
+                        />
+                    )}
+                </div>
+            </Modal>
         </div>
     );
 }
 
-function AuctionCard({ auction, index }: { auction: Auction; index: number }) {
+function AuctionCard({ auction, index, onChat, currentUserId }: { auction: Auction; index: number; onChat: () => void; currentUserId: string }) {
     const status = STATUS_CONFIG[auction.status] || STATUS_CONFIG['PUBLISHED'];
     const urgency = URGENCY_CONFIG[auction.urgencyLevel] || URGENCY_CONFIG['LOW'];
     const StatusIcon = status.icon;
@@ -230,18 +318,31 @@ function AuctionCard({ auction, index }: { auction: Auction; index: number }) {
             </div>
 
             {/* Action */}
-            <Link href={`/dashboard/specialist/auctions/${auction.auctionNumber}`} className="flex-shrink-0 w-full lg:w-auto">
-                {(auction.status === 'ACTIVE' || auction.status === 'PUBLISHED') ? (
-                    <Button className="w-full lg:w-40 h-14 rounded-[1.5rem] bg-alteha-violet text-white font-black flex items-center justify-center gap-2 shadow-lg shadow-violet-200 hover:scale-105 transition-all">
-                        <Gavel className="w-5 h-5" />
-                        Ofertar Ahora
-                    </Button>
-                ) : (
-                    <Button className="w-14 h-14 rounded-[1.5rem] bg-slate-50 text-slate-400 hover:bg-alteha-violet hover:text-white flex items-center justify-center transition-all p-0 group">
-                        <ChevronRight className="w-6 h-6 group-hover:translate-x-0.5 transition-transform" />
-                    </Button>
+            <div className="flex flex-col gap-2 w-full lg:w-auto">
+                <Link href={`/dashboard/specialist/auctions/${auction.auctionNumber}`} className="flex-shrink-0">
+                    {(auction.status === 'ACTIVE' || auction.status === 'PUBLISHED') ? (
+                        <Button className="w-full lg:w-40 h-14 rounded-[1.5rem] bg-alteha-violet text-white font-black flex items-center justify-center gap-2 shadow-lg shadow-violet-200 hover:scale-105 transition-all">
+                            <Gavel className="w-5 h-5" />
+                            Ofertar Ahora
+                        </Button>
+                    ) : (
+                        <Button className="w-full lg:w-14 h-14 rounded-[1.5rem] bg-slate-50 text-slate-400 hover:bg-alteha-violet hover:text-white flex items-center justify-center transition-all p-0 group">
+                            <ChevronRight className="w-6 h-6 group-hover:translate-x-0.5 transition-transform" />
+                        </Button>
+                    )}
+                </Link>
+                
+                {auction.status === 'ACTIVE' && (
+                    <ChatButtonWithBadge 
+                        auctionId={String(auction.id)}
+                        currentUserId={currentUserId}
+                        participantId={String(auction.insuranceCompany?.id)}
+                        title="Chat con Seguro"
+                        onClick={onChat}
+                        className="w-full lg:w-40 h-12 rounded-[1.25rem] bg-slate-50 text-slate-500 hover:bg-alteha-turquoise hover:text-slate-900 font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all border border-slate-100"
+                    />
                 )}
-            </Link>
+            </div>
         </motion.div>
     );
 }

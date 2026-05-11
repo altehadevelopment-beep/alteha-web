@@ -594,15 +594,17 @@ export default function AuctionDetailsPage() {
                                                     <p className="text-4xl font-black text-slate-900 tracking-tighter">{auction.totalBids || 0}</p>
                                                 </div>
                                             </div>
-                                            <div className="bg-white p-8 rounded-[2.5rem] border-2 border-slate-50 shadow-xl shadow-slate-100 flex flex-col justify-between group hover:border-alteha-violet/30 transition-all">
-                                                <div className="w-12 h-12 bg-alteha-violet/10 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                                                    <ShieldCheck className="w-6 h-6 text-alteha-violet" />
-                                                </div>
-                                                <div>
-                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Mín. Requerido</p>
-                                                    <p className="text-4xl font-black text-slate-900 tracking-tighter">{auction.minBidsRequired}</p>
-                                                </div>
-                                            </div>
+{/* 
+                                             <div className="bg-white p-8 rounded-[2.5rem] border-2 border-slate-50 shadow-xl shadow-slate-100 flex flex-col justify-between group hover:border-alteha-violet/30 transition-all">
+                                                 <div className="w-12 h-12 bg-alteha-violet/10 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                                                     <ShieldCheck className="w-6 h-6 text-alteha-violet" />
+                                                 </div>
+                                                 <div>
+                                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Mín. Requerido</p>
+                                                     <p className="text-4xl font-black text-slate-900 tracking-tighter">{auction.minBidsRequired}</p>
+                                                 </div>
+                                             </div>
+                                             */}
                                         </div>
                                     </>
                                 )}
@@ -787,12 +789,13 @@ export default function AuctionDetailsPage() {
                                             <span className="text-xs font-bold text-slate-500">Auto-extensión:</span>
                                             <span className="text-xs font-black text-slate-900">{(auction.autoExtendMinutes || 0) / 60} Horas</span>
                                         </div>
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-xs font-bold text-slate-500">Mínimo de Ofertas:</span>
-                                            <span className="text-xs font-black text-slate-900">{auction.minBidsRequired}</span>
-                                        </div>
-                                    </div>
-                                </div>
+                                         */}
+                                         <div className="flex justify-between items-center">
+                                             <span className="text-xs font-bold text-slate-500">Método de Pago:</span>
+                                             <span className="text-xs font-black text-alteha-violet">{auction.methodType || 'No especificado'}</span>
+                                         </div>
+                                     </div>
+                                 </div>
                                 <div className="space-y-4 bg-slate-50 p-6 rounded-[2rem] border border-slate-100">
                                     <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest border-b pb-2">Requerimientos Especiales</h4>
                                     <p className="text-sm font-bold text-slate-900 italic leading-tight">

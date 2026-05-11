@@ -27,6 +27,7 @@ import {
     Clock,
     HelpCircle,
     UserPlus,
+    CreditCard,
     Plus
 } from 'lucide-react';
 import Link from 'next/link';
@@ -101,7 +102,8 @@ export default function NewAuctionPage() {
         doctorBudget: 0,
         requiredSupplies: [],
         invitedDoctorIds: [],
-        invitedClinicIds: []
+        invitedClinicIds: [],
+        methodType: 'BS_BANK_TRANSFER'
     });
 
     const [medicalReport, setMedicalReport] = useState<File | null>(null);
@@ -1023,60 +1025,119 @@ export default function NewAuctionPage() {
                                 className="space-y-8"
                             >
                                 <div className="space-y-6">
-                                    <h3 className="text-2xl font-black text-slate-900 border-b pb-4">Reglas de Cierre</h3>
+                                    <h3 className="text-2xl font-black text-slate-900 border-b pb-4">Configuración Final</h3>
+                                    
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                        <div className="space-y-6">
-                                            <FormInput
-                                                label="Fecha Límite de Recepción"
-                                                type="datetime-local"
-                                                value={formData.endDate.slice(0, 16)}
-                                                onChange={(v: string) => { const date = new Date(v); if (!isNaN(date.getTime())) setFormData({ ...formData, endDate: date.toISOString() }); }}
-                                                icon={Clock}
-                                                description="Fecha y hora en la que se dejarán de recibir ofertas para esta subasta."
-                                            />
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <FormInput 
-                                                    label="Ofertas Mínimas" 
-                                                    type="number" 
-                                                    value={formData.minBidsRequired} 
-                                                    onChange={(v: string) => setFormData({ ...formData, minBidsRequired: parseInt(v) })} 
-                                                    icon={Target}
-                                                    description="Cantidad mínima de propuestas necesarias para que la subasta sea válida."
+                                        <div className="space-y-8">
+                                            {/* Reglas de Cierre */}
+                                            <div className="space-y-6">
+                                                <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                                    <Clock className="w-4 h-4" /> Reglas de Cierre
+                                                </h4>
+                                                <FormInput
+                                                    label="Fecha Límite de Recepción"
+                                                    type="datetime-local"
+                                                    value={formData.endDate.slice(0, 16)}
+                                                    onChange={(v: string) => { const date = new Date(v); if (!isNaN(date.getTime())) setFormData({ ...formData, endDate: date.toISOString() }); }}
+                                                    icon={Clock}
+                                                    description="Fecha y hora en la que se dejarán de recibir ofertas para esta subasta."
                                                 />
-                                                <FormInput 
-                                                    label="Auto-extensión (Minutos)" 
-                                                    type="number" 
-                                                    value={formData.autoExtendMinutes} 
-                                                    onChange={(v: string) => {
-                                                        const val = parseInt(v) || 0;
-                                                        // Prevent exceeding backend limit of 60 minutes
-                                                        setFormData({ ...formData, autoExtendMinutes: Math.min(val, 60) });
-                                                    }} 
-                                                    icon={Zap}
-                                                    description="La subasta se extenderá por este tiempo si no hay suficientes ofertas al cierre (Máximo 60 minutos)."
-                                                />
+                                                <div className="grid grid-cols-1 gap-4">
+                                                    {/* 
+                                                    <FormInput 
+                                                        label="Ofertas Mínimas" 
+                                                        type="number" 
+                                                        value={formData.minBidsRequired} 
+                                                        onChange={(v: string) => setFormData({ ...formData, minBidsRequired: parseInt(v) })} 
+                                                        icon={Target}
+                                                        description="Cantidad mínima de propuestas necesarias para que la subasta sea válida."
+                                                    />
+                                                    */}
+                                                    <FormInput 
+                                                        label="Auto-extensión (Minutos)" 
+                                                        type="number" 
+                                                        value={formData.autoExtendMinutes} 
+                                                        onChange={(v: string) => {
+                                                            const val = parseInt(v) || 0;
+                                                            // Prevent exceeding backend limit of 60 minutes
+                                                            setFormData({ ...formData, autoExtendMinutes: Math.min(val, 60) });
+                                                        }} 
+                                                        icon={Zap}
+                                                        description="La subasta se extenderá por este tiempo si no hay suficientes ofertas al cierre (Máximo 60 minutos)."
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {/* Método de Pago */}
+                                            <div className="space-y-6 pt-6 border-t">
+                                                <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                                    <CreditCard className="w-4 h-4" /> Método de Pago
+                                                </h4>
+                                                <div className="space-y-4">
+                                                    <div className="grid grid-cols-1 gap-3">
+                                                        {[
+                                                            { id: 'BS_BANK_TRANSFER', label: 'BS_BANK_TRANSFER', desc: 'Una transferencia bancaria común entre cuentas nacionales de Venezuela.' },
+                                                            { id: 'BS_PAGO_MOVIL', label: 'BS_PAGO_MOVIL', desc: 'El sistema de Pago Móvil, que permite enviar bolívares de forma inmediata usando solo el número de teléfono y la cédula.' },
+                                                            { id: 'USD_WIRE_SWIFT', label: 'USD_WIRE_SWIFT', desc: 'Una transferencia internacional estándar. Es el método tradicional para mover dinero entre bancos de diferentes países.' },
+                                                            { id: 'USD_ACH', label: 'USD_ACH', desc: 'Una transferencia bancaria dentro de EE. UU. Común en plataformas como Zelle o cuentas estadounidenses.' },
+                                                            { id: 'USD_IBAN', label: 'USD_IBAN', desc: 'Una transferencia a una cuenta bancaria internacional (común en Europa).' },
+                                                            { id: 'BINANCE_PAY', label: 'BINANCE_PAY', desc: 'Pago a través de Binance Pay usando ID o correo electrónico.' },
+                                                            { id: 'CRYPTO_WALLET', label: 'CRYPTO_WALLET', desc: 'Transferencia directa a billetera de criptomonedas (USDT, BTC, etc.).' }
+                                                        ].map((method) => (
+                                                            <button
+                                                                key={method.id}
+                                                                type="button"
+                                                                onClick={() => setFormData({ ...formData, methodType: method.id })}
+                                                                className={`p-4 rounded-2xl border-2 transition-all text-left flex items-start gap-3 ${formData.methodType === method.id ? 'border-alteha-violet bg-violet-50' : 'border-slate-100 hover:border-slate-200'}`}
+                                                            >
+                                                                <div className={`mt-1 w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${formData.methodType === method.id ? 'border-alteha-violet bg-alteha-violet' : 'border-slate-200'}`}>
+                                                                    {formData.methodType === method.id && <div className="w-2 h-2 bg-white rounded-full" />}
+                                                                </div>
+                                                                <div>
+                                                                    <p className="text-sm font-black text-slate-900">{method.label}</p>
+                                                                    <p className="text-[10px] font-medium text-slate-500 leading-tight mt-1">{method.desc}</p>
+                                                                </div>
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
-                                        <div className="p-8 bg-slate-900 rounded-[2.5rem] text-white space-y-6">
+
+                                        <div className="p-8 bg-slate-900 rounded-[2.5rem] text-white space-y-8 flex flex-col">
                                             <h4 className="text-xl font-black italic">Resumen de Publicación</h4>
-                                            <div className="space-y-3">
-                                                <div className="flex justify-between text-xs border-b border-white/10 pb-2"><span className="text-white/40 font-black">PACIENTE:</span><span className="font-black">{selectedPatient?.firstName} {selectedPatient?.lastName}</span></div>
-                                                <div className="flex justify-between text-xs border-b border-white/10 pb-2">
+                                            <div className="space-y-4 flex-1">
+                                                <div className="flex justify-between text-xs border-b border-white/10 pb-3"><span className="text-white/40 font-black">PACIENTE:</span><span className="font-black">{selectedPatient?.firstName} {selectedPatient?.lastName}</span></div>
+                                                <div className="flex justify-between text-xs border-b border-white/10 pb-3">
                                                     <span className="text-white/40 font-black">INTERVENCIÓN:</span>
                                                     <div className="text-right">
-                                                        <span className="font-black block truncate max-w-[150px]">{formData.title}</span>
+                                                        <span className="font-black block truncate max-w-[180px]">{formData.title}</span>
                                                         {procedureTypes.find(t => t.id === selectedProcedureTypeId)?.code && (
                                                             <span className="text-[10px] text-alteha-violet font-black uppercase tracking-widest">{procedureTypes.find(t => t.id === selectedProcedureTypeId)?.code}</span>
                                                         )}
                                                     </div>
                                                 </div>
-                                                <div className="flex justify-between text-xs border-b border-white/10 pb-2"><span className="text-white/40 font-black">PRESUPUESTO:</span><span className="font-black text-emerald-400">${formData.maxBudget.toLocaleString()}</span></div>
-                                                <div className="flex justify-between text-xs border-b border-white/10 pb-2"><span className="text-white/40 font-black">INVITADOS:</span><span className="font-black">{(formData.invitedClinicIds?.length || 0) + (formData.invitedDoctorIds?.length || 0)} actores</span></div>
+                                                <div className="flex justify-between text-xs border-b border-white/10 pb-3"><span className="text-white/40 font-black">PRESUPUESTO:</span><span className="font-black text-emerald-400 text-lg">${formData.maxBudget.toLocaleString()}</span></div>
+                                                <div className="flex justify-between text-xs border-b border-white/10 pb-3"><span className="text-white/40 font-black">INVITADOS:</span><span className="font-black">{(formData.invitedClinicIds?.length || 0) + (formData.invitedDoctorIds?.length || 0)} actores</span></div>
+                                                <div className="flex justify-between text-xs border-b border-white/10 pb-3">
+                                                    <span className="text-white/40 font-black">MÉTODO PAGO:</span>
+                                                    <span className="font-black text-alteha-turquoise">{formData.methodType}</span>
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="p-6 bg-white/5 rounded-3xl border border-white/10 mt-auto">
+                                                <div className="flex items-center gap-3 mb-2">
+                                                    <div className="w-8 h-8 rounded-lg bg-alteha-turquoise/20 flex items-center justify-center">
+                                                        <CheckCircle2 className="w-5 h-5 text-alteha-turquoise" />
+                                                    </div>
+                                                    <p className="text-xs font-black text-white uppercase tracking-widest">Listo para publicar</p>
+                                                </div>
+                                                <p className="text-[10px] text-white/40 font-medium leading-relaxed italic">
+                                                    Al confirmar, la subasta será enviada a los especialistas seleccionados bajo las condiciones de pago establecidas.
+                                                </p>
                                             </div>
                                         </div>
                                     </div>
-
-
                                 </div>
                             </motion.div>
                         )}

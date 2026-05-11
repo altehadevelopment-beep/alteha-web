@@ -6,6 +6,7 @@ import { AuthProvider } from '@/contexts/AuthContext'
 import { Toaster } from 'sonner'
 
 import { TehaChatbot } from '@/components/ui/TehaChatbot'
+import { GlobalChatListener } from '@/components/chat/GlobalChatListener'
 
 // Use Outfit for a more modern, tech feel as requested ("minimalista pero muy moderno")
 const outfit = Outfit({ subsets: ['latin'], variable: '--font-outfit' })
@@ -28,7 +29,8 @@ export default function RootLayout({
     <html lang="es" className={`${outfit.variable} ${inter.variable}`}>
       <body className="font-sans antialiased bg-slate-50 text-slate-900 min-h-screen selection:bg-alteha-turquoise/30 selection:text-alteha-violet">
         <AuthProvider>
-          <Toaster position="top-center" richColors />
+          <Toaster position="bottom-right" richColors />
+          <GlobalChatListener />
           {children}
           <TehaChatbot />
         </AuthProvider>

@@ -88,7 +88,7 @@ export default function EditAuctionPage() {
                         showPrice: a.showPrice,
                         durationHours: a.durationHours,
                         autoExtendMinutes: a.autoExtendMinutes,
-                        minBidsRequired: a.minBidsRequired,
+                        minBidsRequired: 10,
                         estimatedSurgeryDate: a.estimatedSurgeryDate ? a.estimatedSurgeryDate.split('T')[0] : '',
                         patient: { id: a.patient?.id || 0 },
                         specialty: { id: a.specialty?.id || 1 },
@@ -99,7 +99,8 @@ export default function EditAuctionPage() {
                         doctorBudget: a.doctorBudget || 0,
                         requiredSupplies: a.requiredSupplies || [],
                         invitedDoctorIds: a.invitedDoctorIds || [],
-                        invitedClinicIds: a.invitedClinicIds || []
+                        invitedClinicIds: a.invitedClinicIds || [],
+                        methodType: a.methodType || 'BS_BANK_TRANSFER'
                     });
                     setAuction(a);
                     setSpecialties(Array.isArray(specs) ? specs : []);
@@ -404,14 +405,16 @@ export default function EditAuctionPage() {
                                         <p className="text-[9px] text-slate-400 font-medium ml-1 italic">Indica si los médicos pueden ver tu presupuesto al ofertar.</p>
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
-                                        <FormInput
-                                            label="Ofertas Mínimas"
-                                            type="number"
-                                            min="0"
-                                            value={formData.minBidsRequired}
-                                            onChange={(v: string) => setFormData({ ...formData, minBidsRequired: Math.max(0, parseInt(v) || 0) })}
-                                            description="Mínimo de propuestas para validez."
-                                        />
+                                        {/* 
+                                         <FormInput
+                                             label="Ofertas Mínimas"
+                                             type="number"
+                                             min="0"
+                                             value={formData.minBidsRequired}
+                                             onChange={(v: string) => setFormData({ ...formData, minBidsRequired: Math.max(0, parseInt(v) || 0) })}
+                                             description="Mínimo de propuestas para validez."
+                                         />
+                                         */}
                                         <FormInput
                                             label="Auto-extensión (Min.)"
                                             type="number"
@@ -426,6 +429,38 @@ export default function EditAuctionPage() {
                                             }}
                                             description="Tiempo añadido al recibir ofertas tardías. (Máx 60m)."
                                         />
+                                </div>
+
+                                {/* Método de Pago */}
+                                <div className="space-y-6 pt-6 border-t">
+                                    <h3 className="text-xl font-black text-slate-900 border-b pb-4">Método de Pago</h3>
+                                    <div className="space-y-4">
+                                        <div className="grid grid-cols-1 gap-3">
+                                            {[
+                                                { id: 'BS_BANK_TRANSFER', label: 'BS_BANK_TRANSFER', desc: 'Una transferencia bancaria común entre cuentas nacionales de Venezuela.' },
+                                                { id: 'BS_PAGO_MOVIL', label: 'BS_PAGO_MOVIL', desc: 'El sistema de Pago Móvil, que permite enviar bolívares de forma inmediata usando solo el número de teléfono y la cédula.' },
+                                                { id: 'USD_WIRE_SWIFT', label: 'USD_WIRE_SWIFT', desc: 'Una transferencia internacional estándar. Es el método tradicional para mover dinero entre bancos de diferentes países.' },
+                                                { id: 'USD_ACH', label: 'USD_ACH', desc: 'Una transferencia bancaria dentro de EE. UU. Común en plataformas como Zelle o cuentas estadounidenses.' },
+                                                { id: 'USD_IBAN', label: 'USD_IBAN', desc: 'Una transferencia a una cuenta bancaria internacional (común en Europa).' },
+                                                { id: 'BINANCE_PAY', label: 'BINANCE_PAY', desc: 'Pago a través de Binance Pay usando ID o correo electrónico.' },
+                                                { id: 'CRYPTO_WALLET', label: 'CRYPTO_WALLET', desc: 'Transferencia directa a billetera de criptomonedas (USDT, BTC, etc.).' }
+                                            ].map((method) => (
+                                                <button
+                                                    key={method.id}
+                                                    type="button"
+                                                    onClick={() => setFormData({ ...formData!, methodType: method.id })}
+                                                    className={`p-4 rounded-2xl border-2 transition-all text-left flex items-start gap-3 ${formData!.methodType === method.id ? 'border-alteha-violet bg-violet-50' : 'border-slate-100 hover:border-slate-200'}`}
+                                                >
+                                                    <div className={`mt-1 w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${formData!.methodType === method.id ? 'border-alteha-violet bg-alteha-violet' : 'border-slate-200'}`}>
+                                                        {formData!.methodType === method.id && <div className="w-2 h-2 bg-white rounded-full" />}
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-sm font-black text-slate-900">{method.label}</p>
+                                                        <p className="text-[10px] font-medium text-slate-500 leading-tight mt-1">{method.desc}</p>
+                                                    </div>
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
                                 </div>
                             </div>

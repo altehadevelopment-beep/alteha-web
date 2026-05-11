@@ -282,6 +282,7 @@ export interface AuctionPayload {
     configurationId?: number | null;
     invitedDoctorIds?: number[];
     invitedClinicIds?: number[];
+    methodType?: string;
 }
 
 export interface RequiredSupply {
@@ -405,7 +406,8 @@ export async function authenticate(
             password,
             role: roleMapping[role] || 'DOCTOR',
             rememberMe,
-            captchaToken
+            captchaToken,
+            deviceId
         })
     });
     return response.json();
@@ -1255,6 +1257,19 @@ export async function getDoctorById(id: number | string): Promise<ApiResponse<Ac
     return response.json();
 }
 
+export async function getInsuranceCompanyById(id: number | string): Promise<ApiResponse<ActorProfile>> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+
+    const response = await fetch(`/api/insurance-companies/${id}`, {
+        method: 'GET',
+        headers: {
+            'X-Alteha-Token': token
+        }
+    });
+    return response.json();
+}
+
 // Helper to get stored token
 export function getStoredToken(): string | null {
     if (typeof window !== 'undefined') {
@@ -1498,14 +1513,29 @@ export async function updatePaymentMethod(id: number, method: PaymentMethod, rol
 }
 
 export async function updateDeviceId(role: string, deviceId: string): Promise<ApiResponse> {
-    const token = getStoredToken();
-    if (!token) throw new Error('No token found');
+    const userToken = getStoredToken();
+    if (!userToken) return { code: 'AUTH_001', message: 'No session' };
 
     const response = await fetch(`/api/actor/update-device-id?role=${role}&deviceId=${deviceId}`, {
-        method: 'POST',
-        headers: {
-            'X-Alteha-Token': token
-        }
+        headers: { 'Authorization': `Bearer ${userToken}` }
     });
     return response.json();
+}
+
+/**
+ * Gets or generates a unique device ID for the current browser/device.
+ * Stores it in localStorage for persistence.
+ */
+export function getDeviceId(): string {
+    if (typeof window === 'undefined') return '';
+    
+    let deviceId = localStorage.getItem('alteha_device_id');
+    
+    if (!deviceId) {
+        // Generate a simple UUID-like string
+        deviceId = 'dev_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+        localStorage.setItem('alteha_device_id', deviceId);
+    }
+    
+    return deviceId;
 }

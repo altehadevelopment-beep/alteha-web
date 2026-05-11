@@ -12,15 +12,47 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { ChatWindow } from '@/components/chat/ChatWindow';
+import { useUnreadCount } from '@/hooks/useChat';
 
 interface AuctionBidsListProps {
     auctionId: number;
     auctionNumber: string;
     auctionStatus?: string;
     mode?: 'insurance' | 'doctor'; // insurance = full details, doctor = own bids only
+    insuranceId?: number;
+    insuranceName?: string;
 }
 
-export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatus, mode = 'insurance' }: AuctionBidsListProps) {
+const ChatButtonWithBadge: React.FC<{
+    auctionId: string;
+    currentUserId: string;
+    participantId: string;
+    onClick: (e: React.MouseEvent) => void;
+    title: string;
+}> = ({ auctionId, currentUserId, participantId, onClick, title }) => {
+    const unreadCount = useUnreadCount(auctionId, currentUserId, participantId);
+    
+    return (
+        <button
+            onClick={onClick}
+            className="w-10 h-10 rounded-xl bg-alteha-violet/10 text-alteha-violet flex items-center justify-center hover:bg-alteha-violet hover:text-white transition-all border border-alteha-violet/10 shadow-sm group/chat relative"
+            title={title}
+        >
+            <MessageSquare className="w-5 h-5 group-hover/chat:scale-110 transition-transform" />
+            {unreadCount > 0 && (
+                <motion.span 
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-sm"
+                >
+                    {unreadCount}
+                </motion.span>
+            )}
+        </button>
+    );
+};
+
+export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatus, mode = 'insurance', insuranceId, insuranceName }: AuctionBidsListProps) {
     const { userProfile } = useAuth();
     const [bids, setBids] = useState<BidDetailed[]>([]);
     const [topOffers, setTopOffers] = useState<TopOffer[]>([]);
@@ -38,6 +70,7 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
     const [activeChat, setActiveChat] = useState<{
         participantId: string;
         participantName: string;
+        participantPhoto?: string;
     } | null>(null);
 
     const handleAward = (bidId: number) => {
@@ -144,6 +177,31 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
                 setTopOffers(Array.isArray(topRes.data) ? topRes.data : []);
             } else {
                 setTopOffers([]);
+            }
+
+            // Handle deep link to chat
+            if (typeof window !== 'undefined') {
+                const params = new URLSearchParams(window.location.search);
+                if (params.get('openChat') === 'true') {
+                    const pId = params.get('participantId');
+                    if (pId) {
+                        // Find if it's a doctor in the bids
+                        const bidWithDoctor = bidsData.find(b => String(b.doctor?.id) === pId);
+                        if (bidWithDoctor) {
+                            setActiveChat({
+                                participantId: String(pId),
+                                participantName: bidWithDoctor.doctor?.fullName || 'Médico',
+                                participantPhoto: bidWithDoctor.doctor?.profileImageUrl || (bidWithDoctor as any).doctorPhoto || (bidWithDoctor.doctor as any)?.imageUrl
+                            });
+                        } else if (mode === 'doctor' && String(insuranceId) === pId) {
+                            setActiveChat({
+                                participantId: String(pId),
+                                participantName: insuranceName || 'Compañía de Seguros',
+                                participantPhoto: (bidsData[0] as any)?.auction?.insuranceCompany?.logoUrl || (bidsData[0] as any)?.insuranceCompany?.logoUrl
+                            });
+                        }
+                    }
+                }
             }
         } catch (err) {
             console.error('Error loading bids:', err);
@@ -343,6 +401,25 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
                                             {new Date(offer.createdAt).toLocaleDateString('es-ES')}
                                         </p>
                                     )}
+                                    
+                                    {/* Chat Button (Insurance only) */}
+                                    {mode === 'insurance' && auctionStatus === 'ACTIVE' && (
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                const dId = (offer as any).doctorId || (offer as any).doctor?.id;
+                                                const dName = offer.doctorName || (offer as any).doctorFirstName || 'Médico';
+                                                setActiveChat({
+                                                    participantId: String(dId),
+                                                    participantName: dName
+                                                });
+                                            }}
+                                            className="mt-3 w-full py-2 bg-alteha-violet/10 text-alteha-violet rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-alteha-violet hover:text-white transition-all border border-alteha-violet/20"
+                                        >
+                                            <MessageSquare className="w-3.5 h-3.5" />
+                                            Chat con Médico
+                                        </button>
+                                    )}
                                     </div>
                                 </div>
                             </motion.div>
@@ -469,6 +546,50 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
                                                 </p>
                                             )}
                                         </div>
+                                        
+                                        {/* Direct Chat Icon */}
+                                        {auctionStatus === 'ACTIVE' && (
+                                            <ChatButtonWithBadge
+                                                auctionId={String(auctionId)}
+                                                currentUserId={String(userProfile?.id || 'guest')}
+                                                participantId={String(mode === 'insurance' 
+                                                    ? (bid.doctor?.id || (typeof bid.doctor === 'number' ? bid.doctor : null) || (bid as any).doctorId || (bid as any).doctor?.id)
+                                                    : (insuranceId || (bid as any).auction?.insuranceCompany?.id || (bid as any).insuranceCompany?.id)
+                                                )}
+                                                title={mode === 'insurance' ? "Chat con médico" : "Chat con seguro"}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (mode === 'insurance') {
+                                                        const dId = bid.doctor?.id || (typeof bid.doctor === 'number' ? bid.doctor : null) || (bid as any).doctorId || (bid as any).doctor?.id;
+                                                        const dName = bid.doctor?.fullName || (bid.doctor?.firstName ? `${bid.doctor.firstName} ${bid.doctor.lastName}` : (bid as any).doctorName || 'Médico');
+                                                        
+                                                        if (!dId) {
+                                                            alert('No se pudo encontrar el ID del médico para iniciar el chat.');
+                                                            return;
+                                                        }
+
+                                                        setActiveChat({
+                                                            participantId: String(dId),
+                                                            participantName: dName,
+                                                            participantPhoto: bid.doctor?.profileImageUrl || (bid as any).doctorPhoto || (bid.doctor as any)?.imageUrl
+                                                        });
+                                                    } else if (mode === 'doctor') {
+                                                        const iId = insuranceId || (bid as any).auction?.insuranceCompany?.id || (bid as any).insuranceCompany?.id;
+                                                        const iName = insuranceName || (bid as any).auction?.insuranceCompany?.name || (bid as any).auction?.insuranceCompany?.name || 'Compañía de Seguros';
+                                                        if (iId) {
+                                                            setActiveChat({
+                                                                participantId: String(iId),
+                                                                participantName: iName,
+                                                                participantPhoto: (bid as any).auction?.insuranceCompany?.logoUrl || (bid as any).insuranceCompany?.logoUrl || (bid as any).insuranceCompany?.logo
+                                                            });
+                                                        } else {
+                                                            alert('No se pudo identificar a la compañía de seguros.');
+                                                        }
+                                                    }
+                                                }}
+                                            />
+                                        )}
+                                        
                                         <div className="text-slate-300">
                                             {expandedBid === bid.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                                         </div>
@@ -647,36 +768,53 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
                                                 )}
 
                                                 {/* Actions */}
-                                                {mode === 'insurance' && auctionStatus === 'ACTIVE' && (
+                                                {auctionStatus === 'ACTIVE' && (
                                                     <div className="pt-4 border-t border-slate-100 flex gap-3">
                                                         <Button
                                                             onClick={() => {
-                                                                const dId = typeof bid.doctor === 'object' ? bid.doctor?.id : (typeof bid.doctor === 'number' ? bid.doctor : (bid as any).doctorId);
-                                                                const dName = (bid.doctor as any)?.fullName || ((bid.doctor as any)?.firstName ? `${(bid.doctor as any).firstName} ${(bid.doctor as any).lastName}` : 'Médico');
-                                                                setActiveChat({
-                                                                    participantId: String(dId),
-                                                                    participantName: dName
-                                                                });
+                                                                if (mode === 'insurance') {
+                                                                    const dId = typeof bid.doctor === 'object' ? bid.doctor?.id : (typeof bid.doctor === 'number' ? bid.doctor : (bid as any).doctorId);
+                                                                    const dName = (bid.doctor as any)?.fullName || ((bid.doctor as any)?.firstName ? `${(bid.doctor as any).firstName} ${(bid.doctor as any).lastName}` : 'Médico');
+                                                                    setActiveChat({
+                                                                        participantId: String(dId),
+                                                                        participantName: dName
+                                                                    });
+                                                                } else if (mode === 'doctor') {
+                                                                    // Chat with insurance company
+                                                                    const iId = insuranceId || (bid as any).auction?.insuranceCompany?.id || (bid as any).insuranceCompany?.id;
+                                                                    const iName = insuranceName || (bid as any).auction?.insuranceCompany?.name || (bid as any).insuranceCompany?.name || 'Compañía de Seguros';
+                                                                    if (iId) {
+                                                                        setActiveChat({
+                                                                            participantId: String(iId),
+                                                                            participantName: iName
+                                                                        });
+                                                                    } else {
+                                                                        alert('No se pudo identificar a la compañía de seguros para iniciar el chat.');
+                                                                    }
+                                                                }
                                                             }}
                                                             className="flex-1 bg-slate-100 text-slate-600 py-3 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-slate-200 transition-all border border-slate-200"
                                                         >
                                                             <MessageSquare className="w-4 h-4" />
-                                                            Chat
+                                                            {mode === 'insurance' ? 'Chat con Médico' : 'Chat con Seguro'}
                                                         </Button>
-                                                        <Button
-                                                            onClick={() => handleAward(bid.id)}
-                                                            disabled={isAwarding !== null}
-                                                            className="flex-[2] bg-alteha-violet text-white py-3 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-violet-100 hover:scale-[1.02] transition-all disabled:opacity-50"
-                                                        >
-                                                            {isAwarding === bid.id ? (
-                                                                <Loader2 className="w-4 h-4 animate-spin" />
-                                                            ) : (
-                                                                <>
-                                                                    <Trophy className="w-4 h-4" />
-                                                                    Adjudicar
-                                                                </>
-                                                            )}
-                                                        </Button>
+                                                        
+                                                        {mode === 'insurance' && (
+                                                            <Button
+                                                                onClick={() => handleAward(bid.id)}
+                                                                disabled={isAwarding !== null}
+                                                                className="flex-[2] bg-alteha-violet text-white py-3 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-violet-100 hover:scale-[1.02] transition-all disabled:opacity-50"
+                                                            >
+                                                                {isAwarding === bid.id ? (
+                                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                                ) : (
+                                                                    <>
+                                                                        <Trophy className="w-4 h-4" />
+                                                                        Adjudicar
+                                                                    </>
+                                                                )}
+                                                            </Button>
+                                                        )}
                                                     </div>
                                                 )}
                                             </div>
@@ -845,10 +983,13 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
                     {activeChat && (
                         <ChatWindow 
                             auctionId={String(auctionId)}
+                            auctionNumber={auctionNumber}
                             participantId={activeChat.participantId}
                             participantName={activeChat.participantName}
+                            participantPhoto={activeChat.participantPhoto}
                             currentUserId={String(userProfile?.id || 'guest')}
-                            currentUserName={userProfile?.firstName ? `${userProfile.firstName} ${userProfile.lastName}` : 'Usuario'}
+                            currentUserName={userProfile?.firstName ? `${userProfile.firstName} ${userProfile.lastName}` : (userProfile?.name || 'Usuario')}
+                            currentUserPhoto={userProfile?.profileImageUrl || userProfile?.logoUrl || (userProfile as any)?.imageUrl || (userProfile as any)?.avatarUrl}
                             onClose={() => setActiveChat(null)}
                         />
                     )}

@@ -2,7 +2,9 @@
 
 import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { authenticate as apiAuthenticate, storeToken, clearToken, getStoredToken, type AuthResponse } from '@/lib/api';
+import { authenticate as apiAuthenticate, storeToken, clearToken, getStoredToken, getDeviceId, updateDeviceId, type AuthResponse } from '@/lib/api';
+import { auth } from '@/lib/firebase';
+import { signInAnonymously } from 'firebase/auth';
 
 interface AuthContextType {
     isAuthenticated: boolean;
@@ -79,6 +81,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                     fetchProfile(apiRole);
                 }
             }
+            // Also sign in to Firebase anonymously if not already signed in
+            if (!auth.currentUser) {
+                signInAnonymously(auth).catch(err => console.error('Firebase auto sign-in failed:', err));
+            }
         }
         setIsInitializing(false);
     }, [pathname, fetchProfile, resetTimer]);
@@ -98,7 +104,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     const login = async (username: string, password: string, role: string = 'specialist', captchaToken?: string): Promise<AuthResponse> => {
         try {
-            const result = await apiAuthenticate(username, password, role, true, captchaToken);
+            const deviceId = getDeviceId();
+            const result = await apiAuthenticate(username, password, role, true, captchaToken, deviceId);
 
             if (result.code === '00' && result.data?.id_token) {
                 const newToken = result.data.id_token;
@@ -106,7 +113,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 setToken(newToken);
                 const apiRole = role === 'specialist' ? 'DOCTOR' : (role === 'insurance' ? 'INSURANCE_COMPANY' : (role === 'provider' ? 'PHARMACY' : role.toUpperCase()));
 
+                // Also update deviceId specifically after login to be sure
+                updateDeviceId(apiRole, deviceId).catch(err => console.error('Failed to update device ID:', err));
+
                 await fetchProfile(apiRole);
+                
+                // Sign in to Firebase anonymously for real-time features
+                try {
+                    await signInAnonymously(auth);
+                } catch (fbErr) {
+                    console.error('Firebase sign-in failed:', fbErr);
+                }
+
                 resetTimer();
             }
 

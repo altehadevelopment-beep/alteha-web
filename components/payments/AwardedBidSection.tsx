@@ -1,10 +1,15 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { getAuctionBids, type BidDetailed, type Auction } from '@/lib/api';
-import { Trophy, Building2, User, Clock, Wallet, ShieldCheck, ArrowRight, Loader2, CreditCard, Calendar, Star, AlertCircle } from 'lucide-react';
+import { Trophy, Building2, User, Clock, Wallet, ShieldCheck, ArrowRight, Loader2, CreditCard, Calendar, Star, AlertCircle, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { Modal } from '@/components/ui/Modal';
+import { ChatWindow } from '@/components/chat/ChatWindow';
+import { useUnreadCount } from '@/hooks/useChat';
+import { useAuth } from '@/contexts/AuthContext';
 import PaymentProcessModal from './PaymentProcessModal';
 
 interface AwardedBidSectionProps {
@@ -12,10 +17,47 @@ interface AwardedBidSectionProps {
     role: string;
 }
 
+const ChatButtonWithBadge: React.FC<{
+    auctionId: string;
+    currentUserId: string;
+    participantId: string;
+    onClick: (e: React.MouseEvent) => void;
+    title: string;
+    className?: string;
+}> = ({ auctionId, currentUserId, participantId, onClick, title, className }) => {
+    const unreadCount = useUnreadCount(auctionId, currentUserId, participantId);
+    
+    return (
+        <Button 
+            onClick={onClick}
+            className={`relative group ${className || ''}`}
+            title={title}
+        >
+            <MessageSquare className="w-3.5 h-3.5" />
+            {title}
+            {unreadCount > 0 && (
+                <motion.span 
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-sm"
+                >
+                    {unreadCount}
+                </motion.span>
+            )}
+        </Button>
+    );
+};
+
 export default function AwardedBidSection({ auction, role }: AwardedBidSectionProps) {
     const [winningBid, setWinningBid] = useState<BidDetailed | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+    const { userProfile } = useAuth();
+    const [activeChat, setActiveChat] = useState<{
+        participantId: string;
+        participantName: string;
+        participantPhoto?: string;
+    } | null>(null);
 
     useEffect(() => {
         loadWinningBid();
@@ -110,6 +152,49 @@ export default function AwardedBidSection({ auction, role }: AwardedBidSectionPr
                                     </div>
                                     <span className="text-sm font-bold text-slate-600">Profesional Certificado</span>
                                 </div>
+                                
+                                <ChatButtonWithBadge
+                                    auctionId={String(auction.id)}
+                                    currentUserId={String(userProfile?.id || 'guest')}
+                                    participantId={String(role === 'insurance' ? winningBid.doctor?.id : auction.insuranceCompany?.id)}
+                                    title={role === 'insurance' ? 'Chat con Médico' : 'Chat con Seguro'}
+                                    onClick={async () => {
+                                        if (role === 'insurance') {
+                                            // Doctor photo: prefer the one in winningBid, fallback to getDoctorById
+                                            let photo = winningBid.doctor?.profileImageUrl || (winningBid.doctor as any)?.imageUrl || (winningBid as any)?.doctorPhoto;
+                                            if (!photo && winningBid.doctor?.id) {
+                                                try {
+                                                    const { getDoctorById } = await import('@/lib/api');
+                                                    const res = await getDoctorById(winningBid.doctor.id);
+                                                    const data = res.code === '00' && res.data ? res.data : (res as any).id ? res as any : null;
+                                                    if (data) photo = data.profileImageUrl || data.logoUrl;
+                                                } catch { /* use initials */ }
+                                            }
+                                            setActiveChat({
+                                                participantId: String(winningBid.doctor?.id),
+                                                participantName: winningBid.doctor?.fullName || 'Médico',
+                                                participantPhoto: photo
+                                            });
+                                        } else {
+                                            // Insurance photo: try from auction data, fallback to API
+                                            let photo = auction.insuranceCompany?.logoUrl || (auction.insuranceCompany as any)?.logo || (auction.insuranceCompany as any)?.profileImageUrl;
+                                            if (!photo && auction.insuranceCompany?.id) {
+                                                try {
+                                                    const { getInsuranceCompanyById } = await import('@/lib/api');
+                                                    const res = await getInsuranceCompanyById(auction.insuranceCompany.id);
+                                                    const data = res.code === '00' && res.data ? res.data : (res as any).id ? res as any : null;
+                                                    if (data) photo = data.logoUrl || data.profileImageUrl;
+                                                } catch { /* use initials */ }
+                                            }
+                                            setActiveChat({
+                                                participantId: String(auction.insuranceCompany?.id),
+                                                participantName: auction.insuranceCompany?.name || 'Compañía de Seguros',
+                                                participantPhoto: photo
+                                            });
+                                        }
+                                    }}
+                                    className="w-full bg-slate-50 text-slate-500 hover:bg-alteha-turquoise hover:text-slate-900 rounded-2xl py-2 font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 border border-slate-100 transition-all"
+                                />
                             </div>
                         </div>
 
@@ -213,6 +298,30 @@ export default function AwardedBidSection({ auction, role }: AwardedBidSectionPr
                 auctionTitle={auction.title}
                 role={role}
             />
+
+            {/* Chat Modal */}
+            <Modal
+                isOpen={!!activeChat}
+                onClose={() => setActiveChat(null)}
+                title="Mensajería Directa"
+                maxWidth="max-w-xl"
+            >
+                <div className="h-[600px] -m-6">
+                    {activeChat && (
+                        <ChatWindow 
+                            auctionId={String(auction.id)}
+                            auctionNumber={auction.auctionNumber}
+                            participantId={activeChat.participantId}
+                            participantName={activeChat.participantName}
+                            participantPhoto={activeChat.participantPhoto}
+                            currentUserId={String(userProfile?.id || 'guest')}
+                            currentUserName={userProfile?.firstName ? `${userProfile.firstName} ${userProfile.lastName}` : (userProfile?.name || 'Usuario')}
+                            currentUserPhoto={userProfile?.profileImageUrl || userProfile?.logoUrl || (userProfile as any)?.imageUrl || (userProfile as any)?.avatarUrl}
+                            onClose={() => setActiveChat(null)}
+                        />
+                    )}
+                </div>
+            </Modal>
         </div>
     );
 }

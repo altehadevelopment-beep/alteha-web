@@ -29,7 +29,7 @@ const specialistItems = [
     { title: 'Métodos de Pago', icon: CreditCard, href: '/dashboard/specialist/payments' },
     { title: 'Recepción de Fondos', icon: Wallet, href: '/dashboard/specialist/withdrawals' },
     { title: 'Paquetes', icon: Package, href: '/dashboard/specialist/packages' },
-    { title: 'Chat', icon: MessageSquare, href: '/dashboard/specialist/chat' },
+    { title: 'Conversaciones', icon: MessageSquare, href: '/dashboard/specialist/conversations' },
     { title: 'Referir Colega', icon: Users, href: '/dashboard/specialist/referrals' },
     { title: 'Disputas', icon: AlertCircle, href: '/dashboard/specialist/disputes' },
 ];
@@ -39,7 +39,7 @@ const clinicItems = [
     { title: 'Subastas', icon: Gavel, href: '/dashboard/clinic/auctions' },
     { title: 'Mis Paquetes', icon: Package, href: '/dashboard/clinic/packages' },
     { title: 'Pagos', icon: CreditCard, href: '/dashboard/clinic/payments' },
-    { title: 'Chat', icon: MessageSquare, href: '/dashboard/clinic/chat' },
+    { title: 'Conversaciones', icon: MessageSquare, href: '/dashboard/clinic/conversations' },
     { title: 'Notificaciones', icon: Bell, href: '/dashboard/clinic/notifications' },
     { title: 'Puntuación', icon: Star, href: '/dashboard/clinic/score' },
 ];
@@ -49,7 +49,7 @@ const insuranceItems = [
     { title: 'Crear Subasta', icon: Plus, href: '/dashboard/insurance/auctions/new' },
     { title: 'Mis Subastas', icon: Gavel, href: '/dashboard/insurance/auctions' },
     { title: 'Métodos de Pago', icon: CreditCard, href: '/dashboard/insurance/payments' },
-    { title: 'Chat Corporativo', icon: MessageSquare, href: '/dashboard/insurance/chat' },
+    { title: 'Conversaciones', icon: MessageSquare, href: '/dashboard/insurance/conversations' },
     { title: 'Directorio Médico', icon: Users, href: '/dashboard/insurance/directory' },
 ];
 
@@ -60,7 +60,7 @@ const providerItems = [
     { title: 'Catálogo de Productos', icon: Package, href: '/dashboard/provider/catalog' },
     { title: 'Órdenes Recibidas', icon: FileText, href: '/dashboard/provider/orders' },
     { title: 'Pagos', icon: CreditCard, href: '/dashboard/provider/payments' },
-    { title: 'Chat', icon: MessageSquare, href: '/dashboard/provider/chat' },
+    { title: 'Conversaciones', icon: MessageSquare, href: '/dashboard/provider/conversations' },
 ];
 
 export function DashboardSidebar() {
