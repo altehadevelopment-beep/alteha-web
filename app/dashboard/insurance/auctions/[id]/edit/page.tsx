@@ -430,6 +430,7 @@ export default function EditAuctionPage() {
                                             description="Tiempo añadido al recibir ofertas tardías. (Máx 60m)."
                                         />
                                 </div>
+                                </div>
 
                                 {/* Método de Pago */}
                                 <div className="space-y-6 pt-6 border-t">
