@@ -4,18 +4,31 @@ import React, { useState, useEffect } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import PaymentMethodsManager from '@/components/dashboard/PaymentMethodsManager';
-import { CreditCard, ShieldCheck, Loader2, CheckCircle2, Wallet, ArrowRight, Building2, User, Landmark, Phone, CalendarDays, Hash } from 'lucide-react';
-import { type PaymentMethod, type BidDetailed } from '@/lib/api';
+import { CreditCard, ShieldCheck, Loader2, CheckCircle2, Wallet, ArrowRight, Building2, User, Landmark, Phone, CalendarDays, Hash, Banknote, Globe, QrCode } from 'lucide-react';
+import { type PaymentMethod, type BidDetailed, getAvailablePaymentMethodsForAuction, registerAuctionPaymentProof } from '@/lib/api';
+import { cn } from '@/lib/utils';
+
+const METHOD_TYPES = [
+    { id: 'BS_PAGO_MOVIL', name: 'Pago Móvil (BS)', icon: Banknote, color: 'bg-emerald-500', description: 'Cobros rápidos en Bolívares' },
+    { id: 'BS_BANK_TRANSFER', name: 'Transferencia BS', icon: Building2, color: 'bg-blue-500', description: 'Cuentas nacionales en Bolívares' },
+    { id: 'USD_ACH', name: 'ACH / Zelle (USD)', icon: Banknote, color: 'bg-purple-500', description: 'Transferencias domésticas EE.UU.' },
+    { id: 'USD_WIRE_SWIFT', name: 'SWIFT (USD)', icon: Globe, color: 'bg-indigo-500', description: 'Transferencias internacionales' },
+    { id: 'USD_IBAN', name: 'IBAN (EUR/USD)', icon: Globe, color: 'bg-slate-700', description: 'Cuentas europeas / internacionales' },
+    { id: 'BINANCE_PAY', name: 'Binance Pay', icon: QrCode, color: 'bg-amber-500', description: 'Pagos mediante Binance' },
+    { id: 'CRYPTO_WALLET', name: 'Crypto Wallet', icon: Wallet, color: 'bg-orange-500', description: 'USDT (TRC20, ERC20, BEP20)' },
+];
 
 interface PaymentProcessModalProps {
     isOpen: boolean;
     onClose: () => void;
     bid: BidDetailed | null;
     auctionTitle: string;
+    auctionNumber?: string;
     role: string;
+    allowedPaymentMethods?: string[];
 }
 
-export default function PaymentProcessModal({ isOpen, onClose, bid, auctionTitle, role }: PaymentProcessModalProps) {
+export default function PaymentProcessModal({ isOpen, onClose, bid, auctionTitle, auctionNumber, role, allowedPaymentMethods }: PaymentProcessModalProps) {
     const [step, setStep] = useState<'select' | 'confirm' | 'success'>('select');
     const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
@@ -25,6 +38,40 @@ export default function PaymentProcessModal({ isOpen, onClose, bid, auctionTitle
     const [originBank, setOriginBank] = useState('');
     const [originPhone, setOriginPhone] = useState('');
     const [transactionDate, setTransactionDate] = useState(new Date().toISOString().split('T')[0]);
+    const [notes, setNotes] = useState('');
+    const [proofFile, setProofFile] = useState<File | null>(null);
+
+    // Available Methods State
+    const [availableMethods, setAvailableMethods] = useState<PaymentMethod[]>([]);
+    const [isLoadingMethods, setIsLoadingMethods] = useState(false);
+
+    useEffect(() => {
+        if (isOpen && step === 'select' && bid) {
+            const fetchMethods = async () => {
+                setIsLoadingMethods(true);
+                try {
+                    const auctionNum = auctionNumber || (bid as any).auctionNumber;
+                    if (auctionNum) {
+                        let methods = await getAvailablePaymentMethodsForAuction(auctionNum);
+                        
+                        // Filter by allowedPaymentMethods if present
+                        if (allowedPaymentMethods && allowedPaymentMethods.length > 0) {
+                            methods = methods.filter(m => allowedPaymentMethods.includes(m.methodType));
+                        }
+                        
+                        setAvailableMethods(methods || []);
+                    } else {
+                        console.error('No auctionNumber provided to fetch payment methods');
+                    }
+                } catch (error) {
+                    console.error('Error fetching available methods:', error);
+                } finally {
+                    setIsLoadingMethods(false);
+                }
+            };
+            fetchMethods();
+        }
+    }, [isOpen, step, bid, auctionNumber]);
 
     const handleMethodSelect = (method: PaymentMethod) => {
         setSelectedMethod(method);
@@ -47,15 +94,43 @@ export default function PaymentProcessModal({ isOpen, onClose, bid, auctionTitle
     };
 
     const handleConfirmPayment = async () => {
-        if (!isFormValid()) return;
+        if (!isFormValid() || !selectedMethod) return;
 
         setIsProcessing(true);
-        // Simulation of payment reporting
         try {
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            setStep('success');
-        } catch (error) {
-            console.error('Error reporting payment:', error);
+            const formData = new FormData();
+            
+            const paymentPayload: any = {
+                auctionNumber: auctionNumber || (bid as any)?.auctionNumber,
+                paymentMethodId: selectedMethod.id,
+                paymentMethodType: selectedMethod.methodType,
+                referenceNumber: reference.trim(),
+                notes: notes.trim()
+            };
+
+            // Add payee if available in the method or use fallback (from logs it was 10)
+            const payeeId = selectedMethod.owner?.id || (selectedMethod as any).payeeId || 10;
+            paymentPayload.payee = { id: payeeId };
+            
+            // As user specified, payment is a string with type application/json
+            formData.append('payment', new Blob([JSON.stringify(paymentPayload)], { type: 'application/json' }));
+            
+            if (proofFile) {
+                formData.append('proof', proofFile);
+            }
+
+            const response = await registerAuctionPaymentProof(formData);
+            console.log('Payment Proof Response:', response);
+            
+            if (response.code === '00' || response.status === 'success' || !response.code) {
+                setStep('success');
+            } else {
+                console.log('Payment Proof Error Condition Hit. Code:', response.code);
+                throw new Error(response.message || 'Error al registrar el pago');
+            }
+        } catch (error: any) {
+            console.error('Error reporting payment. Full error:', error);
+            alert(error.message || 'No se pudo registrar el pago. Por favor intente de nuevo.');
         } finally {
             setIsProcessing(false);
         }
@@ -68,6 +143,8 @@ export default function PaymentProcessModal({ isOpen, onClose, bid, auctionTitle
         setReference('');
         setOriginBank('');
         setOriginPhone('');
+        setNotes('');
+        setProofFile(null);
         setTransactionDate(new Date().toISOString().split('T')[0]);
     };
 
@@ -97,11 +174,104 @@ export default function PaymentProcessModal({ isOpen, onClose, bid, auctionTitle
                         </div>
                         
                         <div>
-                            <PaymentMethodsManager 
-                                role={role} 
-                                selectionMode={true} 
-                                onSelect={handleMethodSelect} 
-                            />
+                            {isLoadingMethods ? (
+                                <div className="flex flex-col items-center justify-center py-20 gap-4 bg-white rounded-[2rem] border border-slate-100">
+                                    <Loader2 className="w-12 h-12 text-alteha-turquoise animate-spin" />
+                                    <p className="text-slate-400 font-bold animate-pulse uppercase tracking-widest text-[10px]">Cargando cuentas recaudadoras...</p>
+                                </div>
+                            ) : availableMethods.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center py-10 bg-white rounded-[2rem] border-2 border-dashed border-slate-100 text-center px-6 gap-6">
+                                    <div className="space-y-2">
+                                        <Wallet className="w-12 h-12 text-slate-200 mx-auto" />
+                                        <h3 className="text-xl font-black text-slate-900 tracking-tight">No hay cuentas disponibles</h3>
+                                        <p className="text-slate-400 font-medium max-w-sm mx-auto text-sm">
+                                            No se encontraron cuentas recaudadoras configuradas para esta subasta. Contacta con soporte.
+                                        </p>
+                                    </div>
+                                    
+                                    {/* Diagnostic Curl Section */}
+                                    <div className="w-full max-w-md bg-slate-900 rounded-3xl p-5 text-left shadow-2xl border border-slate-800">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <span className="text-[10px] font-black text-alteha-turquoise uppercase tracking-widest">Diagnóstico (cURL)</span>
+                                            <span className="text-[10px] text-slate-500 font-mono">Prueba este comando en tu terminal</span>
+                                        </div>
+                                        <pre className="text-[11px] text-slate-300 font-mono break-all whitespace-pre-wrap leading-relaxed select-all">
+                                            curl -X GET 'https://qaback.alteha.com:3232/api/auctions/{auctionNumber || 'AUC-ID'}/available-payment-methods' \<br/>
+                                            &nbsp;&nbsp;-H 'X-Alteha-Token: {typeof window !== 'undefined' ? localStorage.getItem('alteha_token') || 'TU_TOKEN' : 'TU_TOKEN'}'
+                                        </pre>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="space-y-6">
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <CreditCard className="w-6 h-6 text-alteha-turquoise" />
+                                        <h3 className="text-xl font-black text-slate-900">
+                                            {role === 'INSURANCE_COMPANY' ? 'Selecciona tu Método de Pago' : 'Cuentas Recaudadoras Alteha'}
+                                        </h3>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                        {availableMethods.map(method => {
+                                            const typeInfo = METHOD_TYPES.find(t => t.id === method.methodType) || METHOD_TYPES[0];
+                                            const isPreferred = allowedPaymentMethods?.includes(method.methodType);
+                                            return (
+                                                <div 
+                                                    key={method.id} 
+                                                    onClick={() => handleMethodSelect(method)}
+                                                    className="group relative bg-white p-6 rounded-[2rem] border-2 border-slate-100 cursor-pointer transition-all hover:border-alteha-turquoise shadow-sm hover:shadow-xl hover:shadow-teal-500/10 overflow-hidden isolate"
+                                                >
+                                                    <div className={cn("absolute top-0 right-0 w-32 h-32 blur-[60px] -z-10 opacity-10 transition-opacity group-hover:opacity-20", typeInfo.color)} />
+                                                    
+                                                    <div className="flex justify-between items-start mb-6">
+                                                        <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-md transition-transform group-hover:scale-110", typeInfo.color)}>
+                                                            <typeInfo.icon className="w-6 h-6" />
+                                                        </div>
+                                                        <div className="flex flex-col items-end gap-2">
+                                                            {isPreferred && (
+                                                                <span className="bg-alteha-turquoise text-slate-900 text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest">Preferido</span>
+                                                            )}
+                                                            <div className="w-8 h-8 rounded-xl bg-alteha-turquoise/10 flex items-center justify-center text-alteha-turquoise" title="Verificado">
+                                                                <ShieldCheck className="w-5 h-5" />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="space-y-4">
+                                                        <div>
+                                                            <h4 className="text-lg font-black text-slate-900 leading-tight mb-1">{method.displayName}</h4>
+                                                            <p className="text-[9px] font-black text-alteha-turquoise uppercase tracking-[0.2em]">{typeInfo.name}</p>
+                                                        </div>
+
+                                                        <div className="bg-slate-50/80 rounded-2xl p-4 border border-slate-100 group-hover:bg-white transition-colors">
+                                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-2">
+                                                                <Hash className="w-3 h-3" /> Información de Cuenta
+                                                            </p>
+                                                            <p className="font-mono text-xs font-bold text-slate-700 break-all leading-relaxed">
+                                                                {method.methodType === 'BINANCE_PAY' 
+                                                                    ? (method.binancePayId || method.binanceUserIdentifier)
+                                                                    : method.methodType === 'CRYPTO_WALLET'
+                                                                    ? method.cryptoWalletAddress
+                                                                    : method.methodType === 'BS_PAGO_MOVIL'
+                                                                    ? method.bankAccount?.phone
+                                                                    : method.bankAccount?.accountNumber}
+                                                            </p>
+                                                            {method.bankAccount?.bankName && (
+                                                                <p className="text-[10px] font-bold text-slate-400 mt-2 flex items-center gap-1.5">
+                                                                    <Building2 className="w-3 h-3" /> {method.bankAccount.bankName}
+                                                                </p>
+                                                            )}
+                                                        </div>
+
+                                                        <div className="flex items-center justify-end text-alteha-turquoise opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <span className="text-[10px] font-black uppercase tracking-widest mr-2">Pagar a esta cuenta</span>
+                                                            <ArrowRight className="w-4 h-4" />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}
@@ -139,19 +309,19 @@ export default function PaymentProcessModal({ isOpen, onClose, bid, auctionTitle
                                     <div className="grid grid-cols-1 gap-3">
                                         <div className="flex justify-between border-b border-slate-800 pb-2">
                                             <span className="text-xs font-bold text-slate-400">Banco</span>
-                                            <span className="text-xs font-black uppercase italic">Banesco Banco Universal</span>
+                                            <span className="text-xs font-black uppercase italic">{selectedMethod.bankAccount?.bankName || 'BANCO'}</span>
                                         </div>
                                         <div className="flex justify-between border-b border-slate-800 pb-2">
                                             <span className="text-xs font-bold text-slate-400">Número de Cuenta</span>
-                                            <span className="text-xs font-black">0134 0000 0000 0000 0000</span>
+                                            <span className="text-xs font-black">{selectedMethod.bankAccount?.accountNumber || '---'}</span>
                                         </div>
                                         <div className="flex justify-between border-b border-slate-800 pb-2">
                                             <span className="text-xs font-bold text-slate-400">Titular</span>
-                                            <span className="text-xs font-black">Alteha C.A.</span>
+                                            <span className="text-xs font-black">{selectedMethod.bankAccount?.holderFullName || '---'}</span>
                                         </div>
                                         <div className="flex justify-between">
-                                            <span className="text-xs font-bold text-slate-400">RIF</span>
-                                            <span className="text-xs font-black">J-50123456-7</span>
+                                            <span className="text-xs font-bold text-slate-400">Documento</span>
+                                            <span className="text-xs font-black">{selectedMethod.bankAccount?.holderDocument || '---'}</span>
                                         </div>
                                     </div>
                                 )}
@@ -160,15 +330,15 @@ export default function PaymentProcessModal({ isOpen, onClose, bid, auctionTitle
                                     <div className="grid grid-cols-1 gap-3">
                                         <div className="flex justify-between border-b border-slate-800 pb-2">
                                             <span className="text-xs font-bold text-slate-400">Banco</span>
-                                            <span className="text-xs font-black uppercase italic">Banesco (0134)</span>
+                                            <span className="text-xs font-black uppercase italic">{selectedMethod.bankAccount?.bankName || 'BANCO'}</span>
                                         </div>
                                         <div className="flex justify-between border-b border-slate-800 pb-2">
                                             <span className="text-xs font-bold text-slate-400">Teléfono</span>
-                                            <span className="text-xs font-black">0414-1234567</span>
+                                            <span className="text-xs font-black">{selectedMethod.bankAccount?.phone || '---'}</span>
                                         </div>
                                         <div className="flex justify-between">
-                                            <span className="text-xs font-bold text-slate-400">RIF</span>
-                                            <span className="text-xs font-black">J-50123456-7</span>
+                                            <span className="text-xs font-bold text-slate-400">Documento</span>
+                                            <span className="text-xs font-black">{selectedMethod.bankAccount?.holderDocument || '---'}</span>
                                         </div>
                                     </div>
                                 )}
@@ -177,19 +347,19 @@ export default function PaymentProcessModal({ isOpen, onClose, bid, auctionTitle
                                     <div className="grid grid-cols-1 gap-3">
                                         <div className="flex justify-between border-b border-slate-800 pb-2">
                                             <span className="text-xs font-bold text-slate-400">Bank</span>
-                                            <span className="text-xs font-black">CHASE BANK (NY)</span>
+                                            <span className="text-xs font-black uppercase">{selectedMethod.bankAccount?.bankName || '---'}</span>
                                         </div>
                                         <div className="flex justify-between border-b border-slate-800 pb-2">
                                             <span className="text-xs font-bold text-slate-400">SWIFT/BIC</span>
-                                            <span className="text-xs font-black">CHASUS33</span>
+                                            <span className="text-xs font-black">{selectedMethod.bankAccount?.swiftCode || selectedMethod.bankAccount?.bic || '---'}</span>
                                         </div>
                                         <div className="flex justify-between border-b border-slate-800 pb-2">
                                             <span className="text-xs font-bold text-slate-400">Account Name</span>
-                                            <span className="text-xs font-black">Alteha Inc.</span>
+                                            <span className="text-xs font-black">{selectedMethod.bankAccount?.holderFullName || '---'}</span>
                                         </div>
                                         <div className="flex justify-between">
                                             <span className="text-xs font-bold text-slate-400">Account Number</span>
-                                            <span className="text-xs font-black">1234567890</span>
+                                            <span className="text-xs font-black">{selectedMethod.bankAccount?.accountNumber || '---'}</span>
                                         </div>
                                     </div>
                                 )}
@@ -198,19 +368,19 @@ export default function PaymentProcessModal({ isOpen, onClose, bid, auctionTitle
                                     <div className="grid grid-cols-1 gap-3">
                                         <div className="flex justify-between border-b border-slate-800 pb-2">
                                             <span className="text-xs font-bold text-slate-400">Bank</span>
-                                            <span className="text-xs font-black">CHASE BANK</span>
+                                            <span className="text-xs font-black uppercase">{selectedMethod.bankAccount?.bankName || '---'}</span>
                                         </div>
                                         <div className="flex justify-between border-b border-slate-800 pb-2">
                                             <span className="text-xs font-bold text-slate-400">Routing Number</span>
-                                            <span className="text-xs font-black">021000021</span>
+                                            <span className="text-xs font-black">{selectedMethod.bankAccount?.abaRoutingNumber || '---'}</span>
                                         </div>
                                         <div className="flex justify-between border-b border-slate-800 pb-2">
                                             <span className="text-xs font-bold text-slate-400">Account Name</span>
-                                            <span className="text-xs font-black">Alteha Inc.</span>
+                                            <span className="text-xs font-black">{selectedMethod.bankAccount?.holderFullName || '---'}</span>
                                         </div>
                                         <div className="flex justify-between">
                                             <span className="text-xs font-bold text-slate-400">Account Number</span>
-                                            <span className="text-xs font-black">1234567890</span>
+                                            <span className="text-xs font-black">{selectedMethod.bankAccount?.accountNumber || '---'}</span>
                                         </div>
                                     </div>
                                 )}
@@ -219,19 +389,19 @@ export default function PaymentProcessModal({ isOpen, onClose, bid, auctionTitle
                                     <div className="grid grid-cols-1 gap-3">
                                         <div className="flex justify-between border-b border-slate-800 pb-2">
                                             <span className="text-xs font-bold text-slate-400">Bank</span>
-                                            <span className="text-xs font-black">BBVA (Spain)</span>
+                                            <span className="text-xs font-black uppercase">{selectedMethod.bankAccount?.bankName || '---'}</span>
                                         </div>
                                         <div className="flex justify-between border-b border-slate-800 pb-2">
                                             <span className="text-xs font-bold text-slate-400">IBAN</span>
-                                            <span className="text-xs font-black">ES12 3456 7890 1234 5678 9012</span>
+                                            <span className="text-xs font-black">{selectedMethod.bankAccount?.iban || selectedMethod.bankAccount?.accountNumber || '---'}</span>
                                         </div>
                                         <div className="flex justify-between border-b border-slate-800 pb-2">
                                             <span className="text-xs font-bold text-slate-400">BIC</span>
-                                            <span className="text-xs font-black">BBVAESMMXXX</span>
+                                            <span className="text-xs font-black">{selectedMethod.bankAccount?.bic || selectedMethod.bankAccount?.swiftCode || '---'}</span>
                                         </div>
                                         <div className="flex justify-between">
                                             <span className="text-xs font-bold text-slate-400">Account Name</span>
-                                            <span className="text-xs font-black">Alteha Europe S.L.</span>
+                                            <span className="text-xs font-black">{selectedMethod.bankAccount?.holderFullName || '---'}</span>
                                         </div>
                                     </div>
                                 )}
@@ -240,15 +410,15 @@ export default function PaymentProcessModal({ isOpen, onClose, bid, auctionTitle
                                     <div className="grid grid-cols-1 gap-3">
                                         <div className="flex justify-between border-b border-slate-800 pb-2">
                                             <span className="text-xs font-bold text-slate-400">Binance ID</span>
-                                            <span className="text-xs font-black">88776655</span>
+                                            <span className="text-xs font-black">{selectedMethod.binancePayId || '---'}</span>
                                         </div>
                                         <div className="flex justify-between border-b border-slate-800 pb-2">
-                                            <span className="text-xs font-bold text-slate-400">Email</span>
-                                            <span className="text-xs font-black">payments@alteha.com</span>
+                                            <span className="text-xs font-bold text-slate-400">User / Email</span>
+                                            <span className="text-xs font-black">{selectedMethod.binanceUserIdentifier || '---'}</span>
                                         </div>
                                         <div className="flex justify-between">
-                                            <span className="text-xs font-bold text-slate-400">Moneda</span>
-                                            <span className="text-xs font-black">USDT</span>
+                                            <span className="text-xs font-bold text-slate-400">Instrucciones</span>
+                                            <span className="text-[10px] font-bold text-alteha-turquoise">{selectedMethod.instructions || 'Usar Binance Pay'}</span>
                                         </div>
                                     </div>
                                 )}
@@ -257,15 +427,15 @@ export default function PaymentProcessModal({ isOpen, onClose, bid, auctionTitle
                                     <div className="grid grid-cols-1 gap-3">
                                         <div className="flex justify-between border-b border-slate-800 pb-2">
                                             <span className="text-xs font-bold text-slate-400">Network</span>
-                                            <span className="text-xs font-black">TRC20 (Tron)</span>
+                                            <span className="text-xs font-black">{selectedMethod.cryptoNetwork || 'TBD'}</span>
                                         </div>
                                         <div className="flex justify-between border-b border-slate-800 pb-2">
                                             <span className="text-xs font-bold text-slate-400">Asset</span>
-                                            <span className="text-xs font-black">USDT</span>
+                                            <span className="text-xs font-black uppercase">{selectedMethod.cryptoSymbol || 'USDT'}</span>
                                         </div>
                                         <div className="flex justify-between">
                                             <span className="text-xs font-bold text-slate-400">Address</span>
-                                            <span className="text-[10px] sm:text-xs font-black break-all">Txyz1234567890abcdefghijklmnopqrstuv</span>
+                                            <span className="text-[10px] sm:text-xs font-black break-all text-alteha-turquoise">{selectedMethod.cryptoWalletAddress || '---'}</span>
                                         </div>
                                     </div>
                                 )}
@@ -351,6 +521,26 @@ export default function PaymentProcessModal({ isOpen, onClose, bid, auctionTitle
                                             </div>
                                         </div>
                                     )}
+                                </div>
+                                
+                                <div className="space-y-1">
+                                    <label className="text-xs font-bold text-slate-500 uppercase">Notas Adicionales (Opcional)</label>
+                                    <textarea 
+                                        value={notes}
+                                        onChange={(e) => setNotes(e.target.value)}
+                                        placeholder="Cualquier información relevante sobre el pago..." 
+                                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-alteha-violet/50 focus:border-alteha-violet text-sm font-medium min-h-[80px]"
+                                    />
+                                </div>
+                                
+                                <div className="space-y-1">
+                                    <label className="text-xs font-bold text-slate-500 uppercase">Comprobante (Opcional pero recomendado)</label>
+                                    <input 
+                                        type="file" 
+                                        accept="image/*,application/pdf"
+                                        onChange={(e) => setProofFile(e.target.files ? e.target.files[0] : null)}
+                                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-alteha-violet/50 focus:border-alteha-violet text-sm font-medium file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-alteha-violet/10 file:text-alteha-violet hover:file:bg-alteha-violet/20"
+                                    />
                                 </div>
                             </div>
                         </div>

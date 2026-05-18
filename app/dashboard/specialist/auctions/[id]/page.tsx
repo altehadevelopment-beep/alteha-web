@@ -36,6 +36,8 @@ import AdvancedBidForm from '@/components/auctions/AdvancedBidForm';
 import AuctionCountdown from '@/components/auctions/AuctionCountdown';
 import AuctionBidsList from '@/components/auctions/AuctionBidsList';
 
+import { WinnerSettlementSection } from '@/components/payments/WinnerSettlementSection';
+
 const ChatButtonWithBadge: React.FC<{
     auctionId: string;
     currentUserId: string;
@@ -72,6 +74,9 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; dotColor: st
     'PUBLISHED': { label: 'Publicada', color: 'bg-blue-50 text-blue-600', dotColor: 'bg-blue-500' },
     'ACTIVE': { label: 'Activa', color: 'bg-emerald-50 text-emerald-600', dotColor: 'bg-emerald-500 animate-pulse' },
     'AWARDED': { label: 'Adjudicada', color: 'bg-violet-50 text-violet-600', dotColor: 'bg-violet-500' },
+    'PAYMENT_REPORTED': { label: 'Pago Reportado', color: 'bg-amber-50 text-amber-600', dotColor: 'bg-amber-500' },
+    'PAYMENT_VALIDATION': { label: 'Validando Pago', color: 'bg-amber-50 text-amber-600', dotColor: 'bg-amber-500' },
+    'PAID': { label: 'Pagada', color: 'bg-emerald-50 text-emerald-600', dotColor: 'bg-emerald-500' },
     'CANCELLED': { label: 'Cancelada', color: 'bg-red-50 text-red-600', dotColor: 'bg-red-500' },
     'COMPLETED': { label: 'Finalizada', color: 'bg-slate-900 text-white', dotColor: 'bg-white' },
 };
@@ -247,6 +252,19 @@ export default function DoctorAuctionDetailPage() {
                         </div>
 
                 <div className="p-10 lg:p-12 space-y-12">
+                    {/* Settlement Section for Winner */}
+                    {(auction.status === 'AWARDED' || auction.status === 'PAID' || auction.status === 'PAYMENT_REPORTED' || auction.status === 'PAYMENT_VALIDATION' || auction.status === 'COMPLETED') && (
+                        (() => {
+                            const awardedDoctorId = auction.awardedBid?.doctor?.id || (auction.awardedBid as any)?.doctorId;
+                            const isWinner = userProfile?.id && Number(awardedDoctorId) === Number(userProfile.id);
+                            
+                            if (isWinner) {
+                                return <WinnerSettlementSection auction={auction} role="DOCTOR" />;
+                            }
+                            return null;
+                        })()
+                    )}
+
                     {/* TOP SUMMARY ROW: Budget, Time & Patient */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                         {/* Budget */}

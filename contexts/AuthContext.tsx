@@ -77,7 +77,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             if (segments.includes('dashboard')) {
                 const role = segments[segments.indexOf('dashboard') + 1];
                 if (role) {
-                    const apiRole = role === 'specialist' ? 'DOCTOR' : (role === 'insurance' ? 'INSURANCE_COMPANY' : (role === 'provider' ? 'PHARMACY' : (role === 'health-fund' ? 'HEALTH_FUND' : role.toUpperCase())));
+                    const apiRole = role === 'specialist' ? 'DOCTOR' : (role === 'insurance' ? 'INSURANCE_COMPANY' : (role === 'provider' ? 'PHARMACY' : (role === 'health-fund' ? 'HEALTH_FUND' : (role === 'approval' ? 'ADMIN' : role.toUpperCase()))));
                     fetchProfile(apiRole);
                 }
             }
@@ -111,7 +111,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 const newToken = result.data.id_token;
                 storeToken(newToken);
                 setToken(newToken);
-                const apiRole = role === 'specialist' ? 'DOCTOR' : (role === 'insurance' ? 'INSURANCE_COMPANY' : (role === 'provider' ? 'PHARMACY' : role.toUpperCase()));
+                const apiRole = role === 'specialist' ? 'DOCTOR' : (role === 'insurance' ? 'INSURANCE_COMPANY' : (role === 'provider' ? 'PHARMACY' : (role === 'health-fund' ? 'HEALTH_FUND' : (role === 'approval' ? 'ADMIN' : role.toUpperCase()))));
 
                 // Also update deviceId specifically after login to be sure
                 updateDeviceId(apiRole, deviceId).catch(err => console.error('Failed to update device ID:', err));

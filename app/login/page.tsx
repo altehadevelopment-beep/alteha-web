@@ -63,6 +63,13 @@ export default function LoginPage() {
                     color: 'text-rose-500',
                     bgImage: '/backgrounds/health-fund.png'
                 };
+            case 'approval':
+                return {
+                    title: 'Módulo de Aprobación',
+                    registerLink: '#',
+                    color: 'text-amber-500',
+                    bgImage: '/backgrounds/admin.png'
+                };
             default:
                 return { 
                     title: 'Bienvenido de nuevo', 
@@ -266,12 +273,14 @@ export default function LoginPage() {
                 </form>
 
                 <div className="mt-6 pt-5 border-t border-slate-100 text-center space-y-3">
-                    <p className="text-xs text-slate-500">
-                        ¿No tienes una cuenta?{' '}
-                        <Link href={roleInfo.registerLink} className="text-alteha-violet font-semibold hover:underline">
-                            Regístrate
-                        </Link>
-                    </p>
+                    {role !== 'approval' && (
+                        <p className="text-xs text-slate-500">
+                            ¿No tienes una cuenta?{' '}
+                            <Link href={roleInfo.registerLink} className="text-alteha-violet font-semibold hover:underline">
+                                Regístrate
+                            </Link>
+                        </p>
+                    )}
                     <div className="flex justify-center gap-4 text-[9px] font-bold text-slate-400 uppercase tracking-widest">
                         <Link href="/terms" className="hover:text-alteha-violet transition-colors">Términos</Link>
                         <span>•</span>

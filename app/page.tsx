@@ -15,7 +15,8 @@ import {
   CreditCard,
   Wallet,
   Activity,
-  Sparkles
+  Sparkles,
+  Key
 } from 'lucide-react'
 import { Logo } from '@/components/ui/Logo'
 
@@ -62,9 +63,17 @@ export default function Home() {
       name: 'Fondo Administrado',
       icon: Activity,
       color: 'slate-400',
-      bg: 'bg-white',
       borderColor: 'border-slate-200',
       hoverColor: 'bg-rose-500'
+    },
+    {
+      role: 'approval',
+      name: 'Módulo de Aprobación',
+      icon: Key,
+      color: 'amber-500',
+      bg: 'bg-slate-900',
+      borderColor: 'border-amber-500/30',
+      hoverColor: 'bg-amber-500'
     }
   ]
 
@@ -185,7 +194,7 @@ export default function Home() {
                     
                     <actor.icon className={`
                       w-12 h-12 md:w-16 md:h-16 relative z-10 
-                      ${actor.role === 'specialist' ? 'text-alteha-turquoise' : 'text-slate-400'} 
+                      ${actor.role === 'specialist' || actor.role === 'approval' ? (actor.role === 'approval' ? 'text-amber-500' : 'text-alteha-turquoise') : 'text-slate-400'} 
                       group-hover:text-white group-hover:rotate-12 transition-all duration-500
                     `} />
                   </div>

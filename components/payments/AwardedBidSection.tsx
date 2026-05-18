@@ -249,18 +249,96 @@ export default function AwardedBidSection({ auction, role }: AwardedBidSectionPr
                     <div className="bg-slate-900 rounded-[3.5rem] p-10 text-white space-y-10 shadow-2xl shadow-slate-200 relative overflow-hidden">
                         <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
                         
-                        <div className="space-y-4">
-                            <h5 className="text-2xl font-black leading-tight">Acción Requerida: <br/>Formalizar Pago</h5>
-                            <p className="text-slate-400 text-sm font-medium leading-relaxed">Para completar la reserva del equipo médico y los quirófanos, proceda con la emisión de fondos.</p>
-                        </div>
+                        {auction.status === 'AWARDED' && (
+                            <div className="space-y-6">
+                                <div className="space-y-4">
+                                    <h5 className="text-2xl font-black leading-tight">Acción Requerida: <br/>Formalizar Pago</h5>
+                                    <p className="text-slate-400 text-sm font-medium leading-relaxed">Para completar la reserva del equipo médico y los quirófanos, proceda con la emisión de fondos.</p>
+                                </div>
 
-                        <Button 
-                            onClick={() => setIsPaymentModalOpen(true)}
-                            className="w-full h-20 bg-white text-slate-900 hover:bg-slate-100 rounded-[2rem] font-black text-xl shadow-xl flex items-center justify-center gap-4 transition-all hover:scale-[1.02]"
-                        >
-                            <CreditCard className="w-6 h-6" />
-                            Pagar Ahora
-                        </Button>
+                                <Button 
+                                    onClick={() => setIsPaymentModalOpen(true)}
+                                    className="w-full h-20 bg-white text-slate-900 hover:bg-slate-100 rounded-[2rem] font-black text-xl shadow-xl flex items-center justify-center gap-4 transition-all hover:scale-[1.02]"
+                                >
+                                    <CreditCard className="w-6 h-6" />
+                                    Pagar Ahora
+                                </Button>
+                            </div>
+                        )}
+
+                        {(auction.status === 'PAYMENT_REPORTED' || auction.status === 'PAYMENT_VALIDATION') && (
+                            <div className="space-y-8">
+                                <div className="space-y-4">
+                                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-amber-500/20 text-amber-500 rounded-full text-[9px] font-black uppercase tracking-widest">
+                                        <Clock className="w-3 h-3" /> Pago Reportado
+                                    </div>
+                                    <h5 className="text-2xl font-black leading-tight">Validación en Proceso</h5>
+                                    <p className="text-slate-400 text-sm font-medium leading-relaxed">Se ha recibido el reporte de pago. Verifique los fondos para proceder con la confirmación.</p>
+                                </div>
+
+                                {role === 'INSURANCE_COMPANY' && (
+                                    <div className="grid grid-cols-1 gap-4 pt-4 border-t border-white/10">
+                                        <Button 
+                                            onClick={async () => {
+                                                const notes = prompt("Notas de aprobación (opcional):", "Transferencia recibida correctamente.");
+                                                if (notes !== null) {
+                                                    try {
+                                                        const { validateAuctionPayment } = await import('@/lib/api');
+                                                        await validateAuctionPayment({
+                                                            auctionNumber: auction.auctionNumber,
+                                                            isValid: true,
+                                                            notes
+                                                        });
+                                                        window.location.reload();
+                                                    } catch (error) {
+                                                        alert("Error al validar el pago");
+                                                    }
+                                                }
+                                            }}
+                                            className="w-full h-16 bg-alteha-turquoise text-slate-900 hover:bg-alteha-turquoise/90 rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 transition-all"
+                                        >
+                                            <ShieldCheck className="w-5 h-5" />
+                                            Aprobar Pago
+                                        </Button>
+                                        <Button 
+                                            variant="outline"
+                                            onClick={async () => {
+                                                const notes = prompt("Motivo del rechazo (obligatorio):");
+                                                if (notes) {
+                                                    try {
+                                                        const { validateAuctionPayment } = await import('@/lib/api');
+                                                        await validateAuctionPayment({
+                                                            auctionNumber: auction.auctionNumber,
+                                                            isValid: false,
+                                                            notes
+                                                        });
+                                                        window.location.reload();
+                                                    } catch (error) {
+                                                        alert("Error al rechazar el pago");
+                                                    }
+                                                }
+                                            }}
+                                            className="w-full h-16 bg-transparent border-red-500/50 text-red-500 hover:bg-red-500/10 rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 transition-all"
+                                        >
+                                            <AlertCircle className="w-5 h-5" />
+                                            Rechazar Pago
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {auction.status === 'PAID' && (
+                            <div className="space-y-6 text-center">
+                                <div className="w-20 h-20 bg-emerald-500/20 text-emerald-500 rounded-full flex items-center justify-center mx-auto shadow-2xl">
+                                    <ShieldCheck className="w-10 h-10" />
+                                </div>
+                                <div className="space-y-2">
+                                    <h5 className="text-2xl font-black leading-tight text-emerald-500">Pago Confirmado</h5>
+                                    <p className="text-slate-400 text-sm font-medium leading-relaxed">Los fondos han sido validados y están en custodia de Alteha. La cirugía está garantizada.</p>
+                                </div>
+                            </div>
+                        )}
 
                         <div className="pt-6 border-t border-white/10 space-y-6">
                             {/* 24h Payment Limit Warning - Monochromatic Sleek */}
@@ -296,7 +374,9 @@ export default function AwardedBidSection({ auction, role }: AwardedBidSectionPr
                 onClose={() => setIsPaymentModalOpen(false)}
                 bid={winningBid}
                 auctionTitle={auction.title}
+                auctionNumber={auction.auctionNumber}
                 role={role}
+                allowedPaymentMethods={auction.allowedPaymentMethods}
             />
 
             {/* Chat Modal */}

@@ -23,6 +23,7 @@ import {
     getAuctionDetails,
     updateAuction,
     publishExistingAuction,
+    changeAuctionStatus,
     getSpecialties,
     type Specialty,
     type AuctionPayload,
@@ -124,14 +125,24 @@ export default function EditAuctionPage() {
         setError(null);
         setSuccess(false);
 
+        const finalPayload: AuctionPayload = {
+            ...formData,
+            allowedPaymentMethods: formData.methodType ? [formData.methodType] : ['BS_BANK_TRANSFER']
+        };
+
         try {
             let result;
-            if (finalStatus === 'PUBLISHED') {
+            if (finalStatus === 'PUBLISHED' || finalStatus === 'ACTIVE') {
                 // First save the current form data as DRAFT, then publish via dedicated endpoint
-                await updateAuction(auctionNumber, { ...formData, status: 'DRAFT' });
+                await updateAuction(auctionNumber, { ...finalPayload, status: 'DRAFT' });
                 result = await publishExistingAuction(auctionNumber);
+                
+                if (finalStatus === 'ACTIVE') {
+                    // Then change status to ACTIVE
+                    result = await changeAuctionStatus(auctionNumber, 'ACTIVE');
+                }
             } else {
-                result = await updateAuction(auctionNumber, { ...formData, status: finalStatus });
+                result = await updateAuction(auctionNumber, { ...finalPayload, status: finalStatus });
             }
 
             if (result.code === '00' || result.code === 'SUCCESS' || (result as any).id) {

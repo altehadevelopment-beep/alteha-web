@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { Logo } from '@/components/ui/Logo';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
 
 const specialistItems = [
     { title: 'Dashboard', icon: LayoutDashboard, href: '/dashboard/specialist' },
@@ -63,32 +64,41 @@ const providerItems = [
     { title: 'Conversaciones', icon: MessageSquare, href: '/dashboard/provider/conversations' },
 ];
 
+const approvalItems = [
+    { title: 'Dashboard', icon: LayoutDashboard, href: '/dashboard/approval' }
+];
+
 export function DashboardSidebar() {
     const pathname = usePathname();
     const router = useRouter();
+    const { logout } = useAuth();
     const [isOpen, setIsOpen] = React.useState(false);
 
     const isClinic = pathname.includes('/dashboard/clinic');
     const isInsurance = pathname.includes('/dashboard/insurance');
     const isProvider = pathname.includes('/dashboard/provider');
+    const isApproval = pathname.includes('/dashboard/approval');
 
     let menuItems = specialistItems;
     if (isClinic) menuItems = clinicItems;
     if (isInsurance) menuItems = insuranceItems;
     if (isProvider) menuItems = providerItems;
+    if (isApproval) menuItems = approvalItems;
 
     const dashboardHref = isClinic ? '/dashboard/clinic' :
         isInsurance ? '/dashboard/insurance' :
             isProvider ? '/dashboard/provider' :
-                '/dashboard/specialist';
+                isApproval ? '/dashboard/approval' :
+                    '/dashboard/specialist';
 
     const settingsHref = isClinic ? '/dashboard/clinic/settings' :
         isInsurance ? '/dashboard/insurance/settings' :
             isProvider ? '/dashboard/provider/settings' :
-                '/dashboard/specialist/settings';
+                isApproval ? '/dashboard/approval/settings' :
+                    '/dashboard/specialist/settings';
 
     const handleLogout = () => {
-        router.push('/login');
+        logout();
     };
 
     return (

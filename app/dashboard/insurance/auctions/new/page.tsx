@@ -34,6 +34,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
     publishAuction,
+    publishExistingAuction,
+    changeAuctionStatus,
     getSpecialties,
     getClinics,
     getDoctors,
@@ -103,7 +105,8 @@ export default function NewAuctionPage() {
         requiredSupplies: [],
         invitedDoctorIds: [],
         invitedClinicIds: [],
-        methodType: 'BS_BANK_TRANSFER'
+        methodType: 'BS_BANK_TRANSFER',
+        allowedPaymentMethods: ['BS_BANK_TRANSFER']
     });
 
     const [medicalReport, setMedicalReport] = useState<File | null>(null);
@@ -327,12 +330,32 @@ export default function NewAuctionPage() {
         setIsLoading(true);
         setError(null);
 
-        const finalPayload = { ...formData, status: finalStatus };
+        const finalPayload: AuctionPayload = { 
+            ...formData, 
+            status: finalStatus,
+            allowedPaymentMethods: formData.allowedPaymentMethods && formData.allowedPaymentMethods.length > 0 
+                ? formData.allowedPaymentMethods 
+                : ['BS_BANK_TRANSFER']
+        };
 
         try {
             const result = await publishAuction(finalPayload, medicalReport || undefined);
+            const auctionObj = result.data || result;
+            
             // The backend returns the raw Auction object on success, so we check for result.id
-            if (result.code === '00' || result.code === 'SUCCESS' || (result as any).id) {
+            if (result.code === '00' || result.code === 'SUCCESS' || auctionObj.id) {
+                const auctionIdOrNumber = auctionObj.auctionNumber || auctionObj.id;
+                
+                if (finalStatus === 'PUBLISHED' || finalStatus === 'ACTIVE') {
+                    // First publish it if it was created as DRAFT
+                    await publishExistingAuction(auctionIdOrNumber);
+                    
+                    if (finalStatus === 'ACTIVE') {
+                        // Then change status to ACTIVE
+                        await changeAuctionStatus(auctionIdOrNumber, 'ACTIVE');
+                    }
+                }
+                
                 router.push('/dashboard/insurance/auctions?created=true');
             } else {
                 const errorStr = result.message || JSON.stringify(result) || 'Error al procesar subasta';
@@ -1068,37 +1091,46 @@ export default function NewAuctionPage() {
                                                 </div>
                                             </div>
 
-                                            {/* Método de Pago */}
+                                            {/* Métodos de Pago */}
                                             <div className="space-y-6 pt-6 border-t">
                                                 <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                                                    <CreditCard className="w-4 h-4" /> Método de Pago
+                                                    <CreditCard className="w-4 h-4" /> Métodos de Pago Permitidos
                                                 </h4>
                                                 <div className="space-y-4">
                                                     <div className="grid grid-cols-1 gap-3">
                                                         {[
-                                                            { id: 'BS_BANK_TRANSFER', label: 'BS_BANK_TRANSFER', desc: 'Una transferencia bancaria común entre cuentas nacionales de Venezuela.' },
-                                                            { id: 'BS_PAGO_MOVIL', label: 'BS_PAGO_MOVIL', desc: 'El sistema de Pago Móvil, que permite enviar bolívares de forma inmediata usando solo el número de teléfono y la cédula.' },
-                                                            { id: 'USD_WIRE_SWIFT', label: 'USD_WIRE_SWIFT', desc: 'Una transferencia internacional estándar. Es el método tradicional para mover dinero entre bancos de diferentes países.' },
-                                                            { id: 'USD_ACH', label: 'USD_ACH', desc: 'Una transferencia bancaria dentro de EE. UU. Común en plataformas como Zelle o cuentas estadounidenses.' },
-                                                            { id: 'USD_IBAN', label: 'USD_IBAN', desc: 'Una transferencia a una cuenta bancaria internacional (común en Europa).' },
-                                                            { id: 'BINANCE_PAY', label: 'BINANCE_PAY', desc: 'Pago a través de Binance Pay usando ID o correo electrónico.' },
-                                                            { id: 'CRYPTO_WALLET', label: 'CRYPTO_WALLET', desc: 'Transferencia directa a billetera de criptomonedas (USDT, BTC, etc.).' }
-                                                        ].map((method) => (
-                                                            <button
-                                                                key={method.id}
-                                                                type="button"
-                                                                onClick={() => setFormData({ ...formData, methodType: method.id })}
-                                                                className={`p-4 rounded-2xl border-2 transition-all text-left flex items-start gap-3 ${formData.methodType === method.id ? 'border-alteha-violet bg-violet-50' : 'border-slate-100 hover:border-slate-200'}`}
-                                                            >
-                                                                <div className={`mt-1 w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${formData.methodType === method.id ? 'border-alteha-violet bg-alteha-violet' : 'border-slate-200'}`}>
-                                                                    {formData.methodType === method.id && <div className="w-2 h-2 bg-white rounded-full" />}
-                                                                </div>
-                                                                <div>
-                                                                    <p className="text-sm font-black text-slate-900">{method.label}</p>
-                                                                    <p className="text-[10px] font-medium text-slate-500 leading-tight mt-1">{method.desc}</p>
-                                                                </div>
-                                                            </button>
-                                                        ))}
+                                                            { id: 'BS_BANK_TRANSFER', label: 'BS_BANK_TRANSFER', desc: 'Transferencia bancaria nacional (Bolívares).' },
+                                                            { id: 'BS_PAGO_MOVIL', label: 'BS_PAGO_MOVIL', desc: 'Pago Móvil inmediato (Bolívares).' },
+                                                            { id: 'USD_WIRE_SWIFT', label: 'USD_WIRE_SWIFT', desc: 'Transferencia internacional SWIFT (Dólares).' },
+                                                            { id: 'USD_ACH', label: 'USD_ACH', desc: 'Transferencia ACH / Zelle (Dólares).' },
+                                                            { id: 'USD_IBAN', label: 'USD_IBAN', desc: 'Transferencia bancaria europea/internacional (IBAN).' },
+                                                            { id: 'BINANCE_PAY', label: 'BINANCE_PAY', desc: 'Pago vía Binance Pay (Cripto/Dólares).' },
+                                                            { id: 'CRYPTO_WALLET', label: 'CRYPTO_WALLET', desc: 'Pago directo a Wallet (USDT, BTC, etc.).' }
+                                                        ].map((method) => {
+                                                            const isSelected = formData.allowedPaymentMethods?.includes(method.id);
+                                                            return (
+                                                                <button
+                                                                    key={method.id}
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        const current = formData.allowedPaymentMethods || [];
+                                                                        const updated = isSelected
+                                                                            ? current.filter(m => m !== method.id)
+                                                                            : [...current, method.id];
+                                                                        setFormData({ ...formData, allowedPaymentMethods: updated });
+                                                                    }}
+                                                                    className={`p-4 rounded-2xl border-2 transition-all text-left flex items-start gap-3 ${isSelected ? 'border-alteha-violet bg-violet-50' : 'border-slate-100 hover:border-slate-200'}`}
+                                                                >
+                                                                    <div className={`mt-1 w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${isSelected ? 'border-alteha-violet bg-alteha-violet' : 'border-slate-200'}`}>
+                                                                        {isSelected && <div className="w-2 h-2 bg-white rounded-full" />}
+                                                                    </div>
+                                                                    <div>
+                                                                        <p className="text-sm font-black text-slate-900">{method.label}</p>
+                                                                        <p className="text-[10px] font-medium text-slate-500 leading-tight mt-1">{method.desc}</p>
+                                                                    </div>
+                                                                </button>
+                                                            );
+                                                        })}
                                                     </div>
                                                 </div>
                                             </div>
@@ -1120,8 +1152,16 @@ export default function NewAuctionPage() {
                                                 <div className="flex justify-between text-xs border-b border-white/10 pb-3"><span className="text-white/40 font-black">PRESUPUESTO:</span><span className="font-black text-emerald-400 text-lg">${formData.maxBudget.toLocaleString()}</span></div>
                                                 <div className="flex justify-between text-xs border-b border-white/10 pb-3"><span className="text-white/40 font-black">INVITADOS:</span><span className="font-black">{(formData.invitedClinicIds?.length || 0) + (formData.invitedDoctorIds?.length || 0)} actores</span></div>
                                                 <div className="flex justify-between text-xs border-b border-white/10 pb-3">
-                                                    <span className="text-white/40 font-black">MÉTODO PAGO:</span>
-                                                    <span className="font-black text-alteha-turquoise">{formData.methodType}</span>
+                                                    <span className="text-white/40 font-black">MÉTODOS PAGO:</span>
+                                                    <div className="text-right flex flex-col gap-1">
+                                                        {(formData.allowedPaymentMethods && formData.allowedPaymentMethods.length > 0) ? (
+                                                            formData.allowedPaymentMethods.map(m => (
+                                                                <span key={m} className="font-black text-alteha-turquoise block text-[10px]">{m}</span>
+                                                            ))
+                                                        ) : (
+                                                            <span className="font-black text-alteha-turquoise">BS_BANK_TRANSFER</span>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </div>
                                             

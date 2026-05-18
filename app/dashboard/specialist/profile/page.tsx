@@ -160,10 +160,19 @@ export default function EditProfilePage() {
     const loadDoctorFiles = async () => {
         setIsLoadingFiles(true);
         try {
-            const files = await getDoctorFiles();
+            const res = await getDoctorFiles();
+            let files: DoctorFile[] = [];
+            if (Array.isArray(res)) {
+                files = res;
+            } else if (res && typeof res === 'object' && Array.isArray((res as any).content)) {
+                files = (res as any).content;
+            } else if ((res as any)?.data && Array.isArray((res as any).data)) {
+                files = (res as any).data;
+            }
             setDoctorFiles(files);
         } catch (err) {
             console.error("Error loading doctor files", err);
+            setDoctorFiles([]);
         }
         setIsLoadingFiles(false);
     };

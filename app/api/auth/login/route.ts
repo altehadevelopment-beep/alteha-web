@@ -24,9 +24,11 @@ export async function POST(request: NextRequest) {
 
         const token = await getAppToken();
 
-        console.log('[API Proxy] Sending auth request to backend:', JSON.stringify(authBody, null, 2));
+        const endpoint = `${API_BASE}/actor-authenticate`;
 
-        const response = await fetch(`${API_BASE}/actor-authenticate`, {
+        console.log(`[API Proxy] Sending auth request to backend (${endpoint}):`, JSON.stringify(authBody, null, 2));
+
+        const response = await fetch(endpoint, {
             method: 'POST',
             headers: {
                 'Accept': '*/*',

@@ -200,7 +200,7 @@ export interface Auction {
     title: string;
     description: string;
     auctionType: 'REVERSE_AUCTION' | 'STANDARD_AUCTION';
-    status: 'DRAFT' | 'PUBLISHED' | 'ACTIVE' | 'CLOSED' | 'AWARDED' | 'CANCELLED' | 'COMPLETED';
+    status: 'DRAFT' | 'PUBLISHED' | 'ACTIVE' | 'CLOSED' | 'AWARDED' | 'PAID' | 'PAYMENT_REPORTED' | 'PAYMENT_VALIDATION' | 'CANCELLED' | 'COMPLETED';
     startDate: string;
     endDate: string;
     maxBudget: number;
@@ -236,6 +236,8 @@ export interface Auction {
     invitedDoctorIds?: number[];
     invitedClinicIds?: number[];
     winningBid?: any;
+    methodType?: string;
+    allowedPaymentMethods?: string[];
 }
 
 export interface AuctionPayload {
@@ -283,6 +285,7 @@ export interface AuctionPayload {
     invitedDoctorIds?: number[];
     invitedClinicIds?: number[];
     methodType?: string;
+    allowedPaymentMethods?: string[];
 }
 
 export interface RequiredSupply {
@@ -352,6 +355,7 @@ export interface PaymentMethod {
     createdAt?: string;
     updatedAt?: string;
     country: { id: number; name?: string };
+    owner?: { id: number; firstName?: string; lastName?: string; email?: string };
     bankAccount?: {
         id?: number;
         currency: string;
@@ -386,7 +390,8 @@ const roleMapping: Record<string, string> = {
     'insurance': 'INSURANCE_COMPANY',
     'provider': 'PHARMACY',
     'pharmacy': 'PHARMACY',
-    'health-fund': 'HEALTH_FUND'
+    'health-fund': 'HEALTH_FUND',
+    'approval': 'ADMIN'
 };
 
 // Authentication
@@ -1187,6 +1192,22 @@ export async function publishExistingAuction(auctionNumber: string): Promise<Api
     return changeAuctionStatus(auctionNumber, 'PUBLISHED', 'publicar la subasta');
 }
 
+export async function getAllAuctions(
+    status?: string,
+    page: number = 0,
+    size: number = 50,
+    sort: string = 'createdAt,desc'
+): Promise<ApiResponse<Auction[] | { content: Auction[] }>> {
+    let url = `/api/auctions/all?page=${page}&size=${size}&sort=${sort}`;
+    if (status) url += `&status=${status}`;
+
+    const response = await fetch(url, {
+        method: 'GET'
+    });
+
+    return response.json();
+}
+
 export async function getMyAuctions(
     status?: string,
     page: number = 0,
@@ -1482,6 +1503,168 @@ export async function getPaymentMethods(role: string, page: number = 0, size: nu
         headers: { 'X-Alteha-Token': token }
     });
     return response.json();
+}
+
+export async function getAvailablePaymentMethodsForAuction(auctionNumber: string): Promise<PaymentMethod[]> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+    const response = await fetch(`/api/auctions/${auctionNumber}/available-payment-methods`, {
+        headers: { 'X-Alteha-Token': token }
+    });
+    
+    const result = await response.json();
+    let methods: PaymentMethod[] = [];
+    if (Array.isArray(result)) methods = result;
+    else if (result.data && Array.isArray(result.data)) methods = result.data;
+    
+    // Temporal Fallback Mock expandido para soportar todos los tipos de pago (a solicitud del usuario para continuar pruebas)
+    if (methods.length === 0) {
+        return [
+          {
+            "id": 1500,
+            "actorRole": "ADMIN",
+            "methodType": "BS_PAGO_MOVIL",
+            "displayName": "Pago Móvil Alteha - Mercantil",
+            "active": true,
+            "beneficiaryType": "JURIDICO",
+            "verificationStatus": "VERIFIED",
+            "instructions": "Enviar comprobante inmediatamente.",
+            "bankAccount": {
+              "id": 10,
+              "currency": "BS",
+              "holderFullName": "ALTEHA MEDICAL SOLUTIONS C.A.",
+              "holderDocument": "J-123456789",
+              "bankName": "BANCO MERCANTIL",
+              "phone": "04121234567"
+            }
+          },
+          {
+            "id": 1501,
+            "actorRole": "ADMIN",
+            "methodType": "BS_BANK_TRANSFER",
+            "displayName": "Transferencia Alteha - Banesco",
+            "active": true,
+            "beneficiaryType": "JURIDICO",
+            "verificationStatus": "VERIFIED",
+            "instructions": "Transferencias mismo banco o interbancarias.",
+            "bankAccount": {
+              "id": 11,
+              "currency": "BS",
+              "holderFullName": "ALTEHA MEDICAL SOLUTIONS C.A.",
+              "holderDocument": "J-123456789",
+              "bankName": "BANESCO",
+              "accountNumber": "01340001010001234567"
+            }
+          },
+          {
+            "id": 1502,
+            "actorRole": "ADMIN",
+            "methodType": "USD_ACH",
+            "displayName": "Alteha USD - Chase Bank (ACH)",
+            "active": true,
+            "beneficiaryType": "JURIDICO",
+            "verificationStatus": "VERIFIED",
+            "instructions": "Acepta Zelle o transferencias domésticas USA.",
+            "bankAccount": {
+              "id": 12,
+              "currency": "USD",
+              "holderFullName": "ALTEHA SOLUTIONS LLC",
+              "bankName": "CHASE BANK",
+              "accountNumber": "987654321",
+              "abaRoutingNumber": "021000021"
+            }
+          },
+          {
+            "id": 1503,
+            "actorRole": "ADMIN",
+            "methodType": "USD_WIRE_SWIFT",
+            "displayName": "Alteha International - SWIFT",
+            "active": true,
+            "beneficiaryType": "JURIDICO",
+            "verificationStatus": "VERIFIED",
+            "instructions": "Para transferencias internacionales fuera de USA.",
+            "bankAccount": {
+              "id": 13,
+              "currency": "USD",
+              "holderFullName": "ALTEHA MEDICAL SOLUTIONS",
+              "bankName": "CITIBANK N.A.",
+              "accountNumber": "1122334455",
+              "swiftCode": "CITIUS33"
+            }
+          },
+          {
+            "id": 1504,
+            "actorRole": "ADMIN",
+            "methodType": "BINANCE_PAY",
+            "displayName": "Alteha Binance Pay (USDT)",
+            "active": true,
+            "beneficiaryType": "JURIDICO",
+            "verificationStatus": "VERIFIED",
+            "instructions": "Pago vía Binance Pay ID.",
+            "binancePayId": "88776655",
+            "binanceUserIdentifier": "alteha_payments@binance.com"
+          }
+        ] as PaymentMethod[];
+    }
+    
+    return methods;
+}
+
+export async function registerAuctionPaymentProof(formData: FormData): Promise<ApiResponse<any>> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+    const response = await fetch('/api/auctions/register-payment-proof', {
+        method: 'POST',
+        headers: { 'X-Alteha-Token': token },
+        body: formData
+    });
+    return response.json();
+}
+
+export async function validateAuctionPayment(payload: {
+    auctionNumber: string;
+    isValid: boolean;
+    notes: string;
+}): Promise<ApiResponse<any>> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+    const response = await fetch('/api/auctions/validate-payment', {
+        method: 'POST',
+        headers: { 
+            'X-Alteha-Token': token,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+    });
+    return response.json();
+}
+
+export async function completeAuction(auctionNumber: string, settlementFile: File): Promise<ApiResponse<any>> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+    
+    const formData = new FormData();
+    formData.append('settlementFile', settlementFile);
+    
+    const response = await fetch(`/api/auctions/${auctionNumber}/complete`, {
+        method: 'POST',
+        headers: { 
+            'X-Alteha-Token': token
+        },
+        body: formData
+    });
+    return response.json();
+}
+
+export async function getWinnerPaymentMethods(auctionNumber: string, role: 'DOCTOR' | 'CLINIC'): Promise<PaymentMethod[]> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+    
+    const response = await fetch(`/api/auctions/${auctionNumber}/winner-payment-methods?role=${role}`, {
+        headers: { 'X-Alteha-Token': token }
+    });
+    const data = await response.json();
+    return Array.isArray(data) ? data : (data.data || []);
 }
 
 export async function createPaymentMethod(method: PaymentMethod): Promise<ApiResponse<PaymentMethod>> {

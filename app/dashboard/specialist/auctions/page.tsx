@@ -150,7 +150,7 @@ export default function DoctorAuctionsPage() {
                     />
                 </div>
                 <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 no-scrollbar">
-                    {(['', 'PUBLISHED', 'ACTIVE', 'AWARDED', 'COMPLETED', 'CANCELLED'] as const).map(s => (
+                    {(['', 'PUBLISHED', 'ACTIVE', 'AWARDED', 'PAYMENT_REPORTED', 'PAYMENT_VALIDATION', 'PAID', 'COMPLETED', 'CANCELLED'] as const).map(s => (
                         <button
                             key={s}
                             onClick={() => setStatusFilter(s)}

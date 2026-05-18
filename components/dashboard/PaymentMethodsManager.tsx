@@ -65,7 +65,15 @@ export default function PaymentMethodsManager({ role, onSelect, selectionMode = 
         try {
             const res = await getPaymentMethods(role);
             if (res.code === '00') {
-                setMethods(res.data || []);
+                const data = res.data;
+                if (Array.isArray(data)) {
+                    setMethods(data);
+                } else if (data && typeof data === 'object' && Array.isArray((data as any).content)) {
+                    // Handle Spring Boot Page object
+                    setMethods((data as any).content);
+                } else {
+                    setMethods([]);
+                }
             }
         } catch (error) {
             console.error('Error loading methods:', error);

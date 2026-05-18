@@ -54,7 +54,9 @@ const STATUS_CONFIG: Record<string, { label: string, color: string, icon: any }>
     'ACTIVE': { label: 'Activa', color: 'bg-emerald-50 text-emerald-600', icon: Gavel },
     'AWARDED': { label: 'Adjudicada', color: 'bg-alteha-violet/10 text-alteha-violet', icon: CheckCircle2 },
     'CANCELLED': { label: 'Cancelada', color: 'bg-red-50 text-red-600', icon: AlertCircle },
-    'COMPLETED': { label: 'Finalizada', color: 'bg-slate-900 text-white', icon: CheckCircle2 }
+    'COMPLETED': { label: 'Finalizada', color: 'bg-slate-900 text-white', icon: CheckCircle2 },
+    'PAYMENT_VALIDATION': { label: 'Validando Pago', color: 'bg-amber-50 text-amber-600', icon: Clock },
+    'PAYMENT_REPORTED': { label: 'Pago Reportado', color: 'bg-amber-50 text-amber-600', icon: Clock }
 };
 
 export default function AuctionDetailsPage() {
@@ -338,7 +340,7 @@ export default function AuctionDetailsPage() {
                                     <Users className="w-3 h-3" /> Convocatoria Pública
                                 </span>
                             )}
-                            {auction.status === 'AWARDED' && (
+                            {['AWARDED', 'PAYMENT_REPORTED', 'PAYMENT_VALIDATION', 'PAID', 'COMPLETED'].includes(auction.status) && (
                                 <button 
                                     onClick={(e) => { e.preventDefault(); setIsWinnerModalOpen(true); }}
                                     className="px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.2em] bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700 hover:text-white transition-all flex items-center gap-2"
@@ -355,9 +357,9 @@ export default function AuctionDetailsPage() {
                         
                         <div className="flex flex-col gap-2">
                             <h1 className="text-2xl md:text-4xl font-black tracking-tight leading-tight max-w-5xl drop-shadow-sm uppercase">
-                                {auction.status === 'AWARDED' && <Trophy className="w-10 h-10 text-white mb-4 block" />}
+                                {['AWARDED', 'PAYMENT_REPORTED', 'PAYMENT_VALIDATION', 'PAID', 'COMPLETED'].includes(auction.status) && <Trophy className="w-10 h-10 text-white mb-4 block" />}
                                 {auction.title}
-                                {auction.status === 'AWARDED' && winningBid && (
+                                {['AWARDED', 'PAYMENT_REPORTED', 'PAYMENT_VALIDATION', 'PAID', 'COMPLETED'].includes(auction.status) && winningBid && (
                                     <div className="flex flex-col gap-2 mt-6">
                                         <div className="flex items-center gap-4">
                                             <div className="flex -space-x-3">
@@ -414,7 +416,7 @@ export default function AuctionDetailsPage() {
                                     </div>
                                 )}
                             </h1>
-                            {auction.status === 'AWARDED' && (
+                            {['AWARDED', 'PAYMENT_REPORTED', 'PAYMENT_VALIDATION', 'PAID', 'COMPLETED'].includes(auction.status) && (
                                 <p className="text-white/40 font-black text-[10px] uppercase tracking-[0.4em] animate-pulse pt-4">
                                     Proceso de asignación completado exitosamente
                                 </p>
@@ -451,7 +453,7 @@ export default function AuctionDetailsPage() {
                         <div className="lg:col-span-8 space-y-10">
                             {/* Summary Cards */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                {auction.status === 'AWARDED' ? (
+                                {['AWARDED', 'PAYMENT_REPORTED', 'PAYMENT_VALIDATION', 'PAID', 'COMPLETED'].includes(auction.status) ? (
                                     <div className="md:col-span-2 bg-slate-900 rounded-[3rem] p-10 text-white border border-slate-800 shadow-2xl relative overflow-hidden group">
                                         <div className="absolute top-0 right-0 w-96 h-96 bg-alteha-turquoise/5 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2" />
                                         <div className="absolute bottom-0 left-0 w-64 h-64 bg-alteha-violet/5 rounded-full blur-[80px] translate-y-1/2 -translate-x-1/2" />
@@ -663,7 +665,7 @@ export default function AuctionDetailsPage() {
                             <div className="bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100">
                                 <div className="flex justify-between items-center mb-6">
                                     <h3 className="text-base font-black text-slate-900 uppercase tracking-widest">Adjuntos</h3>
-                                    {auction.status !== 'AWARDED' && (
+                                    {['AWARDED', 'PAYMENT_REPORTED', 'PAYMENT_VALIDATION', 'PAID', 'COMPLETED'].includes(auction.status) === false && (
                                         <div className="relative">
                                             <input type="file" id="attach-file" className="hidden" multiple onChange={handleFileUpload} />
                                             <label htmlFor="attach-file" className="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center cursor-pointer hover:scale-110 transition-transform">
@@ -759,7 +761,7 @@ export default function AuctionDetailsPage() {
                         </div>
                     </div>
 
-                    {auction.status === 'AWARDED' ? (
+                    {['AWARDED', 'PAYMENT_REPORTED', 'PAYMENT_VALIDATION', 'PAID', 'COMPLETED'].includes(auction.status) ? (
                         <div className="space-y-6 pt-10 border-t border-slate-50">
                             <div className="bg-slate-900 p-8 rounded-[2rem] text-white">
                                 <h3 className="text-xl font-black flex items-center gap-2 mb-2">
@@ -836,7 +838,7 @@ export default function AuctionDetailsPage() {
             </div>
 
             {/* Bids Section - Ocultar si ya está adjudicada */}
-            {auction.id && auction.status !== 'AWARDED' && (
+            {auction.id && !['AWARDED', 'PAYMENT_REPORTED', 'PAYMENT_VALIDATION', 'PAID', 'COMPLETED'].includes(auction.status) && (
                 <div className="mt-10 bg-white rounded-[3rem] shadow-2xl shadow-slate-200 border border-slate-100 p-10">
                     <AuctionBidsList
                         auctionId={auction.id}
@@ -847,8 +849,8 @@ export default function AuctionDetailsPage() {
                 </div>
             )}
 
-            {/* Awarded Info Section - Mostrar solo cuando está adjudicada */}
-            {auction.id && auction.status === 'AWARDED' && (
+            {/* Awarded Info Section - Mostrar cuando está adjudicada o en pagos */}
+            {auction.id && ['AWARDED', 'PAYMENT_REPORTED', 'PAYMENT_VALIDATION', 'PAID', 'COMPLETED'].includes(auction.status) && (
                 <div className="mt-10">
                     <AwardedBidSection auction={auction} role="INSURANCE_COMPANY" />
                 </div>
