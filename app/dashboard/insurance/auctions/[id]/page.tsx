@@ -845,6 +845,7 @@ export default function AuctionDetailsPage() {
                         auctionNumber={auction.auctionNumber}
                         auctionStatus={auction.status}
                         mode="insurance"
+                        onActionSuccess={loadData}
                     />
                 </div>
             )}

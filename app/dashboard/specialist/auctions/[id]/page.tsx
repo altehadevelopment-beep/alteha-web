@@ -445,8 +445,8 @@ export default function DoctorAuctionDetailPage() {
                 </div>
             </div>
 
-            {/* Previous Bids Section */}
-            {auction.id && (
+            {/* Previous Bids Section - only shown while auction is open/active */}
+            {auction.id && !['AWARDED', 'PAYMENT_REPORTED', 'PAYMENT_VALIDATION', 'PAID', 'COMPLETED'].includes(auction.status) && (
                 <div className="mt-10 bg-white rounded-[3rem] shadow-2xl shadow-slate-200 border border-slate-100 p-10">
                     <AuctionBidsList
                         auctionId={auction.id}
@@ -456,6 +456,51 @@ export default function DoctorAuctionDetailPage() {
                         insuranceId={auction.insuranceCompany?.id}
                         insuranceName={auction.insuranceCompany?.name}
                     />
+                </div>
+            )}
+
+            {/* PAID: Próxima Intervención Panel */}
+            {auction.status === 'PAID' && (
+                <div className="mt-10 bg-gradient-to-br from-emerald-600 via-teal-600 to-emerald-700 rounded-[3rem] p-10 text-white shadow-2xl shadow-emerald-500/30 relative overflow-hidden">
+                    <div className="absolute -top-20 -right-20 w-64 h-64 bg-white/10 rounded-full blur-3xl" />
+                    <div className="absolute -bottom-12 -left-12 w-48 h-48 bg-emerald-300/20 rounded-full blur-2xl" />
+                    <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-8">
+                        <div className="space-y-4">
+                            <div className="flex items-center gap-3">
+                                <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center">
+                                    <CheckCircle2 className="w-7 h-7 text-white" />
+                                </div>
+                                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-emerald-200">
+                                    Adjudicación Confirmada — Pago Recibido
+                                </span>
+                            </div>
+                            <h2 className="text-2xl md:text-3xl font-black leading-tight max-w-xl">
+                                Estás listo para ejecutar esta intervención
+                            </h2>
+                            <p className="text-emerald-100 font-medium leading-relaxed max-w-lg">
+                                El seguro ha confirmado el pago. Debes presentarte en la clínica y ejecutar el procedimiento en la fecha acordada. Una vez completado, adjunta el finiquito de la intervención.
+                            </p>
+                            {auction.estimatedSurgeryDate && (
+                                <div className="flex items-center gap-3 bg-white/10 px-5 py-3 rounded-xl w-fit">
+                                    <Calendar className="w-5 h-5 text-emerald-200" />
+                                    <span className="font-black text-white">
+                                        {new Date(auction.estimatedSurgeryDate).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+                        {auction.estimatedSurgeryDate && (
+                            <div className="flex flex-col items-center gap-3 bg-white/15 backdrop-blur-sm border border-white/20 rounded-[2rem] px-10 py-8 min-w-[220px] text-center flex-shrink-0">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-emerald-200">Tiempo Restante</p>
+                                <AuctionCountdown
+                                    endDate={auction.estimatedSurgeryDate}
+                                    variant="white"
+                                    className="text-2xl font-black"
+                                />
+                                <p className="text-[10px] text-emerald-300 font-bold">para la intervención</p>
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
 

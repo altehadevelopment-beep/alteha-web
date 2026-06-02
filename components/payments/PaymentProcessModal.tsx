@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import PaymentMethodsManager from '@/components/dashboard/PaymentMethodsManager';
-import { CreditCard, ShieldCheck, Loader2, CheckCircle2, Wallet, ArrowRight, Building2, User, Landmark, Phone, CalendarDays, Hash, Banknote, Globe, QrCode } from 'lucide-react';
+import { CreditCard, ShieldCheck, Loader2, CheckCircle2, Wallet, ArrowRight, Building2, User, Landmark, Phone, CalendarDays, Hash, Banknote, Globe, QrCode, Printer } from 'lucide-react';
 import { type PaymentMethod, type BidDetailed, getAvailablePaymentMethodsForAuction, registerAuctionPaymentProof } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
@@ -146,6 +146,105 @@ export default function PaymentProcessModal({ isOpen, onClose, bid, auctionTitle
         setNotes('');
         setProofFile(null);
         setTransactionDate(new Date().toISOString().split('T')[0]);
+    };
+
+    const handlePrintReport = () => {
+        const printContent = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Reporte de Pago - Alteha</title>
+                <style>
+                    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #0f172a; padding: 40px; max-width: 800px; margin: 0 auto; }
+                    .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #f1f5f9; padding-bottom: 20px; margin-bottom: 30px; }
+                    .logo { height: 40px; }
+                    .title { font-size: 24px; font-weight: 900; color: #0f172a; text-transform: uppercase; letter-spacing: 1px; }
+                    .section-title { font-size: 12px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 10px; }
+                    .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
+                    .info-card { background: #f8fafc; padding: 20px; border-radius: 16px; border: 1px solid #e2e8f0; }
+                    .info-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #e2e8f0; }
+                    .info-row:last-child { border-bottom: none; }
+                    .info-label { font-size: 12px; font-weight: 700; color: #64748b; }
+                    .info-value { font-size: 14px; font-weight: 800; color: #0f172a; }
+                    .amount-box { background: #0f172a; color: white; padding: 30px; border-radius: 16px; text-align: center; margin-top: 20px; }
+                    .amount-label { font-size: 14px; font-weight: 700; color: #14b8a6; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 10px; }
+                    .amount-value { font-size: 48px; font-weight: 900; }
+                    .footer { margin-top: 50px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #f1f5f9; padding-top: 20px; }
+                    @media print {
+                        body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <img src="${window.location.origin}/logoalteha.svg" class="logo" alt="Alteha Logo" onload="window.print()" />
+                    <div class="title">Comprobante de Pago</div>
+                </div>
+
+                <div class="info-grid">
+                    <div class="info-card">
+                        <div class="section-title">Detalles de la Operación</div>
+                        <div class="info-row">
+                            <span class="info-label">Fecha</span>
+                            <span class="info-value">${new Date().toLocaleDateString('es-VE')}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Referencia</span>
+                            <span class="info-value">${reference}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Método</span>
+                            <span class="info-value">${selectedMethod?.methodType.replace(/_/g, ' ')}</span>
+                        </div>
+                        ${originBank ? `
+                        <div class="info-row">
+                            <span class="info-label">Banco Origen</span>
+                            <span class="info-value" style="text-transform: uppercase">${originBank}</span>
+                        </div>` : ''}
+                        ${originPhone ? `
+                        <div class="info-row">
+                            <span class="info-label">Teléfono Origen</span>
+                            <span class="info-value">${originPhone}</span>
+                        </div>` : ''}
+                    </div>
+
+                    <div class="info-card">
+                        <div class="section-title">Información de la Subasta</div>
+                        <div class="info-row">
+                            <span class="info-label">ID Subasta</span>
+                            <span class="info-value">#${auctionNumber || (bid as any)?.auctionNumber || '---'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Título</span>
+                            <span class="info-value">${auctionTitle}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="amount-box">
+                    <div class="amount-label">Monto Reportado</div>
+                    <div class="amount-value">$${bid?.bidAmount?.toLocaleString()}</div>
+                </div>
+
+                <div class="footer">
+                    Este documento es un comprobante de reporte de pago generado por el sistema Alteha para fines internos.
+                    <br/>
+                    Generado el ${new Date().toLocaleString('es-VE')}
+                </div>
+            </body>
+            </html>
+        `;
+
+        const printWindow = window.open('', '_blank');
+        if (printWindow) {
+            printWindow.document.write(printContent);
+            printWindow.document.close();
+            // Note: window.print() is called on the image load event to ensure the logo is rendered
+            setTimeout(() => {
+                // Fallback in case image load event doesn't fire
+                printWindow.print();
+            }, 1000);
+        }
     };
 
     useEffect(() => {
@@ -597,18 +696,39 @@ export default function PaymentProcessModal({ isOpen, onClose, bid, auctionTitle
                                 <span className="text-xs font-bold text-slate-400">Método</span>
                                 <span className="text-xs font-black text-slate-900">{selectedMethod?.methodType.replace(/_/g, ' ')}</span>
                             </div>
+                            {originBank && (
+                                <div className="flex justify-between items-center pb-2 border-b border-slate-200/50">
+                                    <span className="text-xs font-bold text-slate-400">Banco Origen</span>
+                                    <span className="text-xs font-black text-slate-900 uppercase">{originBank}</span>
+                                </div>
+                            )}
+                            {originPhone && (
+                                <div className="flex justify-between items-center pb-2 border-b border-slate-200/50">
+                                    <span className="text-xs font-bold text-slate-400">Teléfono Origen</span>
+                                    <span className="text-xs font-black text-slate-900">{originPhone}</span>
+                                </div>
+                            )}
                             <div className="flex justify-between items-center">
                                 <span className="text-xs font-bold text-slate-400">Monto</span>
                                 <span className="text-xs font-black text-alteha-violet">${bid?.bidAmount?.toLocaleString()}</span>
                             </div>
                         </div>
 
-                        <Button
-                            onClick={onClose}
-                            className="w-full h-16 bg-slate-900 text-white rounded-2xl font-black text-lg shadow-xl shadow-slate-200 hover:scale-[1.02] transition-transform"
-                        >
-                            Cerrar Ventana
-                        </Button>
+                        <div className="flex flex-col gap-3 mt-8">
+                            <Button
+                                onClick={handlePrintReport}
+                                className="w-full h-16 bg-alteha-turquoise text-white rounded-2xl font-black text-lg shadow-xl shadow-teal-500/20 hover:scale-[1.02] transition-transform flex items-center justify-center gap-2"
+                            >
+                                <Printer className="w-6 h-6" />
+                                Imprimir / Descargar PDF
+                            </Button>
+                            <Button
+                                onClick={onClose}
+                                className="w-full h-16 bg-slate-900 text-white rounded-2xl font-black text-lg shadow-xl shadow-slate-200 hover:scale-[1.02] transition-transform"
+                            >
+                                Cerrar Ventana
+                            </Button>
+                        </div>
                     </div>
                 )}
             </div>

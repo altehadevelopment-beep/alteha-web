@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { getAppToken } from '@/lib/auth-service';
 
 const API_BASE = 'https://qaback.alteha.com:3232/api';
 
@@ -20,28 +21,37 @@ export async function POST(
         }
 
         const formData = await request.formData();
+        const adminToken = await getAppToken();
         const targetUrl = `${API_BASE}/auctions/${auctionNumber}/complete`;
         console.log('Completing auction at:', targetUrl);
         
         const response = await fetch(targetUrl, {
             method: 'POST',
             headers: { 
-                'X-Alteha-Token': userToken
+                'X-Alteha-Token': userToken,
+                'Authorization': `Bearer ${adminToken}`
             },
             body: formData
         });
 
         const responseText = await response.text();
-        console.log('Backend response status:', response.status);
+        console.log('Backend complete status:', response.status, '| body:', responseText);
         
         let data;
         try {
-            data = responseText ? JSON.parse(responseText) : { message: 'Subasta completada' };
+            data = responseText ? JSON.parse(responseText) : {};
         } catch (e) {
-            data = { message: responseText || 'Error en respuesta del servidor' };
+            data = { message: responseText || 'Respuesta del servidor no es JSON' };
         }
 
-        return NextResponse.json(data, { status: response.status });
+        if (!response.ok) {
+            return NextResponse.json({
+                code: 'ERROR',
+                message: data.detail || data.message || `Error ${response.status} al completar subasta`
+            }, { status: response.status });
+        }
+
+        return NextResponse.json({ code: '00', message: 'Subasta completada exitosamente', data }, { status: 200 });
     } catch (error: any) {
         console.error('Complete auction error:', error);
         return NextResponse.json({

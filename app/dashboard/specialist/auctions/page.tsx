@@ -63,6 +63,9 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; dot: string;
     'PUBLISHED': { label: 'Publicada', color: 'bg-blue-50 text-blue-600', dot: 'bg-blue-500', icon: Clock },
     'ACTIVE': { label: 'Activa', color: 'bg-emerald-50 text-emerald-600', dot: 'bg-emerald-500', icon: Gavel },
     'AWARDED': { label: 'Adjudicada', color: 'bg-violet-50 text-violet-600', dot: 'bg-violet-500', icon: CheckCircle2 },
+    'PAYMENT_REPORTED': { label: 'Pago Reportado', color: 'bg-amber-50 text-amber-600', dot: 'bg-amber-500 animate-pulse', icon: DollarSign },
+    'PAYMENT_VALIDATION': { label: 'Validando Pago', color: 'bg-orange-50 text-orange-600', dot: 'bg-orange-500 animate-pulse', icon: DollarSign },
+    'PAID': { label: 'Pago Confirmado', color: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500', icon: CheckCircle2 },
     'CANCELLED': { label: 'Cancelada', color: 'bg-red-50 text-red-600', dot: 'bg-red-500', icon: AlertCircle },
     'COMPLETED': { label: 'Finalizada', color: 'bg-slate-900 text-white', dot: 'bg-white', icon: CheckCircle2 },
 };
@@ -259,8 +262,15 @@ function AuctionCard({ auction, index, onChat, currentUserId }: { auction: Aucti
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ delay: index * 0.04 }}
-            className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-100 border border-slate-50 p-8 flex flex-col lg:flex-row items-start lg:items-center gap-8 hover:shadow-2xl hover:-translate-y-1 transition-all duration-300"
+            className={`relative bg-white rounded-[2.5rem] shadow-xl border p-8 flex flex-col lg:flex-row items-start lg:items-center gap-8 hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 ${
+                auction.status === 'PAID'
+                    ? 'border-emerald-300 shadow-emerald-100 ring-2 ring-emerald-200/60'
+                    : 'border-slate-50 shadow-slate-100'
+            }`}
         >
+            {auction.status === 'PAID' && (
+                <div className="absolute top-0 left-0 right-0 h-1 rounded-t-[2.5rem] bg-gradient-to-r from-emerald-400 via-teal-400 to-emerald-500" />
+            )}
             {/* Status icon */}
             <div className={`w-16 h-16 rounded-[1.5rem] ${status.color.split(' ')[0]} flex items-center justify-center flex-shrink-0`}>
                 <StatusIcon className={`w-8 h-8 ${status.color.split(' ')[1]}`} />
@@ -310,8 +320,28 @@ function AuctionCard({ auction, index, onChat, currentUserId }: { auction: Aucti
                     )}
                 </div>
 
+                {auction.status === 'PAID' && auction.estimatedSurgeryDate && (
+                    <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mt-2">
+                        <div>
+                            <h4 className="font-black text-emerald-800 flex items-center gap-2">
+                                <Activity className="w-4 h-4" />
+                                Intervención Próxima a Ejecutar
+                            </h4>
+                            <p className="text-xs font-medium text-emerald-700 mt-1">
+                                Esta subasta está pagada. Debes ejecutar la intervención en la fecha pactada.
+                            </p>
+                        </div>
+                        <div className="bg-white px-4 py-2 rounded-lg border border-emerald-100 flex items-center gap-2 flex-shrink-0">
+                            <Clock className="w-4 h-4 text-emerald-500" />
+                            <div className="text-xs font-bold text-emerald-900 flex items-center gap-2">
+                                Faltan: <AuctionCountdown endDate={auction.estimatedSurgeryDate} />
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {auction.medicalHistory && (
-                    <p className="text-slate-500 text-sm font-medium line-clamp-2 leading-relaxed">
+                    <p className="text-slate-500 text-sm font-medium line-clamp-2 leading-relaxed mt-2">
                         {auction.medicalHistory}
                     </p>
                 )}

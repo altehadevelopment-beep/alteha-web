@@ -26,17 +26,27 @@ export async function GET(
         
         const response = await fetch(targetUrl, {
             headers: { 
-                'X-Alteha-Token': userToken
+                'X-Alteha-Token': userToken,
+                'Authorization': `Bearer ${userToken}`
             }
         });
 
-        const data = await response.json();
+        const text = await response.text();
+        console.log('Backend response text:', text);
+        
+        let data;
+        try {
+            data = text ? JSON.parse(text) : {};
+        } catch (e) {
+            data = { message: text || `Error HTTP ${response.status}`, status: response.status };
+        }
+        
         return NextResponse.json(data, { status: response.status });
     } catch (error: any) {
         console.error('Fetch winner payment methods error:', error);
         return NextResponse.json({
             code: 'ERROR',
-            message: `Error de conexión: ${error.message}`
+            message: `Error de conexión proxy: ${error.message}`
         }, { status: 500 });
     }
 }

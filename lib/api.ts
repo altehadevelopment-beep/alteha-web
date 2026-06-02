@@ -1639,7 +1639,33 @@ export async function validateAuctionPayment(payload: {
     return response.json();
 }
 
+export interface SettlementPayload {
+    auctionNumber: string;
+    recipientRole: 'DOCTOR' | 'CLINIC' | 'PHARMACY';
+    amount: number;
+    paymentMethodType: string;
+    referenceNumber: string;
+    notes?: string;
+}
+
+export async function registerSettlement(payload: SettlementPayload, proofFile: File): Promise<ApiResponse<any>> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+
+    const formData = new FormData();
+    formData.append('settlement', new Blob([JSON.stringify(payload)], { type: 'application/json' }));
+    formData.append('proof', proofFile);
+
+    const response = await fetch('/api/auctions/register-settlement', {
+        method: 'POST',
+        headers: { 'X-Alteha-Token': token },
+        body: formData
+    });
+    return response.json();
+}
+
 export async function completeAuction(auctionNumber: string, settlementFile: File): Promise<ApiResponse<any>> {
+
     const token = getStoredToken();
     if (!token) throw new Error('No token found');
     
@@ -1663,7 +1689,27 @@ export async function getWinnerPaymentMethods(auctionNumber: string, role: 'DOCT
     const response = await fetch(`/api/auctions/${auctionNumber}/winner-payment-methods?role=${role}`, {
         headers: { 'X-Alteha-Token': token }
     });
-    const data = await response.json();
+    
+    const text = await response.text();
+    let data: any = {};
+    try {
+        data = text ? JSON.parse(text) : {};
+    } catch (e) {
+        data = { message: text || `Error HTTP ${response.status}` };
+    }
+    
+    if (!response.ok) {
+        let errorMessage = data.detail || data.message;
+        if (!errorMessage || errorMessage.trim() === '') {
+            if (response.status === 400) {
+                errorMessage = 'El ganador no tiene registrado ninguno de los métodos de pago permitidos en la subasta';
+            } else {
+                errorMessage = 'Error al obtener métodos de pago';
+            }
+        }
+        throw new Error(errorMessage);
+    }
+    
     return Array.isArray(data) ? data : (data.data || []);
 }
 
@@ -1691,6 +1737,16 @@ export async function updatePaymentMethod(id: number, method: PaymentMethod, rol
             'X-Alteha-Token': token 
         },
         body: JSON.stringify(method)
+    });
+    return response.json();
+}
+
+export async function deletePaymentMethod(id: number, role: string): Promise<ApiResponse<any>> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+    const response = await fetch(`/api/payment-receiving-methods/my/payment-methods/${id}?role=${role}`, {
+        method: 'DELETE',
+        headers: { 'X-Alteha-Token': token }
     });
     return response.json();
 }

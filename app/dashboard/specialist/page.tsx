@@ -43,6 +43,7 @@ export default function SpecialistDashboard() {
     const [isLoadingCompliance, setIsLoadingCompliance] = useState(true);
     const [auctions, setAuctions] = useState<Auction[]>([]);
     const [isLoadingAuctions, setIsLoadingAuctions] = useState(true);
+    const [nextIntervention, setNextIntervention] = useState<Auction | null>(null);
 
     useEffect(() => {
         const fetchAds = async () => {
@@ -64,14 +65,21 @@ export default function SpecialistDashboard() {
     useEffect(() => {
         const fetchAuctions = async () => {
             try {
-                const result = await getMyInvitations('DOCTOR', 0, 3);
+                const result = await getMyInvitations('DOCTOR', 0, 20);
+                let list: Auction[] = [];
                 if (result.code === '00' && result.data) {
-                    setAuctions(result.data);
+                    list = result.data;
                 } else if (Array.isArray(result)) {
-                    setAuctions(result as any);
+                    list = result as any;
                 } else if ((result as any).content) {
-                    setAuctions((result as any).content);
+                    list = (result as any).content;
                 }
+                setAuctions(list.slice(0, 3));
+                // Find the next PAID (upcoming intervention) sorted by estimatedSurgeryDate
+                const paidAuctions = list
+                    .filter((a: any) => a.status === 'PAID' && a.estimatedSurgeryDate)
+                    .sort((a: any, b: any) => new Date(a.estimatedSurgeryDate).getTime() - new Date(b.estimatedSurgeryDate).getTime());
+                setNextIntervention(paidAuctions[0] || null);
             } catch (e) {
                 console.error('Error loading auctions:', e);
             } finally {
@@ -296,6 +304,67 @@ export default function SpecialistDashboard() {
                             >
                                 Verificar Cuenta
                             </Link>
+                        </div>
+                    </m.div>
+                )}
+            </AnimatePresence>
+
+            {/* ===== PRÓXIMA INTERVENCIÓN BANNER ===== */}
+            <AnimatePresence>
+                {nextIntervention && !isLoadingAuctions && (
+                    <m.div
+                        initial={{ opacity: 0, y: -12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -12 }}
+                        className="overflow-hidden"
+                    >
+                        <div className="relative bg-gradient-to-br from-emerald-600 via-teal-600 to-emerald-700 rounded-[2.5rem] p-8 md:p-10 text-white overflow-hidden shadow-2xl shadow-emerald-500/30">
+                            {/* Decorative blobs */}
+                            <div className="absolute -top-16 -right-16 w-56 h-56 bg-white/10 rounded-full blur-3xl" />
+                            <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-emerald-300/20 rounded-full blur-2xl" />
+
+                            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                                <div className="space-y-3">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 bg-white/20 rounded-2xl flex items-center justify-center">
+                                            <Calendar className="w-5 h-5 text-white" />
+                                        </div>
+                                        <span className="text-[10px] font-black uppercase tracking-[0.3em] text-emerald-200">
+                                            Próxima Intervención Asignada
+                                        </span>
+                                    </div>
+                                    <h3 className="text-2xl font-black leading-tight max-w-lg">
+                                        {nextIntervention.title}
+                                    </h3>
+                                    <div className="flex flex-wrap items-center gap-4 text-emerald-100 text-sm font-semibold">
+                                        <span className="flex items-center gap-1.5">
+                                            <MapPin className="w-4 h-4" />
+                                            {nextIntervention.auctionNumber}
+                                        </span>
+                                        {nextIntervention.estimatedSurgeryDate && (
+                                            <span className="flex items-center gap-1.5">
+                                                <Calendar className="w-4 h-4" />
+                                                {new Date(nextIntervention.estimatedSurgeryDate).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="flex flex-col items-center gap-2 bg-white/15 backdrop-blur-sm border border-white/20 rounded-[1.5rem] px-8 py-6 min-w-[200px] text-center flex-shrink-0">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-emerald-200">Tiempo Restante</p>
+                                    <AuctionCountdown
+                                        endDate={nextIntervention.estimatedSurgeryDate!}
+                                        variant="white"
+                                        className="text-white text-2xl font-black"
+                                    />
+                                    <Link
+                                        href={`/dashboard/specialist/auctions/${nextIntervention.auctionNumber}`}
+                                        className="mt-2 px-5 py-2 bg-white text-emerald-700 rounded-xl font-black text-xs hover:scale-105 transition-all shadow-lg"
+                                    >
+                                        Ver Detalle
+                                    </Link>
+                                </div>
+                            </div>
                         </div>
                     </m.div>
                 )}

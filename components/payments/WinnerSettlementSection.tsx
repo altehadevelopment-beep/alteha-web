@@ -15,7 +15,7 @@ import {
     Info
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
-import { completeAuction, getWinnerPaymentMethods, type PaymentMethod } from '@/lib/api';
+import { completeAuction, getWinnerPaymentMethods, getStoredToken, type PaymentMethod } from '@/lib/api';
 
 interface WinnerSettlementSectionProps {
     auction: any;
@@ -23,10 +23,21 @@ interface WinnerSettlementSectionProps {
 }
 
 export const WinnerSettlementSection: React.FC<WinnerSettlementSectionProps> = ({ auction, role }) => {
+    const METHOD_NAMES: Record<string, string> = {
+        'BS_PAGO_MOVIL': 'Pago Móvil (BS)',
+        'BS_BANK_TRANSFER': 'Transferencia BS',
+        'USD_ACH': 'ACH / Zelle (USD)',
+        'USD_WIRE_SWIFT': 'SWIFT (USD)',
+        'USD_IBAN': 'IBAN (EUR/USD)',
+        'BINANCE_PAY': 'Binance Pay',
+        'CRYPTO_WALLET': 'Crypto Wallet'
+    };
+
     const [settlementFile, setSettlementFile] = useState<File | null>(null);
     const [isCompleting, setIsCompleting] = useState(false);
     const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
     const [isLoadingMethods, setIsLoadingMethods] = useState(false);
+    const [methodsError, setMethodsError] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [isSuccess, setIsSuccess] = useState(false);
 
@@ -34,11 +45,14 @@ export const WinnerSettlementSection: React.FC<WinnerSettlementSectionProps> = (
         const loadMethods = async () => {
             if (auction.status === 'PAID' || auction.status === 'COMPLETED' || auction.status === 'AWARDED') {
                 setIsLoadingMethods(true);
+                setMethodsError(null);
                 try {
                     const methods = await getWinnerPaymentMethods(auction.auctionNumber, role);
                     setPaymentMethods(methods);
-                } catch (err) {
+                } catch (err: any) {
                     console.error('Error loading winner methods:', err);
+                    setMethodsError(err.message || 'Error al cargar métodos de pago');
+                    setPaymentMethods([]);
                 } finally {
                     setIsLoadingMethods(false);
                 }
@@ -121,8 +135,42 @@ export const WinnerSettlementSection: React.FC<WinnerSettlementSectionProps> = (
                     ) : (
                         <div className="p-8 bg-amber-50 rounded-[2rem] border border-amber-100 text-center space-y-3">
                             <AlertCircle className="w-8 h-8 text-amber-500 mx-auto" />
-                            <p className="text-sm font-bold text-amber-700 leading-tight">No tienes cuentas de pago activas para este rol.</p>
-                            <Button variant="outline" className="text-[10px] h-8 rounded-full border-amber-200 text-amber-600 hover:bg-amber-100">
+                            <p className="text-sm font-bold text-amber-700 leading-tight">
+                                {methodsError || 'No tienes cuentas de pago activas para este rol.'}
+                            </p>
+                            {auction?.allowedPaymentMethods && auction.allowedPaymentMethods.length > 0 && (
+                                <p className="text-xs font-medium text-amber-600 mt-2 bg-amber-100/50 p-3 rounded-xl">
+                                    Esta subasta requiere configurar al menos uno de los siguientes métodos de pago: <br/>
+                                    <strong className="text-amber-800 tracking-wider">
+                                        {auction.allowedPaymentMethods.map((m: string) => METHOD_NAMES[m] || m).join(', ')}
+                                    </strong>.
+                                </p>
+                            )}
+                            
+                            {methodsError && (
+                                <div className="mt-4 p-4 bg-slate-900 rounded-xl text-left overflow-x-auto border border-slate-700">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                                        <Info className="w-3 h-3" /> Info de depuración para backend:
+                                    </p>
+                                    <pre className="text-xs text-green-400 font-mono whitespace-pre-wrap break-all">
+{`curl -X GET "https://qaback.alteha.com:3232/api/auctions/${auction.auctionNumber}/winner-payment-methods?role=${role}" \\
+  -H "Accept: application/json" \\
+  -H "X-Alteha-Token: ${getStoredToken() || '<TU_TOKEN_AQUI>'}"`}
+                                    </pre>
+                                </div>
+                            )}
+
+                            <Button 
+                                variant="outline" 
+                                onClick={() => {
+                                    const baseUrl = `/dashboard/${role.toLowerCase() === 'doctor' ? 'specialist' : 'clinic'}/payment-methods`;
+                                    const redirectUrl = (auction?.allowedPaymentMethods && auction.allowedPaymentMethods.length > 0)
+                                        ? `${baseUrl}?addMethod=${auction.allowedPaymentMethods[0]}`
+                                        : baseUrl;
+                                    window.location.href = redirectUrl;
+                                }}
+                                className="text-[10px] h-8 rounded-full border-amber-200 text-amber-600 hover:bg-amber-100"
+                            >
                                 Configurar ahora
                             </Button>
                         </div>
@@ -146,32 +194,41 @@ export const WinnerSettlementSection: React.FC<WinnerSettlementSectionProps> = (
 
                 {auction.status === 'PAID' ? (
                     <div className="space-y-6">
-                        <div className="bg-white/5 border-2 border-dashed border-white/10 rounded-[2.5rem] p-8 text-center transition-all hover:bg-white/[0.07] group relative">
-                            <input 
-                                type="file" 
-                                onChange={(e) => setSettlementFile(e.target.files?.[0] || null)}
-                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                                accept=".pdf,.jpg,.jpeg,.png"
-                            />
-                            {settlementFile ? (
-                                <div className="space-y-3">
-                                    <div className="w-16 h-16 bg-alteha-turquoise/20 text-alteha-turquoise rounded-2xl flex items-center justify-center mx-auto">
-                                        <CheckCircle2 className="w-8 h-8" />
+                        {paymentMethods.length === 0 || methodsError ? (
+                            <div className="bg-white/5 border border-white/10 rounded-[2rem] p-8 text-center space-y-3">
+                                <AlertCircle className="w-8 h-8 text-amber-500/80 mx-auto" />
+                                <p className="text-sm font-medium text-slate-300">
+                                    Debes tener configurado al menos un método de pago válido para la subasta antes de poder subir el acta de finiquito.
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="bg-white/5 border-2 border-dashed border-white/10 rounded-[2.5rem] p-8 text-center transition-all hover:bg-white/[0.07] group relative">
+                                <input 
+                                    type="file" 
+                                    onChange={(e) => setSettlementFile(e.target.files?.[0] || null)}
+                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                    accept=".pdf,.jpg,.jpeg,.png"
+                                />
+                                {settlementFile ? (
+                                    <div className="space-y-3">
+                                        <div className="w-16 h-16 bg-alteha-turquoise/20 text-alteha-turquoise rounded-2xl flex items-center justify-center mx-auto">
+                                            <CheckCircle2 className="w-8 h-8" />
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-black text-white truncate">{settlementFile.name}</p>
+                                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Listo para subir</p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <p className="text-sm font-black text-white truncate">{settlementFile.name}</p>
-                                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Listo para subir</p>
+                                ) : (
+                                    <div className="space-y-3">
+                                        <div className="w-16 h-16 bg-white/5 text-slate-500 rounded-2xl flex items-center justify-center mx-auto group-hover:scale-110 transition-transform">
+                                            <Upload className="w-8 h-8" />
+                                        </div>
+                                        <p className="text-sm font-black text-slate-400">Seleccionar Acta de Finiquito (PDF/IMG)</p>
                                     </div>
-                                </div>
-                            ) : (
-                                <div className="space-y-3">
-                                    <div className="w-16 h-16 bg-white/5 text-slate-500 rounded-2xl flex items-center justify-center mx-auto group-hover:scale-110 transition-transform">
-                                        <Upload className="w-8 h-8" />
-                                    </div>
-                                    <p className="text-sm font-black text-slate-400">Seleccionar Acta de Finiquito (PDF/IMG)</p>
-                                </div>
-                            )}
-                        </div>
+                                )}
+                            </div>
+                        )}
 
                         {error && (
                             <div className="flex items-center gap-2 text-red-400 text-xs font-bold bg-red-500/10 p-3 rounded-xl border border-red-500/20">

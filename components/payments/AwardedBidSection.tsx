@@ -267,64 +267,14 @@ export default function AwardedBidSection({ auction, role }: AwardedBidSectionPr
                         )}
 
                         {(auction.status === 'PAYMENT_REPORTED' || auction.status === 'PAYMENT_VALIDATION') && (
-                            <div className="space-y-8">
-                                <div className="space-y-4">
-                                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-amber-500/20 text-amber-500 rounded-full text-[9px] font-black uppercase tracking-widest">
-                                        <Clock className="w-3 h-3" /> Pago Reportado
-                                    </div>
-                                    <h5 className="text-2xl font-black leading-tight">Validación en Proceso</h5>
-                                    <p className="text-slate-400 text-sm font-medium leading-relaxed">Se ha recibido el reporte de pago. Verifique los fondos para proceder con la confirmación.</p>
+                            <div className="space-y-6 text-center">
+                                <div className="w-20 h-20 bg-amber-500/20 text-amber-500 rounded-full flex items-center justify-center mx-auto shadow-2xl">
+                                    <Clock className="w-10 h-10 animate-pulse" />
                                 </div>
-
-                                {role === 'INSURANCE_COMPANY' && (
-                                    <div className="grid grid-cols-1 gap-4 pt-4 border-t border-white/10">
-                                        <Button 
-                                            onClick={async () => {
-                                                const notes = prompt("Notas de aprobación (opcional):", "Transferencia recibida correctamente.");
-                                                if (notes !== null) {
-                                                    try {
-                                                        const { validateAuctionPayment } = await import('@/lib/api');
-                                                        await validateAuctionPayment({
-                                                            auctionNumber: auction.auctionNumber,
-                                                            isValid: true,
-                                                            notes
-                                                        });
-                                                        window.location.reload();
-                                                    } catch (error) {
-                                                        alert("Error al validar el pago");
-                                                    }
-                                                }
-                                            }}
-                                            className="w-full h-16 bg-alteha-turquoise text-slate-900 hover:bg-alteha-turquoise/90 rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 transition-all"
-                                        >
-                                            <ShieldCheck className="w-5 h-5" />
-                                            Aprobar Pago
-                                        </Button>
-                                        <Button 
-                                            variant="outline"
-                                            onClick={async () => {
-                                                const notes = prompt("Motivo del rechazo (obligatorio):");
-                                                if (notes) {
-                                                    try {
-                                                        const { validateAuctionPayment } = await import('@/lib/api');
-                                                        await validateAuctionPayment({
-                                                            auctionNumber: auction.auctionNumber,
-                                                            isValid: false,
-                                                            notes
-                                                        });
-                                                        window.location.reload();
-                                                    } catch (error) {
-                                                        alert("Error al rechazar el pago");
-                                                    }
-                                                }
-                                            }}
-                                            className="w-full h-16 bg-transparent border-red-500/50 text-red-500 hover:bg-red-500/10 rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 transition-all"
-                                        >
-                                            <AlertCircle className="w-5 h-5" />
-                                            Rechazar Pago
-                                        </Button>
-                                    </div>
-                                )}
+                                <div className="space-y-2">
+                                    <h5 className="text-2xl font-black leading-tight text-amber-500">Verificación en Proceso</h5>
+                                    <p className="text-slate-400 text-sm font-medium leading-relaxed">Su comprobante ha sido recibido. Alteha está validando los fondos para confirmar la cirugía.</p>
+                                </div>
                             </div>
                         )}
 
@@ -340,31 +290,7 @@ export default function AwardedBidSection({ auction, role }: AwardedBidSectionPr
                             </div>
                         )}
 
-                        <div className="pt-6 border-t border-white/10 space-y-6">
-                            {/* 24h Payment Limit Warning - Monochromatic Sleek */}
-                            <div className="flex items-start gap-3">
-                                <AlertCircle className="w-5 h-5 text-slate-500 shrink-0 mt-1" />
-                                <div className="space-y-1">
-                                    <p className="text-[10px] font-black text-white uppercase tracking-widest">Límite de Tiempo</p>
-                                    <p className="text-[11px] font-medium text-slate-400 leading-snug">
-                                        Vence en 24 horas tras la adjudicación.
-                                    </p>
-                                    {auction.updatedAt && (
-                                        <p className="text-[12px] font-black text-white mt-1">
-                                            {(() => {
-                                                const awardDate = new Date(auction.updatedAt).getTime();
-                                                const now = new Date().getTime();
-                                                const diff = (awardDate + (24 * 60 * 60 * 1000)) - now;
-                                                if (diff <= 0) return "EXPIRADO";
-                                                const hours = Math.floor(diff / (1000 * 60 * 60));
-                                                const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-                                                return `QUEDAN: ${hours}H ${mins}M`;
-                                            })()}
-                                        </p>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
+
                     </div>
                 </div>
             </div>

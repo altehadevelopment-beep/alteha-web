@@ -17,7 +17,11 @@ export async function GET(request: NextRequest) {
 
         let targetUrl = `${API_BASE}/auctions?page=${page}&size=${size}&sort=${sort}`;
         if (status) {
-            targetUrl += `&status.equals=${status}`;
+            if (status.includes(',')) {
+                targetUrl += `&status.in=${status}`;
+            } else {
+                targetUrl += `&status.equals=${status}`;
+            }
         }
 
         console.log('[API Proxy] Fetching all auctions from:', targetUrl);

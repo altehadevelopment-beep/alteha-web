@@ -47,17 +47,15 @@ export async function POST(request: NextRequest) {
             data = { message: responseText || 'Error en respuesta del servidor' };
         }
 
-        // Generar cURL real utilizado para depuración con todos los tokens reales
-        const debugCurl = `curl -X POST '${targetUrl}' \\
-  -H 'Authorization: Bearer ${adminToken}' \\
-  -H 'X-Alteha-Token: ${userToken}' \\
-  -H 'Content-Type: application/json' \\
-  -d '${JSON.stringify(body, null, 2)}'`;
-
-        if (typeof data === 'object' && data !== null) {
-            data.debugCurl = debugCurl;
+        if (response.ok) {
+            return NextResponse.json({
+                code: '00',
+                message: 'Validación procesada exitosamente',
+                data: data
+            }, { status: response.status });
         }
 
+        // Si hay error, retornar tal cual (opcionalmente con el cURL para debug en QA, aunque no se mostrará)
         return NextResponse.json(data, { status: response.status });
     } catch (error: any) {
         console.error('Payment validation error:', error);

@@ -63,15 +63,13 @@ export default function PublicDoctorProfile() {
     const pregrado        = doctorFiles.filter(f => f.fileType === 'PREGRADO');
     const postgrado       = doctorFiles.filter(f => f.fileType === 'POSTGRADO');
     const otrosEstudios   = doctorFiles.filter(f => f.fileType === 'OTROS_ESTUDIOS');
-    const certificaciones = doctorFiles.filter(f => f.fileType === 'CERTIFICACION');
-    const experiencia     = doctorFiles.filter(f => f.fileType === 'EXPERIENCIA');
+    const certificaciones = doctorFiles.filter(f => f.fileType === 'CERTIFICACIONES_MEDICAS_EXPERIENCIAS');
 
     const credentialGroups = [
         { label: 'Pregrado',                          icon: GraduationCap, color: 'text-alteha-violet',   items: pregrado },
         { label: 'Postgrado / Especialidad',           icon: BookOpen,      color: 'text-alteha-turquoise',items: postgrado },
         { label: 'Otros Estudios',                    icon: FileText,      color: 'text-blue-500',        items: otrosEstudios },
-        { label: 'Certificaciones Médicas',           icon: Award,         color: 'text-amber-500',       items: certificaciones },
-        { label: 'Experiencia Internacional y Logros',icon: Trophy,        color: 'text-rose-500',        items: experiencia },
+        { label: 'Certificaciones y Experiencia',     icon: Award,         color: 'text-emerald-500',     items: certificaciones },
     ];
 
     const clinics = doctor.preferredClinics?.length > 0 ? doctor.preferredClinics : [

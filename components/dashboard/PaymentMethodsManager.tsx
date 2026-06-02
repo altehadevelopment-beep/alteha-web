@@ -8,7 +8,7 @@ import {
     MapPin, Hash, Phone as PhoneIcon, FileText
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { getPaymentMethods, createPaymentMethod, updatePaymentMethod, type PaymentMethod } from '@/lib/api';
+import { getPaymentMethods, createPaymentMethod, updatePaymentMethod, deletePaymentMethod, type PaymentMethod } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 
 interface PaymentMethodsManagerProps {
@@ -27,7 +27,10 @@ const METHOD_TYPES = [
     { id: 'CRYPTO_WALLET', name: 'Crypto Wallet', icon: Wallet, color: 'bg-orange-500', description: 'USDT (TRC20, ERC20, BEP20)' },
 ];
 
+import { useSearchParams } from 'next/navigation';
+
 export default function PaymentMethodsManager({ role, onSelect, selectionMode = false }: PaymentMethodsManagerProps) {
+    const searchParams = useSearchParams();
     const [methods, setMethods] = useState<PaymentMethod[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isAdding, setIsAdding] = useState(false);
@@ -58,7 +61,24 @@ export default function PaymentMethodsManager({ role, onSelect, selectionMode = 
 
     useEffect(() => {
         loadMethods();
-    }, [role]);
+        
+        // Auto-select method type if passed via query params
+        const addMethod = searchParams.get('addMethod');
+        if (addMethod && METHOD_TYPES.some(t => t.id === addMethod)) {
+            setIsAdding(true);
+            
+            setSelectedType(addMethod);
+            setFormData(prev => ({
+                ...prev,
+                methodType: addMethod as any,
+                displayName: `Mi ${METHOD_TYPES.find(t => t.id === addMethod)?.name}`,
+                bankAccount: {
+                    ...prev.bankAccount!,
+                    currency: addMethod.startsWith('BS') ? 'VES' : (addMethod === 'USD_IBAN' ? 'EUR' : 'USD')
+                }
+            }));
+        }
+    }, [role, searchParams]);
 
     async function loadMethods() {
         setIsLoading(true);
@@ -77,6 +97,19 @@ export default function PaymentMethodsManager({ role, onSelect, selectionMode = 
             }
         } catch (error) {
             console.error('Error loading methods:', error);
+        } finally {
+            setIsLoading(false);
+        }
+    }
+
+    async function handleDelete(method: PaymentMethod) {
+        if (!confirm(`¿Eliminar "${method.displayName}"? Esta acción no se puede deshacer.`)) return;
+        setIsLoading(true);
+        try {
+            await deletePaymentMethod(method.id!, role);
+            await loadMethods();
+        } catch (error) {
+            console.error('Error deleting method:', error);
         } finally {
             setIsLoading(false);
         }
@@ -201,12 +234,12 @@ export default function PaymentMethodsManager({ role, onSelect, selectionMode = 
                 <div>
                     <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
                         <Wallet className="w-8 h-8 text-alteha-turquoise" />
-                        {selectionMode ? 'Seleccionar Método de Pago' : 'Métodos de Pago'}
+                        {selectionMode ? 'Seleccionar Método de Cobro' : 'Métodos de Cobro'}
                     </h2>
                     <p className="text-slate-500 font-medium mt-1">
                         {selectionMode 
                             ? 'Elige una de tus cuentas guardadas o agrega una nueva para procesar el pago.'
-                            : 'Configura tus cuentas para gestionar cobros y pagos de forma segura.'}
+                            : 'Configura tus cuentas para gestionar tus cobros de forma segura.'}
                     </p>
                 </div>
                 {!isAdding && !editingMethod && (
@@ -676,7 +709,7 @@ export default function PaymentMethodsManager({ role, onSelect, selectionMode = 
                                                 <button 
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        // Podrías implementar eliminación aquí si es necesario
+                                                        handleDelete(method);
                                                     }}
                                                     className="w-10 h-10 rounded-xl bg-rose-50 text-rose-400 hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center"
                                                     title="Eliminar"

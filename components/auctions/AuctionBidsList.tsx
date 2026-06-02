@@ -21,6 +21,7 @@ interface AuctionBidsListProps {
     mode?: 'insurance' | 'doctor'; // insurance = full details, doctor = own bids only
     insuranceId?: number;
     insuranceName?: string;
+    onActionSuccess?: () => void;
 }
 
 const ChatButtonWithBadge: React.FC<{
@@ -52,7 +53,7 @@ const ChatButtonWithBadge: React.FC<{
     );
 };
 
-export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatus, mode = 'insurance', insuranceId, insuranceName }: AuctionBidsListProps) {
+export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatus, mode = 'insurance', insuranceId, insuranceName, onActionSuccess }: AuctionBidsListProps) {
     const { userProfile } = useAuth();
     const [bids, setBids] = useState<BidDetailed[]>([]);
     const [topOffers, setTopOffers] = useState<TopOffer[]>([]);
@@ -87,7 +88,11 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
             const res = await awardAuction(auctionNumber, selectedBidId);
             if (res.code === '00' || (res as any).id) {
                 setAwardModalOpen(false);
-                window.location.reload(); // Refresh to show new status
+                if (onActionSuccess) {
+                    onActionSuccess();
+                } else {
+                    window.location.reload();
+                }
             } else {
                 alert(res.message || 'Error al adjudicar subasta');
             }

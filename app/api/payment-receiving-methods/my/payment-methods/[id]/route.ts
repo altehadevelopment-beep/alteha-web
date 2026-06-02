@@ -39,3 +39,38 @@ export async function PUT(
         return NextResponse.json({ code: 'ERROR', message: 'Error de conexión' }, { status: 500 });
     }
 }
+
+export async function DELETE(
+    request: NextRequest,
+    { params }: { params: { id: string } }
+) {
+    try {
+        const id = params.id;
+        const userToken = request.headers.get('X-Alteha-Token');
+        if (!userToken) {
+            return NextResponse.json({ code: 'AUTH_001', message: 'No session token' }, { status: 401 });
+        }
+
+        const { searchParams } = new URL(request.url);
+        const queryString = searchParams.toString();
+        const adminToken = await getAppToken();
+
+        const response = await fetch(`${API_BASE}/payment-receiving-methods/my/payment-methods/${id}?${queryString}`, {
+            method: 'DELETE',
+            headers: {
+                'Accept': '*/*',
+                'Authorization': `Bearer ${adminToken}`,
+                'X-Alteha-Token': userToken
+            }
+        });
+
+        const text = await response.text();
+        let data: any = {};
+        try { data = text ? JSON.parse(text) : {}; } catch { data = {}; }
+
+        return NextResponse.json({ code: '00', message: 'Eliminado correctamente', data }, { status: response.status });
+    } catch (error) {
+        console.error('[API Proxy] Delete payment method error:', error);
+        return NextResponse.json({ code: 'ERROR', message: 'Error de conexión' }, { status: 500 });
+    }
+}

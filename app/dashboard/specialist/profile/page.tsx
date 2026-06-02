@@ -32,6 +32,7 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthContext';
 import { Logo } from '@/components/ui/Logo';
+import PaymentMethodsManager from '@/components/dashboard/PaymentMethodsManager';
 import { 
     getSpecialties, 
     updateDoctorProfile, 
@@ -420,8 +421,7 @@ export default function EditProfilePage() {
     const pregradoFiles = doctorFiles.filter(f => f.fileType === 'PREGRADO');
     const postgradoFiles = doctorFiles.filter(f => f.fileType === 'POSTGRADO');
     const otrosEstudiosFiles = doctorFiles.filter(f => f.fileType === 'OTROS_ESTUDIOS');
-    const certificacionFiles = doctorFiles.filter(f => f.fileType === 'CERTIFICACION');
-    const experienciaFiles = doctorFiles.filter(f => f.fileType === 'EXPERIENCIA');
+    const certificacionFiles = doctorFiles.filter(f => f.fileType === 'CERTIFICACIONES_MEDICAS_EXPERIENCIAS');
 
     const displayProfile = userProfile || {};
 
@@ -658,25 +658,13 @@ export default function EditProfilePage() {
                     active={activeTab === 'certifications'}
                     onClick={() => setActiveTab('certifications')}
                     icon={Award}
-                    label="Certificaciones"
-                />
-                <TabButton
-                    active={activeTab === 'experience'}
-                    onClick={() => setActiveTab('experience')}
-                    icon={Briefcase}
-                    label="Experiencia"
+                    label="Certificados y Experiencia"
                 />
                 <TabButton
                     active={activeTab === 'collection'}
                     onClick={() => setActiveTab('collection')}
                     icon={Wallet}
                     label="Métodos de cobro"
-                />
-                <TabButton
-                    active={activeTab === 'payment'}
-                    onClick={() => setActiveTab('payment')}
-                    icon={CreditCard}
-                    label="Métodos de pago"
                 />
             </div>
 
@@ -714,33 +702,20 @@ export default function EditProfilePage() {
                 {activeTab === 'certifications' && (
                     <div className="space-y-6">
                         <CredentialGroup
-                            title="Certificaciones Médicas"
-                            subtitle="Colegios y asociaciones"
+                            title="Certificaciones y Experiencia"
+                            subtitle="Colegios, asociaciones, investigaciones, premios o experiencia destacada"
                             items={certificacionFiles}
-                            onAdd={() => openFileModal('CERTIFICACION')}
-                            onEdit={(item: DoctorFile) => openFileModal('CERTIFICACION', item)}
+                            onAdd={() => openFileModal('CERTIFICACIONES_MEDICAS_EXPERIENCIAS')}
+                            onEdit={(item: DoctorFile) => openFileModal('CERTIFICACIONES_MEDICAS_EXPERIENCIAS', item)}
                             onDelete={handleDeleteFile}
                         />
-                    </div>
-                )}
-
-                {activeTab === 'experience' && (
-                    <div className="space-y-6">
-                        <CredentialGroup
-                            title="Experiencia Internacional y Logros"
-                            subtitle="Investigaciones, premios o experiencia destacada"
-                            items={experienciaFiles}
-                            onAdd={() => openFileModal('EXPERIENCIA')}
-                            onEdit={(item: DoctorFile) => openFileModal('EXPERIENCIA', item)}
-                            onDelete={handleDeleteFile}
-                        />
-                        {experienciaFiles.length === 0 && (
+                        {certificacionFiles.length === 0 && (
                             <div className="bg-slate-50 border-2 border-dashed border-slate-200 p-12 rounded-[2.5rem] flex flex-col items-center text-center">
                                 <BookOpen className="w-12 h-12 text-slate-300 mb-4" />
-                                <h4 className="font-bold text-slate-500">¿Tienes experiencia internacional o investigaciones?</h4>
-                                <p className="text-slate-400 text-sm max-w-xs mt-2">Agrega tus logros más destacados para que las aseguradoras te elijan.</p>
-                                <Button variant="outline" onClick={() => openFileModal('EXPERIENCIA')} className="mt-6 border-slate-200 text-slate-600 rounded-xl">
-                                    Agregar Experiencia
+                                <h4 className="font-bold text-slate-500">Completa tu perfil profesional</h4>
+                                <p className="text-slate-400 text-sm max-w-xs mt-2">Los pacientes confían más en especialistas con credenciales verificadas. Sube tus certificaciones y experiencia internacional para aumentar tu visibilidad en Alteha.</p>
+                                <Button variant="outline" onClick={() => openFileModal('CERTIFICACIONES_MEDICAS_EXPERIENCIAS')} className="mt-6 border-slate-200 text-slate-600 rounded-xl">
+                                    Agregar Documento
                                 </Button>
                             </div>
                         )}
@@ -749,39 +724,7 @@ export default function EditProfilePage() {
 
                 {activeTab === 'collection' && (
                     <div className="space-y-6">
-                        <CredentialGroup
-                            title="Cuentas Bancarias para Cobros"
-                            subtitle="Donde recibirás tus pagos por servicios prestados"
-                            items={[]}
-                        />
-                        <div className="bg-alteha-turquoise/5 border border-alteha-turquoise/20 p-8 rounded-[2.5rem]">
-                            <h4 className="font-bold text-slate-900 mb-2 flex items-center gap-2">
-                                <Wallet className="w-5 h-5 text-alteha-turquoise" />
-                                Información de Cobro
-                            </h4>
-                            <p className="text-slate-500 text-sm leading-relaxed">
-                                Agrega las cuentas bancarias nacionales o internacionales donde deseas que ALTEHA liquide tus honorarios médicos después de cada procedimiento exitoso.
-                            </p>
-                        </div>
-                    </div>
-                )}
-
-                {activeTab === 'payment' && (
-                    <div className="space-y-6">
-                        <CredentialGroup
-                            title="Tarjetas y Métodos de Pago"
-                            subtitle="Configura cómo pagarás suscripciones o servicios adicionales"
-                            items={[]}
-                        />
-                        <div className="bg-slate-900 p-8 rounded-[2.5rem] text-white">
-                            <h4 className="font-bold mb-2 flex items-center gap-2">
-                                <CreditCard className="w-5 h-5 text-alteha-turquoise" />
-                                Pagos Seguros
-                            </h4>
-                            <p className="text-slate-300 text-sm leading-relaxed">
-                                Mantén un método de pago activo para servicios premium o reactivación de cuenta si es necesario. ALTEHA protege tus datos financieros con los más altos estándares de seguridad.
-                            </p>
-                        </div>
+                        <PaymentMethodsManager role="DOCTOR" />
                     </div>
                 )}
             </section>
