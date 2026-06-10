@@ -19,7 +19,8 @@ import {
     Users,
     Gavel,
     Star,
-    Plus
+    Plus,
+    Stethoscope
 } from 'lucide-react';
 import { Logo } from '@/components/ui/Logo';
 import { cn } from '@/lib/utils';
@@ -33,6 +34,7 @@ const specialistItems = [
     { title: 'Conversaciones', icon: MessageSquare, href: '/dashboard/specialist/conversations' },
     { title: 'Referir Colega', icon: Users, href: '/dashboard/specialist/referrals' },
     { title: 'Disputas', icon: AlertCircle, href: '/dashboard/specialist/disputes' },
+    { title: 'Recetas Médicas', icon: Stethoscope, href: '/dashboard/specialist/recipes' },
 ];
 
 const clinicItems = [
