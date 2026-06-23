@@ -126,6 +126,9 @@ export default function NewAuctionPage() {
     const [showProcedureResults, setShowProcedureResults] = useState(false);
     const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
     const [advSearchSpecialtyId, setAdvSearchSpecialtyId] = useState<number | null>(null);
+    const [catalogSpecialties, setCatalogSpecialties] = useState<Specialty[]>([]);
+    const [catalogProcedureTypes, setCatalogProcedureTypes] = useState<ProcedureType[]>([]);
+    const [isLoadingCatalog, setIsLoadingCatalog] = useState(false);
 
     useEffect(() => {
         const loadInitial = async () => {
@@ -231,6 +234,41 @@ export default function NewAuctionPage() {
             specialty: template.specialty ? { id: template.specialty.id } : prev.specialty
         }));
     };
+
+    // Load catalog specialties (only those with procedures) when advanced search opens
+    useEffect(() => {
+        if (!showAdvancedSearch) return;
+        if (catalogSpecialties.length > 0) return;
+        const load = async () => {
+            try {
+                const specs = await getSpecialties(0, 50, true);
+                setCatalogSpecialties(Array.isArray(specs) ? specs : []);
+            } catch {
+                setCatalogSpecialties(specialties);
+            }
+        };
+        load();
+    }, [showAdvancedSearch]);
+
+    // Load catalog procedure types filtered by specialty (server-side)
+    useEffect(() => {
+        if (!advSearchSpecialtyId) {
+            setCatalogProcedureTypes([]);
+            return;
+        }
+        const load = async () => {
+            setIsLoadingCatalog(true);
+            try {
+                const types = await getProcedureTypes(0, 2000, advSearchSpecialtyId);
+                setCatalogProcedureTypes(Array.isArray(types) ? types : []);
+            } catch {
+                setCatalogProcedureTypes([]);
+            } finally {
+                setIsLoadingCatalog(false);
+            }
+        };
+        load();
+    }, [advSearchSpecialtyId]);
 
     // Search as you type with debounce
     useEffect(() => {
@@ -1270,7 +1308,7 @@ export default function NewAuctionPage() {
                                 {/* Specialties Sidebar */}
                                 <div className="w-1/3 border-r bg-slate-50/50 p-6 overflow-y-auto space-y-3">
                                     <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Especialidades</h4>
-                                    {specialties.map(s => (
+                                    {(catalogSpecialties.length > 0 ? catalogSpecialties : specialties).map(s => (
                                         <button
                                             key={s.id}
                                             onClick={() => setAdvSearchSpecialtyId(s.id)}
@@ -1301,23 +1339,20 @@ export default function NewAuctionPage() {
                                                 <h4 className="text-lg font-black text-slate-900 italic">Intervenciones en {specialties.find(s => s.id === advSearchSpecialtyId)?.name}</h4>
                                             </div>
                                             
-                                            {procedureTypes.length === 0 ? (
+                                            {isLoadingCatalog ? (
                                                 <div className="py-20 text-center">
                                                     <Loader2 className="w-10 h-10 animate-spin mx-auto text-slate-200 mb-4" />
                                                     <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Consultando catálogo de Alteha...</p>
                                                 </div>
                                             ) : (
                                                 <div className="grid grid-cols-1 gap-3">
-                                                    {procedureTypes
-                                                        .filter(t => t.specialty?.id === advSearchSpecialtyId)
-                                                        .length === 0 ? (
+                                                    {catalogProcedureTypes.length === 0 ? (
                                                             <div className="py-20 text-center bg-slate-50 rounded-[2rem] border-2 border-dashed">
                                                                 <AlertCircle className="w-10 h-10 mx-auto text-slate-300 mb-4" />
                                                                 <p className="text-slate-500 font-bold">No hay procedimientos registrados para esta especialidad.</p>
                                                             </div>
                                                         ) : (
-                                                            procedureTypes
-                                                                .filter(t => t.specialty?.id === advSearchSpecialtyId)
+                                                            catalogProcedureTypes
                                                                 .map(type => (
                                                                     <button
                                                                         key={type.id}

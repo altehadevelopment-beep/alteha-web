@@ -9,10 +9,14 @@ export async function GET(request: NextRequest) {
     try {
         const { searchParams } = new URL(request.url);
         const page = searchParams.get('page') || '0';
-        const size = searchParams.get('size') || '100';
+        const size = searchParams.get('size') || '2000';
+        const specialtyId = searchParams.get('specialtyId');
         const token = await getAppToken();
 
-        const response = await fetch(`${API_BASE}/procedure-types?page=${page}&size=${size}`, {
+        const qs = new URLSearchParams({ page, size });
+        if (specialtyId) qs.set('specialtyId.equals', specialtyId);
+
+        const response = await fetch(`${API_BASE}/procedure-types?${qs.toString()}`, {
             method: 'GET',
             headers: {
                 'Accept': '*/*',

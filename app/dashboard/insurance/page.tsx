@@ -24,8 +24,9 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { getMyAuctions, getAllMedicalPackages, type Auction, type MedicalPackage } from '@/lib/api';
-import { useState, useEffect } from 'react';
+import { getMyAuctions, getAllMedicalPackages, getStoredToken, type Auction, type MedicalPackage } from '@/lib/api';
+import { useState, useEffect, useRef } from 'react';
+import { toast } from 'sonner';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -40,6 +41,9 @@ export default function InsuranceDashboard() {
     const [isLoadingPackages, setIsLoadingPackages] = useState(true);
     const [selectedPackage, setSelectedPackage] = useState<MedicalPackage | null>(null);
     const [showProviderProfile, setShowProviderProfile] = useState(false);
+    const [logoPreview, setLogoPreview] = useState<string | null>(null);
+    const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+    const logoInputRef = useRef<HTMLInputElement>(null);
 
     // Helper to get the most accurate author name
     const getAuthorName = (pkg: any) => {
@@ -183,17 +187,75 @@ export default function InsuranceDashboard() {
 
     const rating = 5.0; // Default or from profile if available
 
+    const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setLogoPreview(URL.createObjectURL(file));
+        setIsUploadingLogo(true);
+        try {
+            const token = getStoredToken();
+            if (!token) throw new Error('No token');
+
+            const insuranceData = {
+                commercialName: (userProfile as any)?.commercialName || '',
+                legalName: (userProfile as any)?.legalName || '',
+                email: (userProfile as any)?.email || '',
+                phone: (userProfile as any)?.phone || '',
+            };
+
+            const formData = new FormData();
+            formData.append('insurance', JSON.stringify(insuranceData));
+            formData.append('logo', file);
+
+            const res = await fetch('/api/insurance-companies/profile', {
+                method: 'PUT',
+                headers: { 'X-Alteha-Token': token },
+                body: formData,
+            });
+
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData.message || `HTTP ${res.status}`);
+            }
+            toast.success('Imagen de perfil actualizada');
+        } catch (err: any) {
+            toast.error(err.message || 'Error al subir imagen');
+            setLogoPreview(null);
+        } finally {
+            setIsUploadingLogo(false);
+        }
+    };
+
     return (
         <div className="space-y-10 font-outfit pb-20">
             {/* Header section with company summary */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-violet-50/50 p-10 rounded-[3rem] border border-violet-100/50">
                 <div className="flex items-center gap-6">
-                    <div className="w-24 h-24 rounded-3xl overflow-hidden border-4 border-white shadow-xl bg-white p-3 flex items-center justify-center">
-                        {displayProfile.logoUrl ? (
-                            <img src={displayProfile.logoUrl} alt="Logo" className="w-full h-full object-contain" />
+                    <div
+                        className="relative w-24 h-24 rounded-3xl overflow-hidden border-4 border-white shadow-xl bg-white p-3 flex items-center justify-center cursor-pointer group"
+                        onClick={() => logoInputRef.current?.click()}
+                        title="Cambiar imagen de perfil"
+                    >
+                        {logoPreview || displayProfile.logoUrl ? (
+                            <img src={logoPreview || displayProfile.logoUrl} alt="Logo" className="w-full h-full object-contain" />
                         ) : (
                             <ShieldCheck className="w-full h-full text-alteha-violet opacity-20" />
                         )}
+                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-3xl">
+                            {isUploadingLogo ? (
+                                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                                <span className="text-white text-xs font-bold text-center px-1">Cambiar foto</span>
+                            )}
+                        </div>
+                        <input
+                            ref={logoInputRef}
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={handleLogoUpload}
+                        />
                     </div>
                     <div>
                         <div className="flex items-center gap-3">

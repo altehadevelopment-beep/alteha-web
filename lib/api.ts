@@ -170,6 +170,8 @@ export interface ProcedureType {
     code: string;
     description: string;
     isActive: boolean;
+    specialty?: { id: number; name?: string; code?: string } | null;
+    specialtyId?: number | null;
 }
 
 export interface ProcedureTemplate {
@@ -457,8 +459,10 @@ export async function verifyEmailToken(email: string, token: string, role: strin
 }
 
 // Get Specialties
-export async function getSpecialties(page: number = 0, size: number = 50): Promise<Specialty[]> {
-    const response = await fetch(`/api/specialties?page=${page}&size=${size}`);
+export async function getSpecialties(page: number = 0, size: number = 50, withProcedures: boolean = false): Promise<Specialty[]> {
+    const qs = new URLSearchParams({ page: String(page), size: String(size) });
+    if (withProcedures) qs.set('withProcedures', 'true');
+    const response = await fetch(`/api/specialties?${qs.toString()}`);
     return response.json();
 }
 
@@ -488,8 +492,10 @@ export async function getServices(page: number = 0, size: number = 100): Promise
 }
 
 // Get Procedure Types
-export async function getProcedureTypes(page: number = 0, size: number = 100): Promise<ProcedureType[]> {
-    const response = await fetch(`/api/procedure-types?page=${page}&size=${size}`);
+export async function getProcedureTypes(page: number = 0, size: number = 2000, specialtyId?: number): Promise<ProcedureType[]> {
+    const qs = new URLSearchParams({ page: String(page), size: String(size) });
+    if (specialtyId) qs.set('specialtyId', String(specialtyId));
+    const response = await fetch(`/api/procedure-types?${qs.toString()}`);
     return response.json();
 }
 
@@ -889,6 +895,37 @@ export async function searchIdentityCompliance(filters: string): Promise<ApiResp
         headers: {
             'X-Alteha-Token': token
         }
+    });
+    return response.json();
+}
+
+// Review Identity Compliance (Admin: approve or reject a doctor's verification)
+export async function reviewIdentityCompliance(
+    complianceId: number | string,
+    approved: boolean,
+    rejectionReason: string = ''
+): Promise<ApiResponse> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+    const response = await fetch('/api/identity-compliances/review', {
+        method: 'POST',
+        headers: { 'X-Alteha-Token': token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ complianceId, approved, rejectionReason })
+    });
+    return response.json();
+}
+
+// Update Doctor Status (Admin)
+export async function updateDoctorStatus(
+    doctorId: number | string,
+    status: string
+): Promise<ApiResponse> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+    const response = await fetch(`/api/doctors/${doctorId}`, {
+        method: 'PATCH',
+        headers: { 'X-Alteha-Token': token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: doctorId, status })
     });
     return response.json();
 }

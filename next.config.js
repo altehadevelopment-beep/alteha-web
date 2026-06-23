@@ -1,5 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+    // Disable Google Fonts self-hosting (network not reachable in this environment)
+    optimizeFonts: false,
     // Skip TypeScript type-checking during build (avoids hanging with face-api.js / TensorFlow)
     typescript: {
         ignoreBuildErrors: true,

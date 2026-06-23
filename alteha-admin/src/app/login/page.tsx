@@ -52,8 +52,8 @@ export default function LoginPage() {
         setIsLoading(true);
         try {
             const response = await axios.post('/api/authenticate', {
-                username,
-                password,
+                username: username.trim(),
+                password: password.trim(),
                 rememberMe: true
             });
             if (response.data?.id_token) {

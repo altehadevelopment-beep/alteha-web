@@ -1,5 +1,4 @@
 import type { Metadata } from 'next'
-import { Inter, Outfit } from 'next/font/google'
 import Script from 'next/script'
 import './globals.css'
 import { AuthProvider } from '@/contexts/AuthContext'
@@ -8,9 +7,9 @@ import { Toaster } from 'sonner'
 import { TehaChatbot } from '@/components/ui/TehaChatbot'
 import { GlobalChatListener } from '@/components/chat/GlobalChatListener'
 
-// Use Outfit for a more modern, tech feel as requested ("minimalista pero muy moderno")
-const outfit = Outfit({ subsets: ['latin'], variable: '--font-outfit' })
-const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
+// Using system font stacks to avoid Google Fonts network dependency in local dev
+const outfit = { variable: '--font-outfit' }
+const inter = { variable: '--font-inter' }
 
 export const metadata: Metadata = {
   title: 'Alteha - Gestión de Subastas Médicas',

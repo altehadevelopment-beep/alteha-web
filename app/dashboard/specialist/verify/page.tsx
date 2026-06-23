@@ -55,6 +55,15 @@ export default function SpecialistVerifyPage() {
         }
     }, [stream]);
 
+    // Safety net: assign stream to video after every render where stream or video changes
+    useEffect(() => {
+        const video = videoRef.current;
+        if (video && stream) {
+            video.srcObject = stream;
+            video.play().catch(err => console.error("Video play error:", err));
+        }
+    }, [stream, isCameraActive]);
+
     // Load Models
     useEffect(() => {
         if (modelsLoaded || loadingModelsRef.current) return;
@@ -84,7 +93,6 @@ export default function SpecialistVerifyPage() {
         try {
             const mediaStream = await navigator.mediaDevices.getUserMedia({
                 video: {
-                    facingMode: 'user',
                     width: { ideal: 1280 },
                     height: { ideal: 720 }
                 }

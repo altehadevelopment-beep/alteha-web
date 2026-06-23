@@ -20,7 +20,10 @@ import {
     Gavel,
     Star,
     Plus,
-    Stethoscope
+    Stethoscope,
+    CheckCircle2,
+    Banknote,
+    UserCheck
 } from 'lucide-react';
 import { Logo } from '@/components/ui/Logo';
 import { cn } from '@/lib/utils';
@@ -67,7 +70,10 @@ const providerItems = [
 ];
 
 const approvalItems = [
-    { title: 'Dashboard', icon: LayoutDashboard, href: '/dashboard/approval' }
+    { title: 'Dashboard', icon: LayoutDashboard, href: '/dashboard/approval' },
+    { title: 'Validación de Pagos', icon: CheckCircle2, href: '/dashboard/approval/payments' },
+    { title: 'Liquidaciones', icon: Banknote, href: '/dashboard/approval/settlements' },
+    { title: 'Validación de Médicos', icon: UserCheck, href: '/dashboard/approval/doctors' },
 ];
 
 export function DashboardSidebar() {
@@ -126,7 +132,7 @@ export function DashboardSidebar() {
 
                     <nav className="flex-1 space-y-2">
                         {menuItems.map((item) => {
-                            const isActive = pathname === item.href;
+                            const isActive = pathname === item.href || (item.href !== '/dashboard/approval' && pathname.startsWith(item.href));
                             return (
                                 <Link
                                     key={item.href}

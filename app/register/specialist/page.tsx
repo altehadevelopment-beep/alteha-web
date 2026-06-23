@@ -367,9 +367,9 @@ export default function DoctorRegistrationPage() {
         return emailRegex.test(email);
     };
 
-    // Phone Validation (numbers only, 10-15 digits for international format)
+    // Phone Validation: must start with 58 (Venezuela) + 10 digits = 12 digits total
     const isValidPhone = (phone: string): boolean => {
-        const phoneRegex = /^\d{10,15}$/;
+        const phoneRegex = /^58\d{10}$/;
         return phoneRegex.test(phone);
     };
 
@@ -915,11 +915,14 @@ export default function DoctorRegistrationPage() {
                                             label="Teléfono Celular"
                                             value={formData.phone}
                                             onChange={(e) => updateFormData('phone', e.target.value.replace(/\D/g, ''))}
-                                            placeholder="584241234567"
+                                            placeholder="584241934005"
                                             disabled={smsSent}
                                         />
+                                        <p className="text-slate-400 text-xs -mt-2">
+                                            Código de país <span className="font-semibold text-slate-600">58</span> + operadora + número. Ej: <span className="font-semibold text-slate-600">58</span>4241934005
+                                        </p>
                                         {formData.phone && !isValidPhone(formData.phone) && (
-                                            <p className="text-red-500 text-xs font-medium -mt-2">Ingresa un número válido (10-15 dígitos, solo números)</p>
+                                            <p className="text-red-500 text-xs font-medium -mt-2">El número debe comenzar con 58 y tener 12 dígitos en total. Ej: 584241934005</p>
                                         )}
 
                                         {!smsSent ? (

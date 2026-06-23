@@ -37,12 +37,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const SESSION_TIMEOUT = process.env.NEXT_PUBLIC_SESSION_TIMEOUT ? parseInt(process.env.NEXT_PUBLIC_SESSION_TIMEOUT) : 600000; // 10 mins
 
     const logout = useCallback(() => {
+        const segments = pathname.split('/');
+        const dashboardIndex = segments.indexOf('dashboard');
+        const role = dashboardIndex !== -1 ? segments[dashboardIndex + 1] : null;
         clearToken();
         setToken(null);
         setUserProfile(null);
         if (logoutTimerRef.current) clearTimeout(logoutTimerRef.current);
-        router.replace('/login');
-    }, [router]);
+        router.replace(role ? `/login?role=${role}` : '/login');
+    }, [router, pathname]);
 
     const fetchProfile = useCallback(async (role: string) => {
         setIsLoadingProfile(true);
