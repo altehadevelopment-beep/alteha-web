@@ -47,7 +47,7 @@ import {
     updateDoctorFile,
     deleteDoctorFile
 } from '@/lib/api';
-import { MultiSelect } from '@/components/ui/Select';
+import { ClinicLocationPicker } from '@/components/ui/ClinicLocationPicker';
 import { toast } from 'sonner';
 
 interface DoctorFile {
@@ -662,24 +662,16 @@ export default function EditProfilePage() {
                             Selecciona las clínicas o centros médicos donde atiendes. Aparecerán en tu perfil público.
                         </p>
 
-                        <div className="p-4 bg-slate-50/50 rounded-[2rem] border border-slate-100">
-                            <MultiSelect
-                                label="Clínicas"
-                                placeholder="Buscar y seleccionar clínicas..."
-                                options={clinicsList.map((c: any) => ({
-                                    id: c.id,
-                                    label: c.name,
-                                    image: c.logoUrl || undefined
-                                }))}
-                                selected={formData.preferredClinicIds}
-                                onChange={(sel) => setFormData(prev => ({ ...prev, preferredClinicIds: sel as number[] }))}
-                            />
-                            {formData.preferredClinicIds.length === 0 && (
-                                <p className="text-xs text-slate-400 mt-1">
-                                    No has seleccionado ninguna clínica todavía.
-                                </p>
-                            )}
-                        </div>
+                        <ClinicLocationPicker
+                            clinics={clinicsList}
+                            selected={formData.preferredClinicIds}
+                            onChange={(ids) => setFormData(prev => ({ ...prev, preferredClinicIds: ids }))}
+                        />
+                        {formData.preferredClinicIds.length === 0 && (
+                            <p className="text-xs text-slate-400">
+                                No has seleccionado ninguna clínica todavía. Usa el filtro de ubicación para encontrarlas.
+                            </p>
+                        )}
                     </div>
 
                     <div className="flex justify-end pt-4">

@@ -46,6 +46,7 @@ import {
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import AuctionBidsList from '@/components/auctions/AuctionBidsList';
+import DuplasSection from '@/components/auctions/DuplasSection';
 import AwardedBidSection from '@/components/payments/AwardedBidSection';
 
 const STATUS_CONFIG: Record<string, { label: string, color: string, icon: any }> = {
@@ -856,6 +857,13 @@ export default function AuctionDetailsPage() {
                         mode="insurance"
                         onActionSuccess={loadData}
                     />
+                </div>
+            )}
+
+            {/* Duplas Médico + Clínica (modalidad Solo Médico) */}
+            {auction.id && (
+                <div className="mt-10">
+                    <DuplasSection auctionId={auction.id} />
                 </div>
             )}
 

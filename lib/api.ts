@@ -312,6 +312,7 @@ export interface BidPayload {
     auction: { id: number };
     bidAmount?: number;
     bidType: 'DOCTOR_ONLY' | 'CLINIC_ONLY' | 'BOTH' | 'PHARMACY';
+    modality?: 'SOLO_MEDICO' | 'PAQUETE_COMPLETO';
     proposedStartDate?: string;
     estimatedDurationDays?: number;
     notes: string;
@@ -546,6 +547,40 @@ export async function getDoctorSignature(): Promise<string | null> {
     } catch {
         return null;
     }
+}
+
+// ===== Clinic invitations (doctor SOLO_MEDICO flow) =====
+// Inbox of doctor-driven invitations for the authenticated clinic.
+export async function getClinicInvitations(): Promise<any[]> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+    const response = await fetch('/api/clinic-invitations/mine', { headers: { 'X-Alteha-Token': token } });
+    const data = await response.json();
+    return Array.isArray(data) ? data : (data?.content ?? data?.data ?? []);
+}
+
+// Accept (with fee) or reject a clinic invitation.
+export async function respondClinicInvitation(
+    id: number | string,
+    payload: { accepted: boolean; clinicFee?: number; rejectionReason?: string }
+): Promise<any> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+    const response = await fetch(`/api/clinic-invitations/${id}/respond`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Alteha-Token': token },
+        body: JSON.stringify(payload),
+    });
+    return response.json();
+}
+
+// Insurer view: doctor+clinic "duplas" for an auction.
+export async function getAuctionDuplas(auctionId: number | string): Promise<any[]> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+    const response = await fetch(`/api/clinic-invitations/auction/${auctionId}/duplas`, { headers: { 'X-Alteha-Token': token } });
+    const data = await response.json();
+    return Array.isArray(data) ? data : (data?.content ?? data?.data ?? []);
 }
 
 // Get Doctors

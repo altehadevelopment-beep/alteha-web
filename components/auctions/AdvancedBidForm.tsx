@@ -46,6 +46,7 @@ export default function AdvancedBidForm({ auction, onSuccess, hideHeader = false
     // Form state
     const [bidAmount, setBidAmount] = useState<string>('');
     const [bidType, setBidType] = useState<any>('');
+    const [modality, setModality] = useState<'SOLO_MEDICO' | 'PAQUETE_COMPLETO'>('SOLO_MEDICO');
     const [proposedStartDate, setProposedStartDate] = useState('');
     const [estimatedDurationDays, setEstimatedDurationDays] = useState('1');
     const [notes, setNotes] = useState('');
@@ -57,7 +58,8 @@ export default function AdvancedBidForm({ auction, onSuccess, hideHeader = false
         if (!amount || isNaN(amount) || !bidType) return null;
 
         let target = 0;
-        if (bidType === 'DOCTOR_ONLY') target = auction.doctorBudget || 0;
+        if (role === 'DOCTOR') target = modality === 'PAQUETE_COMPLETO' ? (auction.maxBudget || 0) : (auction.doctorBudget || 0);
+        else if (bidType === 'DOCTOR_ONLY') target = auction.doctorBudget || 0;
         else if (bidType === 'CLINIC_ONLY') target = auction.clinicBudget || 0;
         else if (bidType === 'BOTH') target = auction.maxBudget || 0;
 
@@ -67,7 +69,7 @@ export default function AdvancedBidForm({ auction, onSuccess, hideHeader = false
         if (amount <= target) return { color: 'text-blue-500', bg: 'bg-blue-50', message: 'Oferta competitiva. Estás dentro del presupuesto sugerido.', icon: CheckCircle2 };
         if (amount <= target * 1.15) return { color: 'text-amber-500', bg: 'bg-amber-50', message: 'Tu oferta está ligeramente por encima del presupuesto sugerido.', icon: AlertCircle };
         return { color: 'text-red-500', bg: 'bg-red-50', message: 'Tu oferta está por encima del presupuesto. Considera revisarla para ser más competitivo.', icon: AlertCircle };
-    }, [bidAmount, bidType, auction]);
+    }, [bidAmount, bidType, auction, modality, role]);
 
     const explanations: Record<string, string> = {
         'DOCTOR_ONLY': 'En esta modalidad, tú solo ofertas por tus honorarios médicos profesionales. La aseguradora deberá buscar una clínica por separado o el paciente ya tiene una seleccionada.',
@@ -121,22 +123,24 @@ export default function AdvancedBidForm({ auction, onSuccess, hideHeader = false
             };
 
             if (role === 'DOCTOR') {
+                payload.bidType = 'DOCTOR_ONLY';
+                payload.modality = modality;
                 if (userProfile?.id) {
                     payload.doctor = { id: userProfile.id };
                     payload.doctorId = userProfile.id;
                 }
-                
-                if (bidType === 'BOTH' || bidType === 'DOCTOR_ONLY') {
-                    if (!selectedClinicId) {
-                        setStatus('error');
-                        setMessage('Por favor selecciona la clínica asociada a tu propuesta');
-                        setIsLoading(false);
-                        return;
-                    }
-                    const cId = parseInt(selectedClinicId);
-                    payload.clinic = { id: cId };
-                    payload.clinicId = cId;
+
+                if (!selectedClinicId) {
+                    setStatus('error');
+                    setMessage(modality === 'SOLO_MEDICO'
+                        ? 'Selecciona la clínica a invitar'
+                        : 'Selecciona la clínica donde se realizará el procedimiento');
+                    setIsLoading(false);
+                    return;
                 }
+                const cId = parseInt(selectedClinicId);
+                payload.clinic = { id: cId };
+                payload.clinicId = cId;
             }
 
             if (role === 'CLINIC') {
@@ -245,104 +249,140 @@ export default function AdvancedBidForm({ auction, onSuccess, hideHeader = false
                             <Activity className="w-3.5 h-3.5" />
                             Tipo de Cobertura
                         </p>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            {[
-                                { id: 'DOCTOR_ONLY', label: 'Solo Médico', icon: Gavel, desc: 'Solo honorarios', showFor: ['DOCTOR'] },
-                                { id: 'CLINIC_ONLY', label: 'Solo Clínica', icon: Clock, desc: 'Gastos hospitalarios', showFor: ['CLINIC'] },
-                                { id: 'BOTH', label: 'Paquete Completo', icon: CheckCircle2, desc: 'Clínica + Médico', showFor: ['DOCTOR', 'CLINIC'] }
-                            ].filter(t => t.showFor.includes(role)).map((type) => (
-                                <button
-                                    key={type.id}
-                                    type="button"
-                                    onClick={() => setBidType(type.id)}
-                                    className={`p-4 rounded-2xl border-2 text-left transition-all group ${bidType === type.id
-                                        ? 'border-alteha-violet bg-violet-50'
-                                        : 'border-slate-50 bg-slate-50 hover:border-slate-200'
-                                        }`}
+                        {role === 'DOCTOR' ? (
+                            <>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    {[
+                                        { id: 'SOLO_MEDICO', label: 'Solo Médico', icon: Gavel, desc: 'Tus honorarios · invitas a la clínica' },
+                                        { id: 'PAQUETE_COMPLETO', label: 'Paquete Completo', icon: CheckCircle2, desc: 'Paquete total · tú le pagas a la clínica' },
+                                    ].map((m) => (
+                                        <button
+                                            key={m.id}
+                                            type="button"
+                                            onClick={() => { setModality(m.id as any); setBidType('DOCTOR_ONLY'); }}
+                                            className={`p-4 rounded-2xl border-2 text-left transition-all group ${modality === m.id
+                                                ? 'border-alteha-violet bg-violet-50'
+                                                : 'border-slate-50 bg-slate-50 hover:border-slate-200'
+                                                }`}
+                                        >
+                                            <m.icon className={`w-5 h-5 mb-2 ${modality === m.id ? 'text-alteha-violet' : 'text-slate-400'}`} />
+                                            <p className={`text-sm font-black ${modality === m.id ? 'text-alteha-violet' : 'text-slate-700'}`}>{m.label}</p>
+                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">{m.desc}</p>
+                                        </button>
+                                    ))}
+                                </div>
+
+                                <motion.div
+                                    initial={{ opacity: 0, y: -10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex gap-3 items-start"
                                 >
-                                    <type.icon className={`w-5 h-5 mb-2 ${bidType === type.id ? 'text-alteha-violet' : 'text-slate-400'}`} />
-                                    <p className={`text-sm font-black ${bidType === type.id ? 'text-alteha-violet' : 'text-slate-700'}`}>{type.label}</p>
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">{type.desc}</p>
-                                </button>
-                            ))}
-                        </div>
+                                    <Info className="w-4 h-4 text-alteha-violet mt-0.5 shrink-0" />
+                                    <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                                        {modality === 'SOLO_MEDICO'
+                                            ? 'Ofertas solo tus honorarios profesionales. La clínica que elijas recibirá una invitación; si la acepta y define sus honorarios, se arma la dupla médico + clínica visible para el seguro.'
+                                            : 'Ofertas el paquete completo y te responsabilizas de pagarle a la clínica. La clínica no recibe invitación y tu oferta llega directa a la aseguradora.'}
+                                    </p>
+                                </motion.div>
 
-                        {/* Explanation Text */}
-                        {bidType && explanations[bidType] && (
-                            <motion.div
-                                initial={{ opacity: 0, y: -10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex gap-3 items-start"
-                            >
-                                <Info className="w-4 h-4 text-alteha-violet mt-0.5 shrink-0" />
-                                <p className="text-xs text-slate-500 font-medium leading-relaxed">
-                                    {explanations[bidType]}
-                                </p>
-                            </motion.div>
-                        )}
-
-                        {/* Clinic Selection for Doctors */}
-                        {role === 'DOCTOR' && (bidType === 'BOTH' || bidType === 'DOCTOR_ONLY') && (
-                            <motion.div
-                                initial={{ opacity: 0, height: 0 }}
-                                animate={{ opacity: 1, height: 'auto' }}
-                                className="space-y-3 pt-2"
-                            >
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-1">
-                                    Selecciona la Clínica Asociada
-                                </label>
-                                <div className="relative group">
-                                    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 pointer-events-none transition-colors" />
-                                    <select
-                                        required
-                                        value={selectedClinicId}
-                                        onChange={(e) => setSelectedClinicId(e.target.value)}
-                                        className="w-full pl-4 pr-12 py-4 bg-slate-50 border-2 border-transparent focus:border-alteha-violet focus:bg-white rounded-2xl font-black text-slate-900 transition-all outline-none appearance-none cursor-pointer"
-                                    >
-                                        <option value="">-- Selecciona una clínica --</option>
-                                        {(userProfile?.preferredClinics || []).map((clinic: any) => (
-                                            <option key={clinic.id} value={clinic.id}>
-                                                {clinic.name}
-                                            </option>
-                                        ))}
-                                    </select>
+                                <motion.div
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: 'auto' }}
+                                    className="space-y-3 pt-2"
+                                >
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-1">
+                                        {modality === 'SOLO_MEDICO' ? 'Clínica a invitar' : 'Clínica (sede del procedimiento)'}
+                                    </label>
+                                    <div className="relative group">
+                                        <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 pointer-events-none transition-colors" />
+                                        <select
+                                            required
+                                            value={selectedClinicId}
+                                            onChange={(e) => setSelectedClinicId(e.target.value)}
+                                            className="w-full pl-4 pr-12 py-4 bg-slate-50 border-2 border-transparent focus:border-alteha-violet focus:bg-white rounded-2xl font-black text-slate-900 transition-all outline-none appearance-none cursor-pointer"
+                                        >
+                                            <option value="">-- Selecciona una clínica --</option>
+                                            {(userProfile?.preferredClinics || []).map((clinic: any) => (
+                                                <option key={clinic.id} value={clinic.id}>
+                                                    {clinic.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <p className="text-[10px] text-amber-600 font-bold italic ml-1">
+                                        {modality === 'SOLO_MEDICO'
+                                            ? '* Se le enviará una invitación a esta clínica para que confirme y defina sus honorarios.'
+                                            : '* Indica la clínica donde se realizará el procedimiento (no recibirá invitación).'}
+                                    </p>
+                                </motion.div>
+                            </>
+                        ) : (
+                            <>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    {[
+                                        { id: 'CLINIC_ONLY', label: 'Solo Clínica', icon: Clock, desc: 'Gastos hospitalarios' },
+                                        { id: 'BOTH', label: 'Paquete Completo', icon: CheckCircle2, desc: 'Clínica + Médico' }
+                                    ].map((type) => (
+                                        <button
+                                            key={type.id}
+                                            type="button"
+                                            onClick={() => setBidType(type.id)}
+                                            className={`p-4 rounded-2xl border-2 text-left transition-all group ${bidType === type.id
+                                                ? 'border-alteha-violet bg-violet-50'
+                                                : 'border-slate-50 bg-slate-50 hover:border-slate-200'
+                                                }`}
+                                        >
+                                            <type.icon className={`w-5 h-5 mb-2 ${bidType === type.id ? 'text-alteha-violet' : 'text-slate-400'}`} />
+                                            <p className={`text-sm font-black ${bidType === type.id ? 'text-alteha-violet' : 'text-slate-700'}`}>{type.label}</p>
+                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">{type.desc}</p>
+                                        </button>
+                                    ))}
                                 </div>
-                                <p className="text-[10px] text-amber-600 font-bold italic ml-1">
-                                    * Es obligatorio indicar la clínica donde se realizará el procedimiento para este tipo de oferta.
-                                </p>
-                            </motion.div>
-                        )}
 
-                        {/* Doctor Selection for Clinics */}
-                        {role === 'CLINIC' && (bidType === 'BOTH' || bidType === 'CLINIC_ONLY') && (
-                            <motion.div
-                                initial={{ opacity: 0, height: 0 }}
-                                animate={{ opacity: 1, height: 'auto' }}
-                                className="space-y-3 pt-2"
-                            >
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-1">
-                                    Selecciona el Médico Asociado
-                                </label>
-                                <div className="relative group">
-                                    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 pointer-events-none transition-colors" />
-                                    <select
-                                        required
-                                        value={selectedDoctorId}
-                                        onChange={(e) => setSelectedDoctorId(e.target.value)}
-                                        className="w-full pl-4 pr-12 py-4 bg-slate-50 border-2 border-transparent focus:border-alteha-violet focus:bg-white rounded-2xl font-black text-slate-900 transition-all outline-none appearance-none cursor-pointer"
+                                {bidType && explanations[bidType] && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: -10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex gap-3 items-start"
                                     >
-                                        <option value="">-- Selecciona un médico --</option>
-                                        {(userProfile?.preferredDoctors || []).map((doctor: any) => (
-                                            <option key={doctor.id} value={doctor.id}>
-                                                {doctor.fullName || doctor.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <p className="text-[10px] text-amber-600 font-bold italic ml-1">
-                                    * Es obligatorio indicar el médico que realizará el procedimiento para este tipo de oferta.
-                                </p>
-                            </motion.div>
+                                        <Info className="w-4 h-4 text-alteha-violet mt-0.5 shrink-0" />
+                                        <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                                            {explanations[bidType]}
+                                        </p>
+                                    </motion.div>
+                                )}
+
+                                {(bidType === 'BOTH' || bidType === 'CLINIC_ONLY') && (
+                                    <motion.div
+                                        initial={{ opacity: 0, height: 0 }}
+                                        animate={{ opacity: 1, height: 'auto' }}
+                                        className="space-y-3 pt-2"
+                                    >
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-1">
+                                            Selecciona el Médico Asociado
+                                        </label>
+                                        <div className="relative group">
+                                            <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 pointer-events-none transition-colors" />
+                                            <select
+                                                required
+                                                value={selectedDoctorId}
+                                                onChange={(e) => setSelectedDoctorId(e.target.value)}
+                                                className="w-full pl-4 pr-12 py-4 bg-slate-50 border-2 border-transparent focus:border-alteha-violet focus:bg-white rounded-2xl font-black text-slate-900 transition-all outline-none appearance-none cursor-pointer"
+                                            >
+                                                <option value="">-- Selecciona un médico --</option>
+                                                {(userProfile?.preferredDoctors || []).map((doctor: any) => (
+                                                    <option key={doctor.id} value={doctor.id}>
+                                                        {doctor.fullName || doctor.name}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <p className="text-[10px] text-amber-600 font-bold italic ml-1">
+                                            * Es obligatorio indicar el médico que realizará el procedimiento para este tipo de oferta.
+                                        </p>
+                                    </motion.div>
+                                )}
+                            </>
                         )}
                     </div>
                 )}

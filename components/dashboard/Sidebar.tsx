@@ -46,7 +46,7 @@ const clinicItems = [
     { title: 'Mis Paquetes', icon: Package, href: '/dashboard/clinic/packages' },
     { title: 'Pagos', icon: CreditCard, href: '/dashboard/clinic/payments' },
     { title: 'Conversaciones', icon: MessageSquare, href: '/dashboard/clinic/conversations' },
-    { title: 'Notificaciones', icon: Bell, href: '/dashboard/clinic/notifications' },
+    { title: 'Invitaciones', icon: Bell, href: '/dashboard/clinic/invitations' },
     { title: 'Puntuación', icon: Star, href: '/dashboard/clinic/score' },
 ];
 
