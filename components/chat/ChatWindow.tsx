@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Image as ImageIcon, X, MessageSquare, Loader2, User } from 'lucide-react';
+import { Send, Image as ImageIcon, X, MessageSquare, Loader2, User, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageBubble } from './MessageBubble';
 import { Button } from '@/components/ui/Button';
@@ -15,6 +15,7 @@ interface ChatWindowProps {
     participantId: string;
     participantName: string;
     participantPhoto?: string;
+    participantProfileUrl?: string; // when set, the detail modal shows a "Ver perfil completo" link
     currentUserId: string;
     currentUserName: string;
     currentUserPhoto?: string;
@@ -27,6 +28,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     participantId,
     participantName,
     participantPhoto,
+    participantProfileUrl,
     currentUserId,
     currentUserName,
     currentUserPhoto,
@@ -269,7 +271,17 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                                     </div>
                                 </div>
                             </div>
-                            <Button 
+                            {participantProfileUrl && (
+                                <a
+                                    href={participantProfileUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="w-full inline-flex items-center justify-center gap-2 bg-alteha-violet text-white rounded-2xl py-4 font-black uppercase tracking-widest text-xs hover:opacity-90 transition-opacity"
+                                >
+                                    Ver perfil completo <ExternalLink className="w-4 h-4" />
+                                </a>
+                            )}
+                            <Button
                                 onClick={() => setIsProfileModalOpen(false)}
                                 className="w-full bg-slate-900 text-white rounded-2xl py-4 font-black uppercase tracking-widest text-xs"
                             >

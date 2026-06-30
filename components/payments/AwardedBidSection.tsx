@@ -57,6 +57,7 @@ export default function AwardedBidSection({ auction, role }: AwardedBidSectionPr
         participantId: string;
         participantName: string;
         participantPhoto?: string;
+        participantProfileUrl?: string;
     } | null>(null);
 
     useEffect(() => {
@@ -156,24 +157,29 @@ export default function AwardedBidSection({ auction, role }: AwardedBidSectionPr
                                 <ChatButtonWithBadge
                                     auctionId={String(auction.id)}
                                     currentUserId={String(userProfile?.id || 'guest')}
-                                    participantId={String(role === 'insurance' ? winningBid.doctor?.id : auction.insuranceCompany?.id)}
-                                    title={role === 'insurance' ? 'Chat con Médico' : 'Chat con Seguro'}
+                                    participantId={String(role === 'INSURANCE_COMPANY' ? winningBid.doctor?.id : auction.insuranceCompany?.id)}
+                                    title={role === 'INSURANCE_COMPANY' ? 'Chat con Médico' : 'Chat con Seguro'}
                                     onClick={async () => {
-                                        if (role === 'insurance') {
-                                            // Doctor photo: prefer the one in winningBid, fallback to getDoctorById
+                                        if (role === 'INSURANCE_COMPANY') {
+                                            // Resolve the doctor's real name + photo (fallback to getDoctorById)
+                                            let name = winningBid.doctor?.fullName || `${winningBid.doctor?.firstName || ''} ${winningBid.doctor?.lastName || ''}`.trim();
                                             let photo = winningBid.doctor?.profileImageUrl || (winningBid.doctor as any)?.imageUrl || (winningBid as any)?.doctorPhoto;
-                                            if (!photo && winningBid.doctor?.id) {
+                                            if (winningBid.doctor?.id && (!name || !photo)) {
                                                 try {
                                                     const { getDoctorById } = await import('@/lib/api');
                                                     const res = await getDoctorById(winningBid.doctor.id);
                                                     const data = res.code === '00' && res.data ? res.data : (res as any).id ? res as any : null;
-                                                    if (data) photo = data.profileImageUrl || data.logoUrl;
-                                                } catch { /* use initials */ }
+                                                    if (data) {
+                                                        if (!name) name = data.fullName || `${data.firstName || ''} ${data.lastName || ''}`.trim();
+                                                        if (!photo) photo = data.profileImageUrl || data.logoUrl;
+                                                    }
+                                                } catch { /* use fallback */ }
                                             }
                                             setActiveChat({
                                                 participantId: String(winningBid.doctor?.id),
-                                                participantName: winningBid.doctor?.fullName || 'Médico',
-                                                participantPhoto: photo
+                                                participantName: name || 'Médico',
+                                                participantPhoto: photo,
+                                                participantProfileUrl: winningBid.doctor?.id ? `/doctor/${winningBid.doctor.id}` : undefined
                                             });
                                         } else {
                                             // Insurance photo: try from auction data, fallback to API
@@ -320,6 +326,7 @@ export default function AwardedBidSection({ auction, role }: AwardedBidSectionPr
                             participantId={activeChat.participantId}
                             participantName={activeChat.participantName}
                             participantPhoto={activeChat.participantPhoto}
+                            participantProfileUrl={activeChat.participantProfileUrl}
                             currentUserId={String(userProfile?.id || 'guest')}
                             currentUserName={userProfile?.firstName ? `${userProfile.firstName} ${userProfile.lastName}` : (userProfile?.name || 'Usuario')}
                             currentUserPhoto={userProfile?.profileImageUrl || userProfile?.logoUrl || (userProfile as any)?.imageUrl || (userProfile as any)?.avatarUrl}

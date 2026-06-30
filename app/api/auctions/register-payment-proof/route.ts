@@ -18,8 +18,8 @@ export async function POST(request: NextRequest) {
 
         const adminToken = await getAppToken();
         const formData = await request.formData();
-        const targetUrl = `https://qaback.alteha.com:3232/api/auctions/register-payment-proof`;
-        
+        const targetUrl = `${API_BASE}/auctions/register-payment-proof`;
+
         console.log('Forwarding payment proof to:', targetUrl);
         
         // Log formData content to verify payload

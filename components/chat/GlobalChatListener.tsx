@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import { collection, query, where, onSnapshot, orderBy, limit } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db } from '@/lib/firebase-db';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';

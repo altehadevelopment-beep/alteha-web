@@ -5,11 +5,12 @@ import { useAuth } from '@/contexts/AuthContext';
 import {
     FileText, Plus, Printer, Trash2, Save, ChevronDown,
     ChevronUp, User, Calendar, Pill, ClipboardList, ArrowLeft,
-    Download, Eye, X, Search, AlignLeft, Hash, Clock
+    Download, Eye, X, Search, AlignLeft, Hash, Clock, PenLine, Loader2, Check
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { getMyPrescriptions, createPrescription, updatePrescription, deletePrescription, uploadDoctorSignature, getDoctorSignature } from '@/lib/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface MedicationLine {
@@ -53,18 +54,44 @@ const newRecipe = (): Recipe => ({
     createdAt: new Date().toISOString()
 });
 
-const STORAGE_KEY = 'alteha_recipes';
+// Map a backend Prescription record to the local Recipe shape.
+function mapFromBackend(p: any): Recipe {
+    let meds: MedicationLine[] = [];
+    try { meds = p.medications ? JSON.parse(p.medications) : []; } catch { meds = []; }
+    if (!meds.length) meds = [newMed()];
+    return {
+        id: String(p.id),
+        patientName: p.patientName || '',
+        patientAge: p.patientAge || '',
+        patientId: p.patientDocument || '',
+        date: p.prescriptionDate || new Date().toISOString().slice(0, 10),
+        diagnosis: p.diagnosis || '',
+        medications: meds,
+        indications: p.indications || '',
+        followUp: p.followUp || '',
+        createdAt: p.createdAt || new Date().toISOString(),
+    };
+}
 
-function loadRecipes(): Recipe[] {
-    if (typeof window === 'undefined') return [];
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch { return []; }
+// Map a local Recipe to the backend payload (medications serialized as JSON).
+function toBackendPayload(r: Recipe) {
+    return {
+        patientName: r.patientName,
+        patientAge: r.patientAge,
+        patientDocument: r.patientId,
+        prescriptionDate: r.date,
+        diagnosis: r.diagnosis,
+        medications: JSON.stringify(r.medications || []),
+        indications: r.indications,
+        followUp: r.followUp,
+    };
 }
-function saveRecipes(recipes: Recipe[]) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(recipes));
-}
+
+// A local-only (not-yet-saved) recipe gets a temp id prefixed with "new-".
+const isPersisted = (id: string) => !!id && !id.startsWith('new-');
 
 // ─── Print Styles (injected into a new window) ───────────────────────────────
-function buildPrintHTML(recipe: Recipe, doctor: any, format: PrintFormat) {
+function buildPrintHTML(recipe: Recipe, doctor: any, format: PrintFormat, signatureUrl?: string | null) {
     const specs = doctor?.specialties?.map((s: any) => s.name).filter(Boolean).join(', ') || 'Especialista Médico';
     const license = doctor?.medicalLicenseNumber || '';
     const phone = doctor?.phone || doctor?.mobilePhone || '';
@@ -231,6 +258,7 @@ function buildPrintHTML(recipe: Recipe, doctor: any, format: PrintFormat) {
   <!-- Firma -->
   <div class="footer">
     <div class="signature">
+      ${signatureUrl ? `<img src="${signatureUrl}" alt="firma" style="max-height:58px;max-width:180px;object-fit:contain;display:block;margin:0 auto -8px;" />` : ''}
       <div class="sig-line">
         <div class="sig-name">${name}</div>
         <div class="sig-spec">${specs}</div>
@@ -251,6 +279,74 @@ function buildPrintHTML(recipe: Recipe, doctor: any, format: PrintFormat) {
 </html>`;
 }
 
+// ─── Signature capture modal (draw the rúbrica on a canvas) ────────────────────
+function SignatureModal({ onClose, onSaved }: { onClose: () => void; onSaved: (url: string) => void }) {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const drawing = useRef(false);
+    const [saving, setSaving] = useState(false);
+
+    const point = (e: any) => {
+        const canvas = canvasRef.current!;
+        const rect = canvas.getBoundingClientRect();
+        const t = e.touches ? e.touches[0] : e;
+        return { x: (t.clientX - rect.left) * (canvas.width / rect.width), y: (t.clientY - rect.top) * (canvas.height / rect.height) };
+    };
+    const start = (e: any) => {
+        drawing.current = true;
+        const ctx = canvasRef.current!.getContext('2d')!;
+        const p = point(e); ctx.beginPath(); ctx.moveTo(p.x, p.y);
+    };
+    const move = (e: any) => {
+        if (!drawing.current) return;
+        if (e.cancelable) e.preventDefault();
+        const ctx = canvasRef.current!.getContext('2d')!;
+        const p = point(e);
+        ctx.lineTo(p.x, p.y); ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.strokeStyle = '#0f172a'; ctx.stroke();
+    };
+    const end = () => { drawing.current = false; };
+    const clear = () => { const c = canvasRef.current!; c.getContext('2d')!.clearRect(0, 0, c.width, c.height); };
+    const save = () => {
+        const c = canvasRef.current!;
+        setSaving(true);
+        c.toBlob(async (blob) => {
+            if (!blob) { setSaving(false); return; }
+            try {
+                const res = await uploadDoctorSignature(blob);
+                if (res?.digitalSignatureUrl) { onSaved(res.digitalSignatureUrl); onClose(); }
+                else { alert(res?.message || 'No se pudo guardar la firma.'); }
+            } catch { alert('No se pudo guardar la firma.'); }
+            finally { setSaving(false); }
+        }, 'image/png');
+    };
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" onClick={onClose}>
+            <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-lg p-6 space-y-4" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-black text-slate-900 flex items-center gap-2"><PenLine className="w-5 h-5 text-alteha-turquoise" /> Tu firma / rúbrica</h3>
+                    <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400"><X className="w-5 h-5" /></button>
+                </div>
+                <p className="text-xs text-slate-500 font-medium">Dibujá tu firma con el mouse (o el dedo en móvil). Se guarda en tu perfil y aparece en tus recetas impresas.</p>
+                <canvas
+                    ref={canvasRef}
+                    width={500}
+                    height={180}
+                    className="w-full h-44 bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl touch-none cursor-crosshair"
+                    onMouseDown={start} onMouseMove={move} onMouseUp={end} onMouseLeave={end}
+                    onTouchStart={start} onTouchMove={move} onTouchEnd={end}
+                />
+                <div className="flex gap-3">
+                    <Button onClick={clear} variant="outline" className="flex-1 rounded-xl border-slate-200 text-slate-600 font-bold">Limpiar</Button>
+                    <Button onClick={save} disabled={saving} className="flex-[2] bg-alteha-turquoise text-slate-900 rounded-xl font-black disabled:opacity-60 flex items-center justify-center gap-2">
+                        {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                        {saving ? 'Guardando…' : 'Guardar firma'}
+                    </Button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function RecipesPage() {
     const { userProfile } = useAuth();
@@ -260,21 +356,33 @@ export default function RecipesPage() {
     const [printFormat, setPrintFormat] = useState<PrintFormat>('CARTA');
     const [search, setSearch] = useState('');
     const iframeRef = useRef<HTMLIFrameElement>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isSaving, setIsSaving] = useState(false);
+    const [savedFlash, setSavedFlash] = useState(false);
+    const [signatureUrl, setSignatureUrl] = useState<string | null>(null);
+    const [sigOpen, setSigOpen] = useState(false);
 
-    useEffect(() => { setRecipes(loadRecipes()); }, []);
+    useEffect(() => {
+        (async () => {
+            try {
+                const list = await getMyPrescriptions();
+                setRecipes(Array.isArray(list) ? list.map(mapFromBackend) : []);
+            } catch (e) { console.error('Error loading prescriptions', e); }
+            finally { setIsLoading(false); }
+        })();
+        getDoctorSignature().then(setSignatureUrl).catch(() => {});
+    }, []);
 
     const active = recipes.find(r => r.id === activeId) ?? null;
 
-    // ── Mutations ──
+    // ── Mutations (local state; persisted explicitly via "Guardar") ──
     const createRecipe = () => {
-        const r = newRecipe();
-        const updated = [r, ...recipes];
-        setRecipes(updated); saveRecipes(updated); setActiveId(r.id);
+        const r = { ...newRecipe(), id: 'new-' + Math.random().toString(36).slice(2) };
+        setRecipes([r, ...recipes]); setActiveId(r.id);
     };
 
     const updateRecipe = (patch: Partial<Recipe>) => {
-        const updated = recipes.map(r => r.id === activeId ? { ...r, ...patch } : r);
-        setRecipes(updated); saveRecipes(updated);
+        setRecipes(recipes.map(r => r.id === activeId ? { ...r, ...patch } : r));
     };
 
     const updateMed = (medId: string, patch: Partial<MedicationLine>) => {
@@ -293,17 +401,43 @@ export default function RecipesPage() {
         updateRecipe({ medications: active.medications.filter(m => m.id !== medId) });
     };
 
-    const deleteRecipe = (id: string) => {
+    const deleteRecipe = async (id: string) => {
         if (!confirm('¿Eliminar este recipe?')) return;
+        if (isPersisted(id)) {
+            try { await deletePrescription(id); } catch (e) { console.error('Error deleting prescription', e); }
+        }
         const updated = recipes.filter(r => r.id !== id);
-        setRecipes(updated); saveRecipes(updated);
+        setRecipes(updated);
         if (activeId === id) setActiveId(updated[0]?.id ?? null);
+    };
+
+    // Persist the active recipe to the backend (create if new, update if existing).
+    const saveActive = async () => {
+        if (!active) return;
+        if (!active.patientName.trim()) { alert('Ingresa el nombre del paciente para guardar la receta.'); return; }
+        setIsSaving(true);
+        try {
+            const payload = toBackendPayload(active);
+            const res = isPersisted(active.id)
+                ? await updatePrescription(active.id, payload)
+                : await createPrescription(payload);
+            if (!res?.id) throw new Error(res?.message || 'No se pudo guardar la receta');
+            const saved = mapFromBackend(res);
+            setRecipes(prev => prev.map(r => r.id === active.id ? saved : r));
+            setActiveId(saved.id);
+            setSavedFlash(true);
+            setTimeout(() => setSavedFlash(false), 2000);
+        } catch (e: any) {
+            alert(e?.message || 'No se pudo guardar la receta.');
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     // ── Print ──
     const handlePrint = () => {
         if (!active) return;
-        const html = buildPrintHTML(active, userProfile, printFormat);
+        const html = buildPrintHTML(active, userProfile, printFormat, signatureUrl);
         const win = window.open('', '_blank', 'width=900,height=700');
         if (!win) return;
         win.document.write(html);
@@ -318,7 +452,7 @@ export default function RecipesPage() {
         setPreviewOpen(true);
         setTimeout(() => {
             if (iframeRef.current) {
-                const html = buildPrintHTML(active, userProfile, printFormat);
+                const html = buildPrintHTML(active, userProfile, printFormat, signatureUrl);
                 const doc = iframeRef.current.contentDocument;
                 if (doc) { doc.open(); doc.write(html); doc.close(); }
             }
@@ -334,6 +468,7 @@ export default function RecipesPage() {
 
     return (
         <div className="flex h-[calc(100vh-2rem)] gap-6 font-outfit">
+            {sigOpen && <SignatureModal onClose={() => setSigOpen(false)} onSaved={setSignatureUrl} />}
 
             {/* ── Left: list ── */}
             <aside className="w-72 shrink-0 flex flex-col gap-4">
@@ -440,6 +575,21 @@ export default function RecipesPage() {
                                         <option value="MEDIA_CARTA">Media Carta</option>
                                     </select>
                                 </div>
+                                <Button
+                                    onClick={saveActive}
+                                    disabled={isSaving}
+                                    className="flex items-center gap-2 bg-alteha-turquoise text-slate-900 rounded-xl font-black px-5 py-2 disabled:opacity-60"
+                                >
+                                    {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : savedFlash ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+                                    {isSaving ? 'Guardando…' : savedFlash ? 'Guardado' : 'Guardar'}
+                                </Button>
+                                <Button
+                                    onClick={() => setSigOpen(true)}
+                                    variant="outline"
+                                    className="flex items-center gap-2 rounded-xl border-slate-200 text-slate-600 font-bold px-4 py-2"
+                                >
+                                    <PenLine className="w-4 h-4" /> {signatureUrl ? 'Mi firma' : 'Agregar firma'}
+                                </Button>
                                 <Button
                                     onClick={handlePreview}
                                     variant="outline"

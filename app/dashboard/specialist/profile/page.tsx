@@ -25,7 +25,8 @@ import {
     Pencil,
     ChevronDown,
     ChevronUp,
-    Eye
+    Eye,
+    Building2
 } from 'lucide-react';
 import Link from 'next/link';
 import { Input } from '@/components/ui/Input';
@@ -34,17 +35,19 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Logo } from '@/components/ui/Logo';
 import PaymentMethodsManager from '@/components/dashboard/PaymentMethodsManager';
 import { 
-    getSpecialties, 
-    updateDoctorProfile, 
-    sendEmailToken, 
-    verifyEmailToken, 
-    sendSmsToken, 
+    getSpecialties,
+    getClinics,
+    updateDoctorProfile,
+    sendEmailToken,
+    verifyEmailToken,
+    sendSmsToken,
     verifySmsToken,
     getDoctorFiles,
     uploadDoctorFile,
     updateDoctorFile,
     deleteDoctorFile
 } from '@/lib/api';
+import { MultiSelect } from '@/components/ui/Select';
 import { toast } from 'sonner';
 
 interface DoctorFile {
@@ -60,13 +63,15 @@ export default function EditProfilePage() {
     const { userProfile, isLoadingProfile } = useAuth();
     const [activeTab, setActiveTab] = useState('academic');
     const [specialtiesList, setSpecialtiesList] = useState<any[]>([]);
-    
+    const [clinicsList, setClinicsList] = useState<any[]>([]);
+
     const [formData, setFormData] = useState({
         firstName: '',
         lastName: '',
         email: '',
         phone: '',
-        specialtyIds: [] as number[]
+        specialtyIds: [] as number[],
+        preferredClinicIds: [] as number[]
     });
 
     const [profileImage, setProfileImage] = useState<File | null>(null);
@@ -116,6 +121,17 @@ export default function EditProfilePage() {
             } catch (err) {
                 console.error('Error loading specialties:', err);
             }
+
+            try {
+                const clinicsData = await getClinics(0, 1000);
+                const clinicList = Array.isArray(clinicsData) ? clinicsData : (clinicsData as any).content || [];
+                const sortedClinics = clinicList
+                    .filter((c: any) => c.name)
+                    .sort((a: any, b: any) => a.name.localeCompare(b.name));
+                setClinicsList(sortedClinics);
+            } catch (err) {
+                console.error('Error loading clinics:', err);
+            }
         };
 
         loadData();
@@ -136,12 +152,17 @@ export default function EditProfilePage() {
             const loadedEmail = userProfile.email || '';
             const loadedPhone = userProfile.phone || userProfile.mobilePhone || '';
 
+            const clinicIds = (userProfile.preferredClinics || [])
+                .map((c: any) => c.id)
+                .filter(Boolean);
+
             setFormData({
                 firstName: userProfile.firstName || '',
                 lastName: userProfile.lastName || '',
                 email: loadedEmail,
                 phone: loadedPhone,
-                specialtyIds: specialtyIds
+                specialtyIds: specialtyIds,
+                preferredClinicIds: clinicIds
             });
             
             setOriginalEmail(loadedEmail);
@@ -337,7 +358,8 @@ export default function EditProfilePage() {
                 lastName: formData.lastName,
                 phone: formData.phone,
                 email: formData.email,
-                specialtyIds: formData.specialtyIds
+                specialtyIds: formData.specialtyIds,
+                preferredClinicIds: formData.preferredClinicIds
             };
 
             const submitFormData = new FormData();
@@ -630,8 +652,38 @@ export default function EditProfilePage() {
                         </div>
                     </div>
 
+                    {/* Clinics Section */}
+                    <div className="space-y-4 pt-6 border-t border-slate-100">
+                        <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                            <Building2 className="w-5 h-5 text-alteha-violet" />
+                            Clínicas donde trabajas
+                        </h3>
+                        <p className="text-sm text-slate-500 mb-4">
+                            Selecciona las clínicas o centros médicos donde atiendes. Aparecerán en tu perfil público.
+                        </p>
+
+                        <div className="p-4 bg-slate-50/50 rounded-[2rem] border border-slate-100">
+                            <MultiSelect
+                                label="Clínicas"
+                                placeholder="Buscar y seleccionar clínicas..."
+                                options={clinicsList.map((c: any) => ({
+                                    id: c.id,
+                                    label: c.name,
+                                    image: c.logoUrl || undefined
+                                }))}
+                                selected={formData.preferredClinicIds}
+                                onChange={(sel) => setFormData(prev => ({ ...prev, preferredClinicIds: sel as number[] }))}
+                            />
+                            {formData.preferredClinicIds.length === 0 && (
+                                <p className="text-xs text-slate-400 mt-1">
+                                    No has seleccionado ninguna clínica todavía.
+                                </p>
+                            )}
+                        </div>
+                    </div>
+
                     <div className="flex justify-end pt-4">
-                        <Button 
+                        <Button
                             onClick={handleSaveBasicInfo}
                             disabled={isSavingBasic}
                             className="bg-alteha-turquoise text-white font-black px-8 py-3 rounded-2xl hover:scale-105 transition-all shadow-lg"

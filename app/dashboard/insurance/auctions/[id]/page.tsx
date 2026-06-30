@@ -290,6 +290,15 @@ export default function AuctionDetailsPage() {
                     Volver a Subastas
                 </Link>
                 <div className="flex items-center gap-3">
+                    {(auction.status === 'PAYMENT_VALIDATION' || auction.status === 'PAYMENT_REPORTED') && (
+                        <div className="flex items-center gap-2.5 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-400 to-amber-500 text-white shadow-lg shadow-amber-200/60 animate-in fade-in slide-in-from-top-2 duration-500">
+                            <Clock className="w-5 h-5 animate-pulse flex-shrink-0" />
+                            <div className="flex flex-col leading-tight">
+                                <span className="text-[9px] font-bold uppercase tracking-widest text-white/80">Estado del pago</span>
+                                <span className="text-sm font-black">Verificación en Proceso</span>
+                            </div>
+                        </div>
+                    )}
                     {['DRAFT', 'PUBLISHED', 'ACTIVE'].includes(auction.status) && (
                         <Link href={`/dashboard/insurance/auctions/${auctionNumber}/edit`}>
                             <Button className="bg-white text-slate-900 border-2 border-slate-900 px-6 py-2 rounded-xl font-black flex items-center gap-2 hover:bg-slate-900 hover:text-white transition-all">

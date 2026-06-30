@@ -21,26 +21,47 @@ import {
 import { Logo } from '@/components/ui/Logo';
 import { useAuth } from '@/contexts/AuthContext';
 import { useParams } from 'next/navigation';
-import { getDoctorFiles } from '@/lib/api';
+import { getDoctorFiles, getDoctorById } from '@/lib/api';
 
 export default function PublicDoctorProfile() {
     const { id } = useParams();
     const { userProfile, isLoadingProfile } = useAuth();
     const [isLoaded, setIsLoaded] = useState(false);
     const [doctorFiles, setDoctorFiles] = useState<any[]>([]);
+    const [fetchedDoctor, setFetchedDoctor] = useState<any>(null);
+    const [loadingDoctor, setLoadingDoctor] = useState(true);
 
+    // Load the doctor identified by the URL id, so anyone (e.g. an insurance company viewing
+    // a bidder) sees THAT doctor's profile and not their own.
     useEffect(() => {
         setIsLoaded(true);
+        const loadDoctor = async () => {
+            setLoadingDoctor(true);
+            try {
+                const res = await getDoctorById(id as string);
+                const data = res?.code === '00' && res.data ? res.data : ((res as any)?.id ? (res as any) : null);
+                if (data) setFetchedDoctor(data);
+            } catch { /* fall back to placeholder below */ }
+            finally { setLoadingDoctor(false); }
+        };
+        loadDoctor();
+    }, [id]);
+
+    // Credential files are only readable through the self endpoint, so only load them when the
+    // logged-in user is viewing their own profile.
+    useEffect(() => {
+        const isSelf = userProfile && String((userProfile as any).id) === String(id);
+        if (!isSelf) { setDoctorFiles([]); return; }
         getDoctorFiles()
-            .then(files => setDoctorFiles(files))
+            .then(files => setDoctorFiles(Array.isArray(files) ? files : ((files as any)?.content ?? [])))
             .catch(() => setDoctorFiles([]));
-    }, []);
+    }, [id, userProfile]);
 
     const handlePrint = () => {
         window.print();
     };
 
-    if (isLoadingProfile || !isLoaded) {
+    if (isLoadingProfile || !isLoaded || loadingDoctor) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-slate-50">
                 <div className="w-16 h-16 border-4 border-alteha-turquoise border-t-transparent rounded-full animate-spin"></div>
@@ -48,7 +69,7 @@ export default function PublicDoctorProfile() {
         );
     }
 
-    const doctor = userProfile || {
+    const doctor = fetchedDoctor || userProfile || {
         firstName: 'Doctor',
         lastName: 'Especialista',
         profileImageUrl: '/doctor-avatar.png',
@@ -82,12 +103,20 @@ export default function PublicDoctorProfile() {
             {/* ─── Print Styles ─────────────────────────────────────────── */}
             <style>{`
                 @media print {
+                    /* Hide all app chrome by default (toaster, floating chatbot button, nav, etc.) */
                     body * { visibility: hidden; }
+                    /* Remove the on-screen layout's SPACE entirely. visibility:hidden alone keeps the
+                       element's box, which generated extra blank pages onto which the CV repeated. */
+                    .no-print { display: none !important; }
+                    /* Reveal only the print CV, in normal document flow so it paginates exactly once.
+                       The old code used position:fixed, and a fixed block is repainted on EVERY printed
+                       page — that is what printed the CV 3 times. */
                     #cv-print, #cv-print * { visibility: visible; }
-                    #cv-print { 
-                        position: fixed; top: 0; left: 0;
-                        width: 210mm; min-height: 297mm;
-                        padding: 0; margin: 0;
+                    #cv-print {
+                        display: block !important;
+                        width: 210mm;
+                        margin: 0;
+                        padding: 0;
                     }
                     @page { size: A4; margin: 0; }
                 }
@@ -298,9 +327,10 @@ export default function PublicDoctorProfile() {
                         * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
                     }
                     #cv-print {
+                        position: relative;
                         font-family: 'Outfit', 'Inter', sans-serif;
                         width: 210mm;
-                        min-height: 297mm;
+                        min-height: 296mm;
                         background: white;
                         color: #0f172a;
                     }
@@ -367,7 +397,7 @@ export default function PublicDoctorProfile() {
                     .cv-cred-name { font-weight: 600; color: #0f172a; }
                     .cv-cred-desc { color: #64748b; font-size: 11px; }
                     .cv-footer {
-                        position: fixed; bottom: 0; left: 0; right: 0;
+                        position: absolute; bottom: 0; left: 0; right: 0;
                         background: #f8fafc; border-top: 1px solid #e2e8f0;
                         padding: 8px 40px;
                         font-size: 10px; color: #94a3b8;

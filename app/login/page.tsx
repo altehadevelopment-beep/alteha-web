@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Lock, ArrowRight, ArrowLeft, Loader2 } from 'lucide-react';
+import { User, Lock, ArrowRight, ArrowLeft, Loader2, Stethoscope, ShieldCheck, Building2, Pill } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
@@ -13,6 +13,15 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { PuzzleCaptcha } from '@/components/ui/PuzzleCaptcha';
 import { app } from '@/lib/firebase';
 import { getInstallations, getId } from 'firebase/installations';
+
+// Login portals the user can jump between (floating switcher on the left).
+// Note: pharmacies log in through the "provider" portal (see register/pharmacy success → /login?role=provider).
+const PROFILE_LOGINS = [
+    { role: 'specialist', label: 'Médico', Icon: Stethoscope },
+    { role: 'insurance', label: 'Seguro', Icon: ShieldCheck },
+    { role: 'clinic', label: 'Clínica', Icon: Building2 },
+    { role: 'provider', label: 'Farmacia', Icon: Pill },
+];
 
 export default function LoginPage() {
     const [username, setUsername] = useState('');
@@ -25,6 +34,19 @@ export default function LoginPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const role = searchParams.get('role');
+
+    // Pre-fill the email after registration (from ?email= or localStorage) so it isn't retyped.
+    useEffect(() => {
+        const fromQuery = searchParams.get('email');
+        let stored: string | null = null;
+        try { stored = localStorage.getItem('alteha_prefill_email'); } catch {}
+        const prefillEmail = fromQuery || stored;
+        if (prefillEmail) {
+            setUsername(prefillEmail);
+            try { localStorage.removeItem('alteha_prefill_email'); } catch {}
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const getRoleInfo = (role: string | null) => {
         switch (role) {
@@ -171,6 +193,30 @@ export default function LoginPage() {
 
     return (
         <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden font-outfit bg-slate-900">
+            {/* Floating profile switcher — jump between the different login portals */}
+            <div className="fixed left-6 top-1/2 -translate-y-1/2 z-50 hidden lg:flex flex-col gap-3">
+                {PROFILE_LOGINS.map((p, i) => {
+                    const active = (role || 'specialist') === p.role;
+                    return (
+                        <motion.div
+                            key={p.role}
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: 0.4 + i * 0.1 }}
+                        >
+                            <Link href={`/login?role=${p.role}`} className="group relative flex items-center" aria-label={`Ingresar como ${p.label}`}>
+                                <div className={`p-3.5 rounded-full shadow-lg border backdrop-blur-xl transition-all ${active ? 'bg-white text-slate-900 border-white scale-110 shadow-xl' : 'bg-white/10 text-white/70 border-white/20 hover:bg-white/20 hover:text-white hover:-translate-y-1'}`}>
+                                    <p.Icon className="w-5 h-5" />
+                                </div>
+                                <span className="absolute left-full ml-3 px-3 py-1.5 rounded-xl bg-white text-slate-900 text-xs font-black whitespace-nowrap opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all pointer-events-none shadow-xl">
+                                    {p.label}
+                                </span>
+                            </Link>
+                        </motion.div>
+                    );
+                })}
+            </div>
+
             {/* Dynamic Background Image */}
             <AnimatePresence mode="wait">
                 <motion.div

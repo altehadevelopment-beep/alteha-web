@@ -1,7 +1,5 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
-import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
     apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -12,10 +10,13 @@ const firebaseConfig = {
     appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
 };
 
-// Initialize Firebase
+// Initialize the Firebase app + Auth only. These are needed app-wide (AuthContext),
+// so this module loads on every page.
+//
+// Firestore lives in ./firebase-db so that pages without chat don't pull the Firestore
+// SDK (the largest part of the Firebase bundle) into their bundle. firebase/storage was
+// unused across the app and has been dropped entirely.
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-const db = getFirestore(app);
 const auth = getAuth(app);
-const storage = getStorage(app);
 
-export { app, db, auth, storage };
+export { app, auth };

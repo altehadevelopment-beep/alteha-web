@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot, orderBy, getDocs, limit } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db } from '@/lib/firebase-db';
 import { useAuth } from '@/contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageSquare, Clock, User, Search, Loader2, ChevronRight, Inbox } from 'lucide-react';

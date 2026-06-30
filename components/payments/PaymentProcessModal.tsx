@@ -5,7 +5,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import PaymentMethodsManager from '@/components/dashboard/PaymentMethodsManager';
 import { CreditCard, ShieldCheck, Loader2, CheckCircle2, Wallet, ArrowRight, Building2, User, Landmark, Phone, CalendarDays, Hash, Banknote, Globe, QrCode, Printer } from 'lucide-react';
-import { type PaymentMethod, type BidDetailed, getAvailablePaymentMethodsForAuction, registerAuctionPaymentProof } from '@/lib/api';
+import { type PaymentMethod, type BidDetailed, getAvailablePaymentMethodsForAuction, registerAuctionPaymentProof, getBanks } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
 const METHOD_TYPES = [
@@ -28,6 +28,9 @@ interface PaymentProcessModalProps {
     allowedPaymentMethods?: string[];
 }
 
+// Country to source banks from (Venezuela is hardcoded for now; matches the seeded country id).
+const VENEZUELA_COUNTRY_ID = 1;
+
 export default function PaymentProcessModal({ isOpen, onClose, bid, auctionTitle, auctionNumber, role, allowedPaymentMethods }: PaymentProcessModalProps) {
     const [step, setStep] = useState<'select' | 'confirm' | 'success'>('select');
     const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
@@ -44,6 +47,9 @@ export default function PaymentProcessModal({ isOpen, onClose, bid, auctionTitle
     // Available Methods State
     const [availableMethods, setAvailableMethods] = useState<PaymentMethod[]>([]);
     const [isLoadingMethods, setIsLoadingMethods] = useState(false);
+
+    // Banks for the "Banco de Origen" dropdown (Venezuela hardcoded for now).
+    const [banks, setBanks] = useState<any[]>([]);
 
     useEffect(() => {
         if (isOpen && step === 'select' && bid) {
@@ -72,6 +78,14 @@ export default function PaymentProcessModal({ isOpen, onClose, bid, auctionTitle
             fetchMethods();
         }
     }, [isOpen, step, bid, auctionNumber]);
+
+    // Load the list of banks (Venezuela) for the "Banco de Origen" dropdown.
+    useEffect(() => {
+        if (!isOpen) return;
+        getBanks(VENEZUELA_COUNTRY_ID)
+            .then(list => setBanks(Array.isArray(list) ? list : []))
+            .catch(() => setBanks([]));
+    }, [isOpen]);
 
     const handleMethodSelect = (method: PaymentMethod) => {
         setSelectedMethod(method);
@@ -107,6 +121,15 @@ export default function PaymentProcessModal({ isOpen, onClose, bid, auctionTitle
                 referenceNumber: reference.trim(),
                 notes: notes.trim()
             };
+
+            // Bank of origin (id from the banks dropdown) + origin phone, when provided.
+            if (originBank) {
+                const parsedBankId = parseInt(originBank, 10);
+                if (!isNaN(parsedBankId)) paymentPayload.originBankId = parsedBankId;
+            }
+            if (originPhone.trim()) {
+                paymentPayload.originPhone = originPhone.trim();
+            }
 
             // Add payee if available in the method or use fallback (from logs it was 10)
             const payeeId = selectedMethod.owner?.id || (selectedMethod as any).payeeId || 10;
@@ -258,7 +281,7 @@ export default function PaymentProcessModal({ isOpen, onClose, bid, auctionTitle
             title={step === 'success' ? "" : "Reportar Pago de Adjudicación"}
             maxWidth={step === 'select' ? "max-w-6xl" : "max-w-2xl"}
         >
-            <div className="py-4 max-h-[80vh] overflow-y-auto no-scrollbar px-2">
+            <div className={`px-2 ${step === 'success' ? 'py-1' : 'py-4 max-h-[80vh] overflow-y-auto no-scrollbar'}`}>
                 {step === 'select' && (
                     <div className="space-y-6">
                         <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6">
@@ -592,13 +615,18 @@ export default function PaymentProcessModal({ isOpen, onClose, bid, auctionTitle
                                                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                                     <Landmark className="w-4 h-4 text-slate-400" />
                                                 </div>
-                                                <input 
-                                                    type="text" 
+                                                <select
                                                     value={originBank}
                                                     onChange={(e) => setOriginBank(e.target.value)}
-                                                    placeholder="Ej. Banesco" 
-                                                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-alteha-violet/50 focus:border-alteha-violet text-sm font-medium"
-                                                />
+                                                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-alteha-violet/50 focus:border-alteha-violet text-sm font-medium appearance-none cursor-pointer"
+                                                >
+                                                    <option value="">-- Selecciona un banco --</option>
+                                                    {banks.map((b: any) => (
+                                                        <option key={b.id} value={b.id}>
+                                                            {b.code ? `${b.code} - ${b.name}` : b.name}
+                                                        </option>
+                                                    ))}
+                                                </select>
                                             </div>
                                         </div>
                                     )}
@@ -676,55 +704,57 @@ export default function PaymentProcessModal({ isOpen, onClose, bid, auctionTitle
                 )}
 
                 {step === 'success' && (
-                    <div className="text-center space-y-8 py-10 animate-in zoom-in duration-500">
-                        <div className="w-24 h-24 bg-emerald-500 text-white rounded-full flex items-center justify-center mx-auto shadow-2xl shadow-emerald-200">
-                            <CheckCircle2 className="w-14 h-14" />
+                    <div className="text-center space-y-5 py-1 animate-in zoom-in duration-500">
+                        <div className="w-20 h-20 bg-emerald-500 text-white rounded-full flex items-center justify-center mx-auto shadow-xl shadow-emerald-200">
+                            <CheckCircle2 className="w-11 h-11" />
                         </div>
-                        <div className="space-y-2">
-                            <h3 className="text-4xl font-black text-slate-900 tracking-tight">¡Reporte Enviado!</h3>
-                            <p className="text-slate-500 font-medium text-lg max-w-sm mx-auto">
+                        <div className="space-y-1.5">
+                            <h3 className="text-3xl font-black text-slate-900 tracking-tight">¡Reporte Enviado!</h3>
+                            <p className="text-slate-500 font-medium text-sm max-w-sm mx-auto leading-relaxed">
                                 Hemos recibido los datos de tu transferencia. Nuestro equipo de finanzas verificará los fondos en breve.
                             </p>
                         </div>
-                        
-                        <div className="bg-slate-50 rounded-[2rem] p-6 max-w-sm mx-auto border border-slate-100 space-y-3">
-                            <div className="flex justify-between items-center pb-2 border-b border-slate-200/50">
+
+                        <div className="bg-slate-50 rounded-3xl p-5 max-w-sm mx-auto border border-slate-100 space-y-2.5">
+                            <div className="flex justify-between items-center gap-4 pb-2 border-b border-slate-200/50">
                                 <span className="text-xs font-bold text-slate-400">Referencia</span>
-                                <span className="text-xs font-black text-slate-900">{reference}</span>
+                                <span className="text-xs font-black text-slate-900 truncate">{reference}</span>
                             </div>
-                            <div className="flex justify-between items-center pb-2 border-b border-slate-200/50">
+                            <div className="flex justify-between items-center gap-4 pb-2 border-b border-slate-200/50">
                                 <span className="text-xs font-bold text-slate-400">Método</span>
                                 <span className="text-xs font-black text-slate-900">{selectedMethod?.methodType.replace(/_/g, ' ')}</span>
                             </div>
                             {originBank && (
-                                <div className="flex justify-between items-center pb-2 border-b border-slate-200/50">
-                                    <span className="text-xs font-bold text-slate-400">Banco Origen</span>
-                                    <span className="text-xs font-black text-slate-900 uppercase">{originBank}</span>
+                                <div className="flex justify-between items-center gap-4 pb-2 border-b border-slate-200/50">
+                                    <span className="text-xs font-bold text-slate-400 flex-shrink-0">Banco Origen</span>
+                                    <span className="text-xs font-black text-slate-900 text-right truncate">
+                                        {banks.find((b: any) => String(b.id) === String(originBank))?.name || originBank}
+                                    </span>
                                 </div>
                             )}
                             {originPhone && (
-                                <div className="flex justify-between items-center pb-2 border-b border-slate-200/50">
+                                <div className="flex justify-between items-center gap-4 pb-2 border-b border-slate-200/50">
                                     <span className="text-xs font-bold text-slate-400">Teléfono Origen</span>
                                     <span className="text-xs font-black text-slate-900">{originPhone}</span>
                                 </div>
                             )}
-                            <div className="flex justify-between items-center">
+                            <div className="flex justify-between items-center gap-4">
                                 <span className="text-xs font-bold text-slate-400">Monto</span>
                                 <span className="text-xs font-black text-alteha-violet">${bid?.bidAmount?.toLocaleString()}</span>
                             </div>
                         </div>
 
-                        <div className="flex flex-col gap-3 mt-8">
+                        <div className="flex flex-col gap-2.5 max-w-sm mx-auto">
                             <Button
                                 onClick={handlePrintReport}
-                                className="w-full h-16 bg-alteha-turquoise text-white rounded-2xl font-black text-lg shadow-xl shadow-teal-500/20 hover:scale-[1.02] transition-transform flex items-center justify-center gap-2"
+                                className="w-full h-12 bg-alteha-turquoise text-white rounded-2xl font-black text-sm shadow-lg shadow-teal-500/20 hover:scale-[1.02] transition-transform flex items-center justify-center gap-2"
                             >
-                                <Printer className="w-6 h-6" />
+                                <Printer className="w-5 h-5" />
                                 Imprimir / Descargar PDF
                             </Button>
                             <Button
                                 onClick={onClose}
-                                className="w-full h-16 bg-slate-900 text-white rounded-2xl font-black text-lg shadow-xl shadow-slate-200 hover:scale-[1.02] transition-transform"
+                                className="w-full h-12 bg-slate-900 text-white rounded-2xl font-black text-sm shadow-lg shadow-slate-200 hover:scale-[1.02] transition-transform"
                             >
                                 Cerrar Ventana
                             </Button>

@@ -472,6 +472,82 @@ export async function getClinics(page: number = 0, size: number = 50): Promise<C
     return response.json();
 }
 
+// Get Banks (reference data), optionally filtered by country. Used by the payment-report bank dropdown.
+export async function getBanks(countryId?: number): Promise<any[]> {
+    const params = new URLSearchParams({ sort: 'name,asc', size: '200' });
+    if (countryId != null) params.set('countryId.equals', String(countryId));
+    const response = await fetch(`/api/banks?${params.toString()}`);
+    const data = await response.json();
+    return Array.isArray(data) ? data : (data?.content ?? data?.data ?? []);
+}
+
+// ===== Prescriptions (recetas médicas) — doctor-owned, persisted in the backend =====
+export async function getMyPrescriptions(): Promise<any[]> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+    const response = await fetch('/api/prescriptions/mine', { headers: { 'X-Alteha-Token': token } });
+    const data = await response.json();
+    return Array.isArray(data) ? data : (data?.content ?? data?.data ?? []);
+}
+
+export async function createPrescription(payload: any): Promise<any> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+    const response = await fetch('/api/prescriptions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Alteha-Token': token },
+        body: JSON.stringify(payload),
+    });
+    return response.json();
+}
+
+export async function updatePrescription(id: number | string, payload: any): Promise<any> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+    const response = await fetch(`/api/prescriptions/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-Alteha-Token': token },
+        body: JSON.stringify(payload),
+    });
+    return response.json();
+}
+
+export async function deletePrescription(id: number | string): Promise<any> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+    const response = await fetch(`/api/prescriptions/${id}`, {
+        method: 'DELETE',
+        headers: { 'X-Alteha-Token': token },
+    });
+    return response.json();
+}
+
+// Doctor signature (rúbrica) — stored in the backend (Doctor.digitalSignatureUrl).
+export async function uploadDoctorSignature(file: File | Blob): Promise<any> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+    const formData = new FormData();
+    formData.append('file', file, 'signature.png');
+    const response = await fetch('/api/prescriptions/signature', {
+        method: 'POST',
+        headers: { 'X-Alteha-Token': token },
+        body: formData,
+    });
+    return response.json();
+}
+
+export async function getDoctorSignature(): Promise<string | null> {
+    const token = getStoredToken();
+    if (!token) return null;
+    try {
+        const response = await fetch('/api/prescriptions/signature', { headers: { 'X-Alteha-Token': token } });
+        const data = await response.json();
+        return data?.digitalSignatureUrl ?? null;
+    } catch {
+        return null;
+    }
+}
+
 // Get Doctors
 export async function getDoctors(page: number = 0, size: number = 50): Promise<ActorProfile[]> {
     const response = await fetch(`/api/doctors?page=${page}&size=${size}`);

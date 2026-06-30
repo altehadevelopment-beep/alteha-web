@@ -501,6 +501,8 @@ export default function DoctorRegistrationPage() {
             );
 
             if (result.code === '00') {
+                // Remember the registered email so the login screen can pre-fill it (no retyping)
+                try { localStorage.setItem('alteha_prefill_email', formData.email); } catch {}
                 setStep(7); // Success step
             } else {
                 const backendMsg: string = result.message || '';
@@ -1541,7 +1543,7 @@ export default function DoctorRegistrationPage() {
                                 </div>
                             </div>
 
-                            <Link href="/login?role=specialist">
+                            <Link href={`/login?role=specialist&email=${encodeURIComponent(formData.email)}`}>
                                 <Button className="bg-slate-900 px-12 py-5 rounded-[2.5rem] font-black text-white hover:bg-slate-800 transition-all shadow-2xl shadow-slate-900/40 active:scale-95 group">
                                     <span>Iniciar Sesión</span>
                                     <ArrowRight className="w-6 h-6 ml-3 transition-transform group-hover:translate-x-2" />

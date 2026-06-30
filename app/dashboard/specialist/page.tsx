@@ -36,6 +36,7 @@ export default function SpecialistDashboard() {
     const { userProfile, isLoadingProfile } = useAuth();
     const [ads, setAds] = useState<Advertisement[]>([]);
     const [currentAd, setCurrentAd] = useState(0);
+    const [showAllAds, setShowAllAds] = useState(false);
     const [isImageExpanded, setIsImageExpanded] = useState(false);
     const [showOnboarding, setShowOnboarding] = useState(false);
     const [isLoadingAds, setIsLoadingAds] = useState(true);
@@ -170,7 +171,8 @@ export default function SpecialistDashboard() {
 
                 const profileStatus = userProfile.status?.toUpperCase();
                 const isProfilePending = ['PENDING', 'INCOMPLETE'].includes(profileStatus || '');
-                if (isProfilePending) {
+                // Don't nag with the onboarding prompt if they already submitted their verification.
+                if (isProfilePending && !finalStatus) {
                     const hasSeenOnboarding = sessionStorage.getItem('hasSeenOnboarding');
                     if (!hasSeenOnboarding) {
                         setShowOnboarding(true);
@@ -204,6 +206,11 @@ export default function SpecialistDashboard() {
 
     const isPendingProfile = !userProfile?.status || ['PENDING', 'INCOMPLETE'].includes(userProfile.status.toUpperCase());
     const isPending = isPendingProfile && !isVerified;
+
+    // The doctor already submitted their identity (document + liveness) and is waiting for an Alteha
+    // agent to validate it: a compliance record exists and is still pending/in-review.
+    const inReviewStatuses = ['PENDING', 'INVERIFICATION', 'IN_REVIEW', 'SUBMITTED', 'PROCESSING'];
+    const isInReview = !isVerified && !!complianceStatus && inReviewStatuses.includes(complianceStatus.toUpperCase());
 
     const fullName = displayProfile.firstName && displayProfile.lastName
         ? `Dr. ${displayProfile.firstName} ${displayProfile.lastName}`
@@ -281,30 +288,42 @@ export default function SpecialistDashboard() {
 
             {/* Pending Notification Banner */}
             <AnimatePresence>
-                {isPending && !isLoadingProfile && !isLoadingCompliance && (
+                {(isPending || isInReview) && !isLoadingProfile && !isLoadingCompliance && (
                     <m.div
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: 'auto', opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
                         className="overflow-hidden"
                     >
-                        <div className="bg-gradient-to-r from-alteha-violet/10 to-transparent border-l-4 border-alteha-violet p-6 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4">
-                            <div className="flex items-center gap-4">
-                                <div className="p-3 bg-alteha-violet/20 rounded-xl text-alteha-violet">
-                                    <Shield className="w-6 h-6" />
+                        {isInReview ? (
+                            <div className="bg-gradient-to-r from-amber-400/15 to-transparent border-l-4 border-amber-400 p-6 rounded-2xl flex items-center gap-4">
+                                <div className="p-3 bg-amber-400/20 rounded-xl text-amber-500 flex-shrink-0">
+                                    <Clock className="w-6 h-6 animate-pulse" />
                                 </div>
                                 <div className="space-y-1">
-                                    <h4 className="font-black text-slate-900">Tu cuenta está en estado PENDIENTE</h4>
-                                    <p className="text-sm text-slate-500 font-medium">Completa tu perfil para acceder a beneficios exclusivos y prioridad en cirugías.</p>
+                                    <h4 className="font-black text-slate-900">Verificación en proceso</h4>
+                                    <p className="text-sm text-slate-500 font-medium">Recibimos tu documento y prueba de vida. Un agente de Alteha está validando tu identidad (un par de horas máximo) — te avisaremos en cuanto esté lista.</p>
                                 </div>
                             </div>
-                            <Link
-                                href="/dashboard/specialist/verify"
-                                className="px-6 py-3 bg-alteha-violet text-white rounded-xl font-bold text-sm shadow-lg shadow-alteha-violet/20 hover:scale-105 transition-all whitespace-nowrap"
-                            >
-                                Verificar Cuenta
-                            </Link>
-                        </div>
+                        ) : (
+                            <div className="bg-gradient-to-r from-alteha-violet/10 to-transparent border-l-4 border-alteha-violet p-6 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4">
+                                <div className="flex items-center gap-4">
+                                    <div className="p-3 bg-alteha-violet/20 rounded-xl text-alteha-violet">
+                                        <Shield className="w-6 h-6" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <h4 className="font-black text-slate-900">Tu cuenta está en estado PENDIENTE</h4>
+                                        <p className="text-sm text-slate-500 font-medium">Completa tu perfil para acceder a beneficios exclusivos y prioridad en cirugías.</p>
+                                    </div>
+                                </div>
+                                <Link
+                                    href="/dashboard/specialist/verify"
+                                    className="px-6 py-3 bg-alteha-violet text-white rounded-xl font-bold text-sm shadow-lg shadow-alteha-violet/20 hover:scale-105 transition-all whitespace-nowrap"
+                                >
+                                    Verificar Cuenta
+                                </Link>
+                            </div>
+                        )}
                     </m.div>
                 )}
             </AnimatePresence>
@@ -566,70 +585,66 @@ export default function SpecialistDashboard() {
                 />
             </section>
 
-            {/* Rotating Banner */}
-            <section className="relative h-40 max-w-5xl mx-auto rounded-[2rem] overflow-hidden shadow-xl bg-slate-100 group">
+            {/* Advertising — multiple cards + "Ver más" */}
+            <section className="max-w-5xl mx-auto space-y-4">
+                <div className="flex items-center justify-between">
+                    <span className="text-alteha-turquoise text-[10px] font-black uppercase tracking-[0.3em]">Publicidad Especializada</span>
+                    {ads.length > 3 && (
+                        <button
+                            type="button"
+                            onClick={() => setShowAllAds(v => !v)}
+                            className="flex items-center gap-1.5 text-xs font-black text-alteha-violet hover:gap-2.5 transition-all"
+                        >
+                            {showAllAds ? 'Ver menos' : 'Ver más'}
+                            <ChevronRight className={`w-4 h-4 transition-transform ${showAllAds ? 'rotate-90' : ''}`} />
+                        </button>
+                    )}
+                </div>
+
                 {isLoadingAds ? (
-                    <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="flex items-center justify-center py-12 bg-slate-100 rounded-[2rem]">
                         <Loader className="w-8 h-8 text-alteha-turquoise" />
                     </div>
                 ) : ads.length > 0 ? (
-                    <>
-                        <AnimatePresence mode="wait">
-                            <m.div
-                                key={currentAd}
-                                initial={{ opacity: 0, scale: 0.98 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 1.02 }}
-                                className="absolute inset-0 p-8 flex flex-col justify-center"
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {(showAllAds ? ads : ads.slice(0, 3)).map((ad: any, i: number) => (
+                            <div
+                                key={ad.id ?? i}
+                                className="relative h-44 rounded-[2rem] overflow-hidden shadow-lg shadow-slate-200/60 hover:-translate-y-1 transition-transform"
                                 style={{
-                                    backgroundImage: ads[currentAd].mediaUrl && ads[currentAd].mediaType === 'IMAGE'
-                                        ? `linear-gradient(to right, rgba(15, 23, 42, 0.9), rgba(15, 23, 42, 0.4)), url(${ads[currentAd].mediaUrl})`
-                                        : `linear-gradient(to right, rgba(15, 23, 42, 0.9), rgba(15, 23, 42, 0.4)), url(/images/ads/cardiology.png)`,
+                                    backgroundImage: `linear-gradient(to top, rgba(15,23,42,0.96), rgba(15,23,42,0.3)), url(${ad.mediaUrl && ad.mediaType === 'IMAGE' ? ad.mediaUrl : '/images/ads/cardiology.png'})`,
                                     backgroundSize: 'cover',
                                     backgroundPosition: 'center'
                                 }}
                             >
-                                <div className="max-w-xl relative z-10 space-y-1">
-                                    <span className="text-alteha-turquoise text-[10px] font-black uppercase tracking-[0.3em] mb-1 block">Publicidad Especializada</span>
-                                    <h3 className="text-2xl font-black text-white leading-tight">{ads[currentAd].title}</h3>
-                                    <p className="text-white/70 text-sm font-medium line-clamp-1">{ads[currentAd].subtitle}</p>
-                                    {ads[currentAd].ctaText && (
-                                        <div className="mt-3">
-                                            <a
-                                                href={ads[currentAd].clickUrl}
-                                                target={ads[currentAd].openInNewTab ? "_blank" : "_self"}
-                                                className="inline-flex items-center gap-2 px-4 py-1.5 bg-alteha-turquoise text-slate-900 rounded-lg font-black text-[10px] uppercase hover:scale-105 transition-all"
-                                            >
-                                                {ads[currentAd].ctaText}
-                                                <ExternalLink className="w-3 h-3" />
-                                            </a>
-                                        </div>
-                                    )}
+                                <div className="absolute inset-0 p-5 flex flex-col justify-end">
+                                    <span className="text-alteha-turquoise text-[9px] font-black uppercase tracking-[0.2em] mb-1 line-clamp-1">{ad.subtitle || 'Patrocinado'}</span>
+                                    <h4 className="text-base font-black text-white leading-tight line-clamp-2 mb-3">{ad.title}</h4>
+                                    <a
+                                        href={ad.clickUrl || '#'}
+                                        target={ad.openInNewTab ? '_blank' : '_self'}
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-alteha-turquoise text-slate-900 rounded-lg font-black text-[10px] uppercase w-fit hover:scale-105 transition-transform"
+                                    >
+                                        {ad.ctaText || 'Ver más'}
+                                        <ExternalLink className="w-3 h-3" />
+                                    </a>
                                 </div>
-                            </m.div>
-                        </AnimatePresence>
-                        <div className="absolute bottom-4 right-8 flex gap-1.5 z-20">
-                            {ads.map((_, i: number) => (
-                                <div
-                                    key={i}
-                                    className={`h-1 rounded-full transition-all duration-300 ${i === currentAd ? 'w-6 bg-alteha-turquoise' : 'w-1.5 bg-white/30'}`}
-                                />
-                            ))}
-                        </div>
-                    </>
+                            </div>
+                        ))}
+                    </div>
                 ) : (
-                    <div className="absolute inset-0 bg-slate-900 flex flex-col justify-center px-10"
+                    <div
+                        className="relative h-44 rounded-[2rem] overflow-hidden shadow-lg flex flex-col justify-end p-6"
                         style={{
-                            backgroundImage: `linear-gradient(to right, rgba(15, 23, 42, 0.9), rgba(15, 23, 42, 0.4)), url(/images/ads/traumatology.png)`,
+                            backgroundImage: `linear-gradient(to top, rgba(15,23,42,0.95), rgba(15,23,42,0.35)), url(/images/ads/traumatology.png)`,
                             backgroundSize: 'cover',
                             backgroundPosition: 'center'
                         }}
                     >
-                        <div className="max-w-xl relative z-10">
-                            <span className="text-alteha-turquoise text-[10px] font-black uppercase tracking-[0.3em] mb-1 block">Bienvenido a Alteha</span>
-                            <h3 className="text-2xl font-black text-white mb-1">Optimiza tu Práctica Médica</h3>
-                            <p className="text-white/70 text-sm font-medium">Gestiona tus cirugías y subastas médicas con la tecnología más avanzada.</p>
-                        </div>
+                        <span className="text-alteha-turquoise text-[10px] font-black uppercase tracking-[0.3em] mb-1 block">Bienvenido a Alteha</span>
+                        <h3 className="text-xl font-black text-white mb-1">Optimiza tu Práctica Médica</h3>
+                        <p className="text-white/70 text-sm font-medium">Gestiona tus cirugías y subastas médicas con la tecnología más avanzada.</p>
                     </div>
                 )}
             </section>

@@ -36,6 +36,8 @@ export default function SpecialistVerifyPage() {
     const [modelsLoaded, setModelsLoaded] = useState(false);
     const [motionAccumulator, setMotionAccumulator] = useState(0);
     const [faceDetected, setFaceDetected] = useState(false);
+    const [videoReady, setVideoReady] = useState(false);
+    const [cameraStuck, setCameraStuck] = useState(false);
     const [recording, setRecording] = useState(false);
     const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
 
@@ -46,6 +48,7 @@ export default function SpecialistVerifyPage() {
     const chunksRef = useRef<Blob[]>([]);
     const videoResolverRef = useRef<((blob: Blob) => void) | null>(null);
     const loadingModelsRef = useRef(false);
+    const streamRef = useRef<MediaStream | null>(null);
 
     const setVideoRef = React.useCallback((el: HTMLVideoElement | null) => {
         videoRef.current = el;
@@ -63,6 +66,18 @@ export default function SpecialistVerifyPage() {
             video.play().catch(err => console.error("Video play error:", err));
         }
     }, [stream, isCameraActive]);
+
+    // If the camera doesn't produce a frame within a few seconds, surface a retry/help message
+    // instead of leaving the user staring at a black box.
+    useEffect(() => {
+        if (!isCameraActive || videoReady) { setCameraStuck(false); return; }
+        const t = setTimeout(() => setCameraStuck(true), 7000);
+        return () => clearTimeout(t);
+    }, [isCameraActive, videoReady]);
+
+    // Track the active stream and release the camera when leaving this screen, so it isn't left busy.
+    useEffect(() => { streamRef.current = stream; }, [stream]);
+    useEffect(() => () => { streamRef.current?.getTracks().forEach(t => t.stop()); }, []);
 
     // Load Models
     useEffect(() => {
@@ -90,6 +105,14 @@ export default function SpecialistVerifyPage() {
     }, [modelsLoaded]);
 
     const startCamera = async () => {
+        setVideoReady(false);
+        setCameraStuck(false);
+        // Release any previous camera stream first so the device isn't left busy (a busy/locked
+        // camera is the most common reason the feed comes back black).
+        if (stream) {
+            stream.getTracks().forEach(t => t.stop());
+            setStream(null);
+        }
         try {
             const mediaStream = await navigator.mediaDevices.getUserMedia({
                 video: {
@@ -97,6 +120,15 @@ export default function SpecialistVerifyPage() {
                     height: { ideal: 720 }
                 }
             });
+            const videoTrack = mediaStream.getVideoTracks()[0];
+            if (!videoTrack || videoTrack.readyState === 'ended') {
+                throw new Error('No live video track');
+            }
+            // A covered/disabled/busy camera reports a muted track → surface the retry UI.
+            if (videoTrack.muted) setCameraStuck(true);
+            videoTrack.addEventListener('mute', () => setCameraStuck(true));
+            videoTrack.addEventListener('unmute', () => { setCameraStuck(false); });
+
             setStream(mediaStream);
             setIsCameraActive(true);
 
@@ -105,8 +137,9 @@ export default function SpecialistVerifyPage() {
             }
         } catch (err) {
             console.error("Error accessing camera:", err);
-            alert("No se pudo acceder a la cámara. Por favor verifica los permisos.");
-            setIsCameraActive(false);
+            // Keep the frame mounted and show the in-place retry/help overlay instead of a dead-end black box.
+            setIsCameraActive(true);
+            setCameraStuck(true);
         }
     };
 
@@ -118,6 +151,7 @@ export default function SpecialistVerifyPage() {
             stream.getTracks().forEach(track => track.stop());
             setStream(null);
         }
+        setVideoReady(false);
         setIsCameraActive(false);
     };
 
@@ -318,8 +352,34 @@ export default function SpecialistVerifyPage() {
                             autoPlay
                             playsInline
                             muted
+                            onLoadedData={() => setVideoReady(true)}
                             className="w-full h-full object-cover scale-x-[-1]"
                         />
+                        {/* Loading / error overlay while the camera initializes (no more silent black box) */}
+                        {(!videoReady || cameraStuck) && (
+                            <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 bg-slate-900/90 text-center px-8 text-white">
+                                {!cameraStuck ? (
+                                    <>
+                                        <RefreshCcw className="w-9 h-9 text-alteha-turquoise animate-spin" />
+                                        <p className="text-sm font-black">Encendiendo cámara…</p>
+                                        <p className="text-xs text-white/60 max-w-xs">Permite el acceso a la cámara si el navegador lo solicita.</p>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Camera className="w-9 h-9 text-amber-400" />
+                                        <p className="text-sm font-black">No se pudo encender la cámara</p>
+                                        <p className="text-xs text-white/60 max-w-xs">Revisa los permisos del navegador y cierra otras apps o pestañas que estén usando la cámara.</p>
+                                        <button
+                                            type="button"
+                                            onClick={() => { stopCamera(); setTimeout(startCamera, 300); }}
+                                            className="mt-1 px-4 py-2 bg-white text-slate-900 rounded-xl text-xs font-black flex items-center gap-2 hover:scale-105 transition-transform"
+                                        >
+                                            <RefreshCcw className="w-4 h-4" /> Reintentar
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                        )}
                         {/* Box Overlay for Document */}
                         <div className="absolute inset-0 border-[4rem] border-slate-900/40 pointer-events-none flex items-center justify-center">
                             <div className="w-[85%] h-[75%] border-4 border-dashed border-white/60 rounded-2xl" />
@@ -354,7 +414,7 @@ export default function SpecialistVerifyPage() {
             <canvas ref={canvasRef} className="hidden" />
 
             <div className="flex gap-4">
-                <Button onClick={handleBack} className="flex-1 py-4 border-2 border-slate-100 text-slate-400 font-bold rounded-2xl transition-all">
+                <Button variant="outline" onClick={handleBack} className="flex-1 py-4 font-bold rounded-2xl transition-all">
                     Volver
                 </Button>
                 <Button
@@ -569,8 +629,19 @@ export default function SpecialistVerifyPage() {
                             autoPlay
                             playsInline
                             muted
+                            onLoadedData={() => setVideoReady(true)}
                             className="w-full h-full object-cover scale-x-[-1]"
                         />
+                        {/* Loading overlay while the camera feed and AI models initialize */}
+                        {(!videoReady || !modelsLoaded) && (
+                            <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 bg-slate-100/95 backdrop-blur-sm text-center px-8">
+                                <RefreshCcw className="w-9 h-9 text-alteha-violet animate-spin" />
+                                <p className="text-sm font-black text-slate-700">
+                                    {!modelsLoaded ? 'Cargando verificación facial…' : 'Encendiendo cámara…'}
+                                </p>
+                                <p className="text-xs text-slate-400 font-medium">Esto puede tardar unos segundos</p>
+                            </div>
+                        )}
                         {/* Face Mask Guide Overlay */}
                         <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
                             <svg className="w-full h-full text-white/40" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -611,7 +682,7 @@ export default function SpecialistVerifyPage() {
             {/* Manual scan completion is now automated via motion detection */}
 
             <div className="flex gap-4">
-                <Button onClick={handleBack} className="flex-1 py-4 border-2 border-slate-100 text-slate-400 font-bold rounded-2xl transition-all">
+                <Button variant="outline" onClick={handleBack} className="flex-1 py-4 font-bold rounded-2xl transition-all">
                     Volver
                 </Button>
                 <div className="flex-[2] flex flex-col gap-2">
@@ -660,10 +731,23 @@ export default function SpecialistVerifyPage() {
 
             <div className="space-y-4">
                 <h2 className="text-4xl font-black text-slate-900 tracking-tight">¡Verificación Enviada!</h2>
-                <p className="text-slate-500 font-medium max-w-sm mx-auto">
-                    Tu información está siendo procesada. Pronto recibirás los beneficios completos de la plataforma Alteha.
+                <p className="text-slate-500 font-medium max-w-md mx-auto leading-relaxed">
+                    Tu perfil entra en un <span className="font-bold text-slate-700">proceso de verificación por nuestros especialistas</span>. En un par de horas máximo te estaremos informando para que puedas continuar disfrutando de los servicios que Alteha brinda a la comunidad de médicos.
                 </p>
             </div>
+
+            {docImage && (
+                <div className="mx-auto w-full max-w-[16rem]">
+                    <div className="relative rounded-3xl overflow-hidden border-4 border-white shadow-xl shadow-slate-200 bg-slate-100">
+                        <img src={docImage} alt="Foto de verificación con tu documento" className="w-full h-auto object-cover" />
+                        <div className="absolute top-3 left-3 flex items-center gap-1.5 px-3 py-1 bg-emerald-500 text-white rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg">
+                            <CheckCircle className="w-3.5 h-3.5" />
+                            Recibida
+                        </div>
+                    </div>
+                    <p className="text-xs font-bold text-slate-400 mt-2.5">Tu foto sujetando el documento de identidad</p>
+                </div>
+            )}
 
             <Button
                 onClick={() => router.push('/dashboard/specialist')}
