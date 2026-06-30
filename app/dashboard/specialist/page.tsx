@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { motion as m, AnimatePresence } from 'framer-motion';
 import { Loader } from '@/components/ui/Loader';
@@ -29,7 +30,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
-import { getDashboardAds, getMyInvitations, type Advertisement, type Auction, getIdentityCompliance, searchIdentityCompliance } from '@/lib/api';
+import { getDashboardAds, getMyInvitations, getAuctionBidsCount, type Advertisement, type Auction, getIdentityCompliance, searchIdentityCompliance } from '@/lib/api';
 import AuctionCountdown from '@/components/auctions/AuctionCountdown';
 
 export default function SpecialistDashboard() {
@@ -607,31 +608,48 @@ export default function SpecialistDashboard() {
                     </div>
                 ) : ads.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {(showAllAds ? ads : ads.slice(0, 3)).map((ad: any, i: number) => (
-                            <div
-                                key={ad.id ?? i}
-                                className="relative h-44 rounded-[2rem] overflow-hidden shadow-lg shadow-slate-200/60 hover:-translate-y-1 transition-transform"
-                                style={{
-                                    backgroundImage: `linear-gradient(to top, rgba(15,23,42,0.96), rgba(15,23,42,0.3)), url(${ad.mediaUrl && ad.mediaType === 'IMAGE' ? ad.mediaUrl : '/images/ads/cardiology.png'})`,
-                                    backgroundSize: 'cover',
-                                    backgroundPosition: 'center'
-                                }}
-                            >
-                                <div className="absolute inset-0 p-5 flex flex-col justify-end">
-                                    <span className="text-alteha-turquoise text-[9px] font-black uppercase tracking-[0.2em] mb-1 line-clamp-1">{ad.subtitle || 'Patrocinado'}</span>
-                                    <h4 className="text-base font-black text-white leading-tight line-clamp-2 mb-3">{ad.title}</h4>
-                                    <a
-                                        href={ad.clickUrl || '#'}
-                                        target={ad.openInNewTab ? '_blank' : '_self'}
-                                        rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-alteha-turquoise text-slate-900 rounded-lg font-black text-[10px] uppercase w-fit hover:scale-105 transition-transform"
+                        {(showAllAds ? ads : ads.slice(0, 3)).map((ad: any, i: number) => {
+                            const isImg = ad.mediaUrl && ad.mediaType === 'IMAGE';
+                            // A pre-designed banner (no overlay title) renders as a clean, full image.
+                            const isBanner = isImg && (!ad.title || !ad.title.trim());
+
+                            const adHref = `/dashboard/specialist/ads/${ad.id}`;
+
+                            if (isBanner) {
+                                return (
+                                    <Link
+                                        key={ad.id ?? i}
+                                        href={adHref}
+                                        className="relative h-44 rounded-[2rem] overflow-hidden shadow-lg shadow-slate-200/60 hover:-translate-y-1 transition-transform bg-slate-50 flex items-center justify-center"
                                     >
-                                        {ad.ctaText || 'Ver más'}
-                                        <ExternalLink className="w-3 h-3" />
-                                    </a>
-                                </div>
-                            </div>
-                        ))}
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img src={ad.mediaUrl} alt={ad.subtitle || 'Publicidad'} className="w-full h-full object-contain" />
+                                    </Link>
+                                );
+                            }
+
+                            return (
+                                <Link
+                                    key={ad.id ?? i}
+                                    href={adHref}
+                                    className="relative h-44 rounded-[2rem] overflow-hidden shadow-lg shadow-slate-200/60 hover:-translate-y-1 transition-transform block"
+                                    style={{
+                                        backgroundImage: `linear-gradient(to top, rgba(15,23,42,0.96), rgba(15,23,42,0.3)), url(${isImg ? ad.mediaUrl : '/images/ads/cardiology.png'})`,
+                                        backgroundSize: 'cover',
+                                        backgroundPosition: 'center'
+                                    }}
+                                >
+                                    <div className="absolute inset-0 p-5 flex flex-col justify-end">
+                                        <span className="text-alteha-turquoise text-[9px] font-black uppercase tracking-[0.2em] mb-1 line-clamp-1">{ad.subtitle || 'Patrocinado'}</span>
+                                        <h4 className="text-base font-black text-white leading-tight line-clamp-2 mb-3">{ad.title}</h4>
+                                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-alteha-turquoise text-slate-900 rounded-lg font-black text-[10px] uppercase w-fit">
+                                            {ad.ctaText || 'Ver más'}
+                                            <ExternalLink className="w-3 h-3" />
+                                        </span>
+                                    </div>
+                                </Link>
+                            );
+                        })}
                     </div>
                 ) : (
                     <div
@@ -702,6 +720,17 @@ function StatCard({ label, value, icon: Icon, color, bg }: any) {
 }
 
 function AuctionCard({ auction }: { auction: Auction }) {
+    const router = useRouter();
+    const [offerCount, setOfferCount] = useState<number | null>(null);
+
+    useEffect(() => {
+        let active = true;
+        getAuctionBidsCount(auction.id)
+            .then((r) => { if (active) setOfferCount(typeof r?.count === 'number' ? r.count : 0); })
+            .catch(() => { if (active) setOfferCount(null); });
+        return () => { active = false; };
+    }, [auction.id]);
+
     const urgencyMap: any = {
         'LOW': { label: 'Baja', color: 'bg-slate-50 text-slate-500', dot: 'bg-slate-400' },
         'MEDIUM': { label: 'Media', color: 'bg-amber-50 text-amber-500', dot: 'bg-amber-500' },
@@ -715,7 +744,8 @@ function AuctionCard({ auction }: { auction: Auction }) {
     return (
         <m.div
             whileHover={{ y: -4 }}
-            className="bg-white p-6 md:p-8 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-8 hover:shadow-2xl transition-all"
+            onClick={() => router.push(`/dashboard/specialist/auctions/${auction.auctionNumber}`)}
+            className="bg-white p-6 md:p-8 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-8 hover:shadow-2xl transition-all cursor-pointer"
         >
             <div className="flex-1 space-y-4 text-left">
                 <div className="flex flex-wrap items-center gap-3">
@@ -752,18 +782,35 @@ function AuctionCard({ auction }: { auction: Auction }) {
                         </div>
                     )}
                 </div>
+
+                {/* Offers preview + link to the offers screen */}
+                <div className="flex items-center gap-4 pt-1">
+                    <span className="inline-flex items-center gap-2 text-xs font-black text-slate-600">
+                        <span className="w-2 h-2 rounded-full bg-alteha-violet" />
+                        {offerCount === null
+                            ? 'Ofertas: —'
+                            : `${offerCount} ${offerCount === 1 ? 'oferta' : 'ofertas'} hasta ahora`}
+                    </span>
+                    <Link
+                        onClick={(e) => e.stopPropagation()}
+                        href={`/dashboard/specialist/auctions/${auction.auctionNumber}#ofertas`}
+                        className="text-xs font-black text-alteha-violet hover:underline inline-flex items-center gap-1"
+                    >
+                        Ver ofertas <ArrowRight className="w-3 h-3" />
+                    </Link>
+                </div>
             </div>
 
             <div className="flex flex-row lg:flex-col items-center gap-3 min-w-[200px]">
-                <Link href={`/dashboard/specialist/auctions/${auction.auctionNumber}`} className="flex-1 lg:w-full">
+                <Link onClick={(e) => e.stopPropagation()} href={`/dashboard/specialist/auctions/${auction.auctionNumber}`} className="flex-1 lg:w-full">
                     <button className="w-full py-4 bg-white border-2 border-slate-100 text-slate-600 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-slate-50 transition-all">
                         <FileText className="w-4 h-4" />
                         Ver Detalle
                     </button>
                 </Link>
-                <Link href={`/dashboard/specialist/auctions/${auction.auctionNumber}`} className="flex-1 lg:w-full">
+                <Link onClick={(e) => e.stopPropagation()} href={`/dashboard/specialist/auctions/${auction.auctionNumber}`} className="flex-1 lg:w-full">
                     <button className="w-full py-4 bg-alteha-turquoise text-slate-900 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-alteha-turquoise/20 hover:scale-[1.02] transition-all">
-                        Postularme
+                        Ofertar
                         <ArrowRight className="w-4 h-4" />
                     </button>
                 </Link>

@@ -785,7 +785,15 @@ function AuctionItem({ id, title, status, bids, bestBid, timeLeft, savings }: an
                         <span className="w-1 h-1 rounded-full bg-slate-200" />
                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{id}</span>
                         <span className="w-1 h-1 rounded-full bg-slate-200" />
-                        <span className="text-xs font-medium text-slate-400">{bids} ofertas</span>
+                        <Link
+                            href={`/dashboard/insurance/auctions/${id}#ofertas`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-xs font-black text-alteha-violet hover:underline inline-flex items-center gap-1"
+                            title="Ver el detalle de las ofertas recibidas"
+                        >
+                            {bids ?? 0} {Number(bids) === 1 ? 'oferta' : 'ofertas'}
+                            <ChevronRight className="w-3 h-3" />
+                        </Link>
                     </div>
                 </div>
             </div>

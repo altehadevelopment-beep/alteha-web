@@ -7,12 +7,24 @@ import {
     DollarSign, Stethoscope, Building2, Clock, Trophy, ChevronDown, ChevronUp,
     Calendar, Timer, ShieldCheck, Info, ExternalLink, Medal, X, MapPin, MessageSquare
 } from 'lucide-react';
-import { getAuctionBids, getTopOffers, getDoctorById, type BidDetailed, type TopOffer } from '@/lib/api';
+import { getAuctionBids, getTopOffers, getDoctorById, getAuctionDuplas, type BidDetailed, type TopOffer } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { ChatWindow } from '@/components/chat/ChatWindow';
 import { useUnreadCount } from '@/hooks/useChat';
+
+const money = (n: any) => {
+    const v = Number(n);
+    return isFinite(v) ? v.toLocaleString('es-ES') : '0';
+};
+
+// Resolve the doctor id of a bid regardless of how it's shaped (object / number / doctorId).
+const getBidDoctorId = (bid: any): number | undefined => {
+    if (typeof bid?.doctor === 'object' && bid.doctor) return bid.doctor.id;
+    if (typeof bid?.doctor === 'number') return bid.doctor;
+    return bid?.doctorId;
+};
 
 interface AuctionBidsListProps {
     auctionId: number;
@@ -57,6 +69,7 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
     const { userProfile } = useAuth();
     const [bids, setBids] = useState<BidDetailed[]>([]);
     const [topOffers, setTopOffers] = useState<TopOffer[]>([]);
+    const [duplaMap, setDuplaMap] = useState<Record<number, any>>({});
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [expandedBid, setExpandedBid] = useState<number | null>(null);
@@ -66,6 +79,7 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
     const [isAwarding, setIsAwarding] = useState<number | null>(null);
     const [awardModalOpen, setAwardModalOpen] = useState(false);
     const [selectedBidId, setSelectedBidId] = useState<number | null>(null);
+    const [awardSummary, setAwardSummary] = useState<{ doctorName: string; clinicName: string | null; amount: any } | null>(null);
     const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(null);
     const [isDoctorModalOpen, setIsDoctorModalOpen] = useState(false);
     const [activeChat, setActiveChat] = useState<{
@@ -87,12 +101,18 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
             const { awardAuction } = await import('@/lib/api');
             const res = await awardAuction(auctionNumber, selectedBidId);
             if (res.code === '00' || (res as any).id) {
+                const wonBid: any = bids.find(b => b.id === selectedBidId);
+                const dId = wonBid ? getBidDoctorId(wonBid) : null;
+                const doctorName =
+                    wonBid?.doctor?.fullName ||
+                    (wonBid?.doctor?.firstName ? `${wonBid.doctor.firstName} ${wonBid.doctor.lastName}` : null) ||
+                    (dId ? doctorProfiles[dId]?.fullName : null) ||
+                    wonBid?.doctorName ||
+                    'Médico';
+                const clinicName = wonBid?.clinic?.name || duplaMap[selectedBidId!]?.clinicName || null;
+                const amount = duplaMap[selectedBidId!]?.total ?? wonBid?.bidAmount ?? null;
                 setAwardModalOpen(false);
-                if (onActionSuccess) {
-                    onActionSuccess();
-                } else {
-                    window.location.reload();
-                }
+                setAwardSummary({ doctorName, clinicName, amount });
             } else {
                 alert(res.message || 'Error al adjudicar subasta');
             }
@@ -156,11 +176,18 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
         setIsLoading(true);
         setError(null);
         try {
-            // Load both in parallel
-            const [bidsRes, topRes] = await Promise.all([
+            // Load in parallel (duplas = clinic-invitation status for SOLO_MEDICO offers)
+            const [bidsRes, topRes, duplasRes] = await Promise.all([
                 getAuctionBids(auctionId),
-                getTopOffers(auctionId)
+                getTopOffers(auctionId),
+                getAuctionDuplas(auctionId).catch(() => [])
             ]);
+
+            const dMap: Record<number, any> = {};
+            (Array.isArray(duplasRes) ? duplasRes : []).forEach((d: any) => {
+                if (d && d.bidId != null) dMap[Number(d.bidId)] = d;
+            });
+            setDuplaMap(dMap);
 
             // Handle bids list
             let bidsData: BidDetailed[] = [];
@@ -518,12 +545,64 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
                                                            'Médico';
                                                 })()}
                                             </p>
-                                            {bid.bidType && (
-                                                <span className="px-2 py-0.5 rounded-md bg-slate-100 text-[8px] font-black uppercase tracking-widest text-slate-500">
-                                                    {bid.bidType}
+                                            {(() => {
+                                                const modality = (bid as any).modality;
+                                                if (modality === 'SOLO_MEDICO') {
+                                                    return (
+                                                        <span className="px-2 py-0.5 rounded-md bg-violet-50 text-[8px] font-black uppercase tracking-widest text-alteha-violet">
+                                                            Solo Médico
+                                                        </span>
+                                                    );
+                                                }
+                                                if (modality === 'PAQUETE_COMPLETO') {
+                                                    return (
+                                                        <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-[8px] font-black uppercase tracking-widest text-emerald-600">
+                                                            Paquete Completo
+                                                        </span>
+                                                    );
+                                                }
+                                                return bid.bidType ? (
+                                                    <span className="px-2 py-0.5 rounded-md bg-slate-100 text-[8px] font-black uppercase tracking-widest text-slate-500">
+                                                        {bid.bidType}
+                                                    </span>
+                                                ) : null;
+                                            })()}
+                                            {mode === 'insurance' && ((bid as any).modality !== 'SOLO_MEDICO' || duplaMap[bid.id]?.status === 'ACCEPTED') && (
+                                                <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-[8px] font-black uppercase tracking-widest text-emerald-600 inline-flex items-center gap-1">
+                                                    <Trophy className="w-2.5 h-2.5" /> Adjudicable
                                                 </span>
                                             )}
                                         </div>
+                                        {(bid as any).modality === 'SOLO_MEDICO' && (() => {
+                                            const dupla = duplaMap[bid.id];
+                                            const status = dupla?.status || 'PENDING';
+                                            const clinicName = dupla?.clinicName || bid.clinic?.name || 'la clínica';
+                                            const clinicLogo = dupla?.clinicLogoUrl || bid.clinic?.logoUrl;
+                                            const m: Record<string, { cls: string; label: string }> = {
+                                                PENDING: { cls: 'bg-amber-50 text-amber-600 border-amber-100', label: `En espera de aprobación de ${clinicName}` },
+                                                ACCEPTED: { cls: 'bg-emerald-50 text-emerald-600 border-emerald-100', label: `${clinicName} aceptó · dupla confirmada` },
+                                                REJECTED: { cls: 'bg-red-50 text-red-500 border-red-100', label: `${clinicName} rechazó la invitación` },
+                                            };
+                                            const s = m[status] || m.PENDING;
+                                            return (
+                                                <div className="space-y-1 mt-1">
+                                                    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-[9px] font-black uppercase tracking-widest ${s.cls}`}>
+                                                        <Clock className="w-2.5 h-2.5" />
+                                                        {clinicLogo && <img src={clinicLogo} alt="" className="w-3.5 h-3.5 rounded-full object-cover bg-white border border-white" />}
+                                                        {s.label}
+                                                    </span>
+                                                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] font-bold text-slate-500">
+                                                        <span>Honorarios médico: <b className="text-slate-700">${money(dupla?.honorarios ?? bid.bidAmount)}</b></span>
+                                                        {status === 'ACCEPTED' && (
+                                                            <>
+                                                                <span>Clínica: <b className="text-slate-700">${money(dupla?.clinicFee)}</b></span>
+                                                                <span>Total dupla: <b className="text-emerald-600">${money(dupla?.total)}</b></span>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
                                         {bid.clinic?.name && (
                                             <p className="text-xs font-bold text-slate-400 flex items-center gap-1">
                                                 <Building2 className="w-3 h-3" /> {bid.clinic.name}
@@ -552,8 +631,8 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
                                             )}
                                         </div>
                                         
-                                        {/* Direct Chat Icon */}
-                                        {auctionStatus === 'ACTIVE' && (
+                                        {/* Direct Chat Icon — insurance: any doctor; doctor: only on their OWN offer */}
+                                        {auctionStatus === 'ACTIVE' && (mode === 'insurance' || (!!userProfile?.id && getBidDoctorId(bid) === userProfile.id)) && (
                                             <ChatButtonWithBadge
                                                 auctionId={String(auctionId)}
                                                 currentUserId={String(userProfile?.id || 'guest')}
@@ -772,8 +851,8 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
                                                     </div>
                                                 )}
 
-                                                {/* Actions */}
-                                                {auctionStatus === 'ACTIVE' && (
+                                                {/* Actions — a doctor only gets the chat-with-insurer on their OWN offer */}
+                                                {auctionStatus === 'ACTIVE' && (mode === 'insurance' || (!!userProfile?.id && getBidDoctorId(bid) === userProfile.id)) && (
                                                     <div className="pt-4 border-t border-slate-100 flex gap-3">
                                                         <Button
                                                             onClick={() => {
@@ -804,22 +883,33 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
                                                             {mode === 'insurance' ? 'Chat con Médico' : 'Chat con Seguro'}
                                                         </Button>
                                                         
-                                                        {mode === 'insurance' && (
-                                                            <Button
-                                                                onClick={() => handleAward(bid.id)}
-                                                                disabled={isAwarding !== null}
-                                                                className="flex-[2] bg-alteha-violet text-white py-3 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-violet-100 hover:scale-[1.02] transition-all disabled:opacity-50"
-                                                            >
-                                                                {isAwarding === bid.id ? (
-                                                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                                                ) : (
-                                                                    <>
-                                                                        <Trophy className="w-4 h-4" />
-                                                                        Adjudicar
-                                                                    </>
-                                                                )}
-                                                            </Button>
-                                                        )}
+                                                        {mode === 'insurance' && (() => {
+                                                            const isSolo = (bid as any).modality === 'SOLO_MEDICO';
+                                                            const clinicStatus = duplaMap[bid.id]?.status;
+                                                            const blocked = isSolo && clinicStatus !== 'ACCEPTED';
+                                                            return (
+                                                                <Button
+                                                                    onClick={() => handleAward(bid.id)}
+                                                                    disabled={isAwarding !== null || blocked}
+                                                                    title={blocked ? 'No se puede adjudicar hasta que la clínica acepte la invitación del médico.' : undefined}
+                                                                    className="flex-[2] bg-alteha-violet text-white py-3 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-violet-100 hover:scale-[1.02] transition-all disabled:opacity-50 disabled:hover:scale-100 disabled:cursor-not-allowed"
+                                                                >
+                                                                    {isAwarding === bid.id ? (
+                                                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                                                    ) : blocked ? (
+                                                                        <>
+                                                                            <Clock className="w-4 h-4" />
+                                                                            {clinicStatus === 'REJECTED' ? 'Clínica rechazó' : 'Esperando a la clínica'}
+                                                                        </>
+                                                                    ) : (
+                                                                        <>
+                                                                            <Trophy className="w-4 h-4" />
+                                                                            Adjudicar
+                                                                        </>
+                                                                    )}
+                                                                </Button>
+                                                            );
+                                                        })()}
                                                     </div>
                                                 )}
                                             </div>
@@ -871,6 +961,77 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
                             className="bg-slate-50 text-slate-400 py-4 rounded-2xl font-black text-lg hover:bg-slate-100 hover:text-slate-600 transition-all border border-transparent hover:border-slate-200"
                         >
                             Cancelar
+                        </Button>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Award Summary + Pay suggestion */}
+            <Modal
+                isOpen={!!awardSummary}
+                onClose={() => { setAwardSummary(null); if (onActionSuccess) onActionSuccess(); else window.location.reload(); }}
+                title="Subasta Adjudicada"
+                maxWidth="max-w-md"
+            >
+                <div className="text-center space-y-6 py-2">
+                    <div className="w-20 h-20 bg-emerald-500 rounded-full flex items-center justify-center mx-auto shadow-xl shadow-emerald-200">
+                        <Trophy className="w-10 h-10 text-white" />
+                    </div>
+                    <div>
+                        <h4 className="text-2xl font-black text-slate-900 tracking-tight">¡Subasta adjudicada!</h4>
+                        <p className="text-slate-500 font-medium mt-1">
+                            La subasta <span className="font-bold text-slate-700">#{auctionNumber}</span> fue adjudicada a:
+                        </p>
+                    </div>
+
+                    <div className="bg-slate-50 rounded-2xl p-5 space-y-3 text-left">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-alteha-violet/10 flex items-center justify-center shrink-0">
+                                <Stethoscope className="w-5 h-5 text-alteha-violet" />
+                            </div>
+                            <div className="min-w-0">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Médico</p>
+                                <p className="font-black text-slate-900 truncate">{awardSummary?.doctorName}</p>
+                            </div>
+                        </div>
+                        {awardSummary?.clinicName && (
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-alteha-turquoise/10 flex items-center justify-center shrink-0">
+                                    <Building2 className="w-5 h-5 text-alteha-turquoise" />
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Clínica</p>
+                                    <p className="font-black text-slate-900 truncate">{awardSummary.clinicName}</p>
+                                </div>
+                            </div>
+                        )}
+                        {awardSummary?.amount != null && (
+                            <div className="flex items-center justify-between border-t border-slate-200 pt-3">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Monto adjudicado</span>
+                                <span className="text-xl font-black text-slate-900">${money(awardSummary.amount)}</span>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4 flex gap-3 items-start text-left">
+                        <DollarSign className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                        <p className="text-xs text-amber-900 font-medium leading-relaxed">
+                            Para agilizar el proceso, te sugerimos <strong>continuar con el pago de la subasta</strong> ahora mismo.
+                        </p>
+                    </div>
+
+                    <div className="flex flex-col gap-3">
+                        <Button
+                            onClick={() => { setAwardSummary(null); window.location.href = `/dashboard/insurance/auctions/${auctionNumber}?pay=1`; }}
+                            className="bg-alteha-violet text-white py-4 rounded-2xl font-black text-base flex items-center justify-center gap-2 hover:scale-[1.02] transition-all shadow-lg shadow-violet-100"
+                        >
+                            <DollarSign className="w-5 h-5" /> Proceder al pago
+                        </Button>
+                        <Button
+                            onClick={() => { setAwardSummary(null); if (onActionSuccess) onActionSuccess(); else window.location.reload(); }}
+                            className="bg-slate-50 text-slate-400 py-3 rounded-2xl font-black hover:bg-slate-100 hover:text-slate-600 transition-all"
+                        >
+                            Más tarde
                         </Button>
                     </div>
                 </div>

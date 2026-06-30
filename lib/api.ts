@@ -84,6 +84,16 @@ export interface Advertisement {
     active: boolean;
     createdAt: string;
     updatedAt: string;
+    detailContent?: string;
+    images?: AdImage[];
+}
+
+export interface AdImage {
+    id: number;
+    imageUrl: string;
+    thumbnailUrl?: string;
+    caption?: string;
+    sortOrder?: number;
 }
 
 export interface DoctorRegistration {
@@ -960,6 +970,19 @@ export async function getDashboardAds(
         }
     });
     return response.json();
+}
+
+// Single ad with its gallery + administrable text (for the ad landing page).
+export async function getDashboardAdById(id: number | string): Promise<Advertisement | null> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+    const response = await fetch(`/api/dashboard-ads/${id}`, {
+        method: 'GET',
+        headers: { 'X-Alteha-Token': token }
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data?.id ? data : (data?.data ?? null);
 }
 
 // Submit Identity Compliance

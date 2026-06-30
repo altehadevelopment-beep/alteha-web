@@ -19,7 +19,7 @@ import {
     Activity
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
-import { placeAdvancedBid, type Auction, type BidPayload, type BidItem } from '@/lib/api';
+import { placeAdvancedBid, getAuctionBids, type Auction, type BidPayload, type BidItem } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface Props {
@@ -27,6 +27,19 @@ interface Props {
     onSuccess?: () => void;
     hideHeader?: boolean;
 }
+
+// Format an ISO date (YYYY-MM-DD) as DD/MM/YYYY for display.
+const formatSurgeryDate = (d?: string) => {
+    if (!d) return 'A definir por el seguro';
+    const parts = String(d).split('T')[0].split('-');
+    if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    return String(d);
+};
+
+const money = (n: any) => {
+    const v = Number(n);
+    return isFinite(v) ? v.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : '—';
+};
 
 export default function AdvancedBidForm({ auction, onSuccess, hideHeader = false }: Props) {
     const { userProfile } = useAuth();
@@ -47,7 +60,8 @@ export default function AdvancedBidForm({ auction, onSuccess, hideHeader = false
     const [bidAmount, setBidAmount] = useState<string>('');
     const [bidType, setBidType] = useState<any>('');
     const [modality, setModality] = useState<'SOLO_MEDICO' | 'PAQUETE_COMPLETO'>('SOLO_MEDICO');
-    const [proposedStartDate, setProposedStartDate] = useState('');
+    const [bestSoloOffer, setBestSoloOffer] = useState<number | null>(null);
+    const [bestPaqueteOffer, setBestPaqueteOffer] = useState<number | null>(null);
     const [estimatedDurationDays, setEstimatedDurationDays] = useState('1');
     const [notes, setNotes] = useState('');
     const [selectedClinicId, setSelectedClinicId] = useState<string>('');
@@ -84,6 +98,33 @@ export default function AdvancedBidForm({ auction, onSuccess, hideHeader = false
         else if (role === 'CLINIC') setBidType('CLINIC_ONLY');
         else if (role === 'PHARMACY') setBidType('PHARMACY');
     }, [role]);
+
+    // Current best offers, for the transparency panel (best honorarios-only and best full-package).
+    useEffect(() => {
+        if (!auction?.id) return;
+        let active = true;
+        (async () => {
+            try {
+                const res: any = await getAuctionBids(auction.id);
+                const list = Array.isArray(res) ? res : (res?.data || res?.content || []);
+                const solo = list
+                    .filter((b: any) => b.modality === 'SOLO_MEDICO' || (!b.modality && b.bidType === 'DOCTOR_ONLY'))
+                    .map((b: any) => Number(b.bidAmount))
+                    .filter((n: number) => n > 0);
+                const paquete = list
+                    .filter((b: any) => b.modality === 'PAQUETE_COMPLETO' || (!b.modality && b.bidType === 'BOTH'))
+                    .map((b: any) => Number(b.bidAmount))
+                    .filter((n: number) => n > 0);
+                if (active) {
+                    setBestSoloOffer(solo.length ? Math.min(...solo) : null);
+                    setBestPaqueteOffer(paquete.length ? Math.min(...paquete) : null);
+                }
+            } catch {
+                /* ignore */
+            }
+        })();
+        return () => { active = false; };
+    }, [auction?.id]);
 
     // Items for Pharmacy / Supplies
     const [bidItems, setBidItems] = useState<BidItem[]>(
@@ -163,7 +204,8 @@ export default function AdvancedBidForm({ auction, onSuccess, hideHeader = false
             }
 
             if (role !== 'PHARMACY') {
-                payload.proposedStartDate = proposedStartDate || new Date().toISOString().split('T')[0];
+                // The procedure date is defined by the insurer on the auction (estimatedSurgeryDate).
+                payload.proposedStartDate = (auction as any).estimatedSurgeryDate || undefined;
                 payload.estimatedDurationDays = parseInt(estimatedDurationDays);
             } else {
                 payload.bidItems = bidItems.map(item => ({
@@ -204,7 +246,21 @@ export default function AdvancedBidForm({ auction, onSuccess, hideHeader = false
                     <CheckCircle2 className="w-10 h-10 text-white" />
                 </div>
                 <h3 className="text-2xl font-black text-slate-900 tracking-tight">{message}</h3>
-                <p className="text-emerald-700 font-medium pb-4">Tu propuesta ha sido registrada y notificada a la aseguradora.</p>
+                {role === 'DOCTOR' && modality === 'SOLO_MEDICO' ? (
+                    <div className="space-y-3 pb-2">
+                        <p className="text-emerald-700 font-medium">
+                            Se le envió una invitación a la clínica que elegiste para participar en tu oferta.
+                        </p>
+                        <div className="flex gap-3 items-start text-left p-4 bg-amber-50 border border-amber-100 rounded-2xl mx-auto max-w-md">
+                            <Info className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                            <p className="text-xs text-amber-900 font-medium leading-relaxed">
+                                La subasta le aparecerá al <strong>seguro / fondo administrado de salud</strong> únicamente cuando la <strong>clínica acepte</strong> la invitación a participar en la oferta enviada.
+                            </p>
+                        </div>
+                    </div>
+                ) : (
+                    <p className="text-emerald-700 font-medium pb-4">Tu propuesta ha sido registrada y notificada a la aseguradora.</p>
+                )}
                 <Button onClick={() => setStatus('idle')} className="bg-slate-900 text-white px-8 py-3 rounded-2xl font-black">
                     Realizar otra oferta
                 </Button>
@@ -422,21 +478,68 @@ export default function AdvancedBidForm({ auction, onSuccess, hideHeader = false
                     {role !== 'PHARMACY' && (
                         <div className="space-y-2">
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">
-                                Fecha Propuesta de Inicio
+                                Fecha del Procedimiento
                             </label>
-                            <div className="relative group">
-                                <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-alteha-violet transition-colors" />
-                                <input
-                                    type="date"
-                                    required
-                                    value={proposedStartDate}
-                                    onChange={(e) => setProposedStartDate(e.target.value)}
-                                    className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-transparent focus:border-alteha-violet focus:bg-white rounded-2xl font-black text-slate-900 transition-all outline-none"
-                                />
+                            <div className="relative">
+                                <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
+                                <div className="w-full pl-12 pr-4 py-4 bg-slate-100 border-2 border-transparent rounded-2xl font-black text-slate-600">
+                                    {formatSurgeryDate((auction as any).estimatedSurgeryDate)}
+                                </div>
                             </div>
+                            <p className="text-[10px] text-slate-400 font-bold italic ml-1">
+                                Definida por el seguro al crear la subasta.
+                            </p>
                         </div>
                     )}
                 </div>
+
+                {/* Transparencia de la subasta (médico) */}
+                {role === 'DOCTOR' && (
+                    <div className="bg-slate-50 rounded-[2rem] border border-slate-100 p-5 space-y-4">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                            <Info className="w-3.5 h-3.5 text-alteha-violet" /> Transparencia de la subasta
+                        </p>
+
+                        {(auction.doctorBudget || auction.clinicBudget || auction.maxBudget) && (
+                            <div className="grid grid-cols-3 gap-2">
+                                <div className="bg-white rounded-xl p-3 text-center border border-slate-100">
+                                    <p className="text-[8px] font-black uppercase tracking-tight text-slate-400">Honorarios méd.</p>
+                                    <p className="text-sm font-black text-slate-900">${money(auction.doctorBudget)}</p>
+                                </div>
+                                <div className="bg-white rounded-xl p-3 text-center border border-slate-100">
+                                    <p className="text-[8px] font-black uppercase tracking-tight text-slate-400">Clínica</p>
+                                    <p className="text-sm font-black text-slate-900">${money(auction.clinicBudget)}</p>
+                                </div>
+                                <div className="bg-white rounded-xl p-3 text-center border border-slate-100">
+                                    <p className="text-[8px] font-black uppercase tracking-tight text-slate-400">Total subasta</p>
+                                    <p className="text-sm font-black text-slate-900">${money(auction.maxBudget)}</p>
+                                </div>
+                            </div>
+                        )}
+
+                        {modality === 'SOLO_MEDICO' ? (
+                            <div className="space-y-1.5 text-xs font-bold">
+                                <p className="text-[10px] text-slate-500 font-black uppercase tracking-tight">Oferta solo por tus honorarios (manos)</p>
+                                <div className="flex justify-between"><span className="text-slate-400">Presupuesto de honorarios (ref.)</span><span className="text-slate-700">${money(auction.doctorBudget)}</span></div>
+                                <div className="flex justify-between"><span className="text-slate-400">Mejor oferta actual de honorarios</span><span className="text-alteha-violet">{bestSoloOffer != null ? `$${money(bestSoloOffer)}` : 'Sin ofertas aún'}</span></div>
+                                {bidAmount && (
+                                    <div className="flex justify-between border-t border-slate-200 pt-1.5"><span className="text-slate-600">Tu oferta de honorarios</span><span className="text-slate-900 font-black">${money(parseFloat(bidAmount))}</span></div>
+                                )}
+                                <p className="text-[10px] text-slate-400 italic pt-1">La clínica que invites define y cobra sus honorarios por separado.</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-1.5 text-xs font-bold">
+                                <p className="text-[10px] text-slate-500 font-black uppercase tracking-tight">Oferta de paquete completo</p>
+                                <div className="flex justify-between"><span className="text-slate-600">Tu oferta total</span><span className="text-slate-900 font-black">${money(parseFloat(bidAmount) || 0)}</span></div>
+                                <div className="flex justify-between"><span className="text-slate-400">Costo de la casa médica (clínica)</span><span className="text-slate-700">${money(auction.clinicBudget)}</span></div>
+                                {bidAmount && auction.clinicBudget != null && (
+                                    <div className="flex justify-between"><span className="text-slate-400">≈ Tus honorarios (total − clínica)</span><span className="text-slate-700">${money(Math.max(0, (parseFloat(bidAmount) || 0) - (auction.clinicBudget || 0)))}</span></div>
+                                )}
+                                <div className="flex justify-between border-t border-slate-200 pt-1.5"><span className="text-slate-400">Mejor oferta total actual</span><span className="text-alteha-violet">{bestPaqueteOffer != null ? `$${money(bestPaqueteOffer)}` : 'Sin ofertas aún'}</span></div>
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {/* Pharmacy Supplies Table */}
                 {role === 'PHARMACY' && (

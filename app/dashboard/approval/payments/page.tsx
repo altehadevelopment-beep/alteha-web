@@ -3,11 +3,84 @@
 import React, { useState, useEffect } from 'react';
 import {
     LayoutDashboard, Activity, Clock, CheckCircle2, AlertCircle,
-    ChevronRight, Search, Loader2, X
+    ChevronRight, Search, Loader2, X, User, Building2, ShieldCheck, CreditCard
 } from 'lucide-react';
 import { getAllAuctions, validateAuctionPayment, getAuctionAttachments, type Auction, type AuctionAttachment } from '@/lib/api';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
+
+// One auction row in the payment-validation list, enriched with the awarded doctor + clinic.
+function PaymentAuctionRow({ auction, onSelect }: { auction: any; onSelect: () => void }) {
+    const [winner, setWinner] = useState<any>(auction.awardedBid || auction.winningBid || null);
+    const isPaid = auction.status === 'PAID';
+
+    useEffect(() => {
+        const hasName = winner?.doctor?.fullName || winner?.doctor?.firstName || winner?.doctorName;
+        if (hasName) return;
+        let active = true;
+        (async () => {
+            try {
+                const { getAuctionDetails } = await import('@/lib/api');
+                const res: any = await getAuctionDetails(auction.auctionNumber, 'ADMIN');
+                const data = res?.code === '00' ? res.data : (res?.id ? res : null);
+                const wb = data?.winningBid || data?.awardedBid;
+                if (active && wb) setWinner(wb);
+            } catch { /* ignore */ }
+        })();
+        return () => { active = false; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [auction.auctionNumber]);
+
+    const doc = winner?.doctor;
+    const docName = doc ? (doc.fullName || `${doc.firstName || ''} ${doc.lastName || ''}`.trim() || null) : (winner?.doctorName || null);
+    const docPhoto = doc?.profileImageUrl || winner?.doctorProfileImageUrl;
+    const clinicName = winner?.clinic?.name || winner?.clinicName || null;
+    const clinicLogo = winner?.clinic?.logoUrl || winner?.clinicLogoUrl;
+
+    return (
+        <div className="bg-slate-50 hover:bg-slate-100 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border border-slate-100 transition-colors">
+            <div className="flex items-center gap-4 min-w-0">
+                <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${isPaid ? 'bg-emerald-100' : 'bg-amber-100'}`}>
+                    {isPaid ? <CheckCircle2 className="w-5 h-5 text-emerald-600" /> : <Activity className="w-5 h-5 text-amber-600" />}
+                </div>
+                <div className="min-w-0">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{auction.auctionNumber}</p>
+                    <p className="font-bold text-slate-900 text-sm leading-tight">{auction.title}</p>
+                    {(docName || clinicName) && (
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2">
+                            {docName && (
+                                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700">
+                                    <span className="w-6 h-6 rounded-lg bg-white border border-slate-200 overflow-hidden flex items-center justify-center shrink-0">
+                                        {docPhoto ? <img src={docPhoto} alt="" className="w-full h-full object-cover" /> : <User className="w-3.5 h-3.5 text-slate-400" />}
+                                    </span>
+                                    {docName}
+                                </span>
+                            )}
+                            {clinicName && (
+                                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500">
+                                    <span className="w-6 h-6 rounded-lg bg-white border border-slate-200 overflow-hidden flex items-center justify-center shrink-0 p-0.5">
+                                        {clinicLogo ? <img src={clinicLogo} alt="" className="max-w-full max-h-full object-contain" /> : <Building2 className="w-3.5 h-3.5 text-slate-400" />}
+                                    </span>
+                                    {clinicName}
+                                </span>
+                            )}
+                        </div>
+                    )}
+                    <p className="text-xs text-slate-400 mt-1">Seguro: <span className="text-slate-600 font-semibold">{auction.insuranceCompany?.name || auction.insuranceCompany?.commercialName || 'N/A'}</span></p>
+                </div>
+            </div>
+            {isPaid ? (
+                <button onClick={onSelect} className="w-full sm:w-auto px-5 py-2.5 bg-emerald-50 border border-emerald-100 text-emerald-600 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-emerald-100 transition-colors">
+                    <CheckCircle2 className="w-4 h-4" /> Ver Aprobado
+                </button>
+            ) : (
+                <button onClick={onSelect} className="w-full sm:w-auto px-5 py-2.5 bg-white border border-slate-200 hover:border-amber-400 hover:text-amber-600 text-slate-700 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all">
+                    Validar Pago <ChevronRight className="w-4 h-4" />
+                </button>
+            )}
+        </div>
+    );
+}
 
 export default function PaymentValidationPage() {
     const [auctions, setAuctions] = useState<Auction[]>([]);
@@ -200,27 +273,7 @@ export default function PaymentValidationPage() {
                             <p className="text-slate-400 text-sm mt-1">No hay subastas pendientes de validación de pago.</p>
                         </div>
                     ) : auctions.map(auction => (
-                        <div key={auction.id} className="bg-slate-50 hover:bg-slate-100 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border border-slate-100 transition-colors">
-                            <div className="flex items-center gap-4">
-                                <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${auction.status === 'PAID' ? 'bg-emerald-100' : 'bg-amber-100'}`}>
-                                    {auction.status === 'PAID' ? <CheckCircle2 className="w-5 h-5 text-emerald-600" /> : <Activity className="w-5 h-5 text-amber-600" />}
-                                </div>
-                                <div>
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{auction.auctionNumber}</p>
-                                    <p className="font-bold text-slate-900 text-sm leading-tight">{auction.title}</p>
-                                    <p className="text-xs text-slate-400 mt-0.5">Seguro: <span className="text-slate-600 font-semibold">{auction.insuranceCompany?.name || 'N/A'}</span></p>
-                                </div>
-                            </div>
-                            {auction.status === 'PAID' ? (
-                                <button onClick={() => setSelectedAuction(auction)} className="w-full sm:w-auto px-5 py-2.5 bg-emerald-50 border border-emerald-100 text-emerald-600 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-emerald-100 transition-colors">
-                                    <CheckCircle2 className="w-4 h-4" /> Ver Aprobado
-                                </button>
-                            ) : (
-                                <button onClick={() => setSelectedAuction(auction)} className="w-full sm:w-auto px-5 py-2.5 bg-white border border-slate-200 hover:border-amber-400 hover:text-amber-600 text-slate-700 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all">
-                                    Validar Pago <ChevronRight className="w-4 h-4" />
-                                </button>
-                            )}
-                        </div>
+                        <PaymentAuctionRow key={auction.id} auction={auction} onSelect={() => setSelectedAuction(auction)} />
                     ))}
                 </div>
             </div>
@@ -228,28 +281,84 @@ export default function PaymentValidationPage() {
             {/* Auction detail modal */}
             <Modal isOpen={!!selectedAuction} onClose={() => !isSubmitting && setSelectedAuction(null)} title="Validar Comprobante de Pago" maxWidth="max-w-2xl">
                 {selectedAuction && (() => {
-                    const doc = selectedAuction.awardedBid?.doctor || selectedAuction.winningBid?.doctor;
+                    const wb: any = selectedAuction.awardedBid || selectedAuction.winningBid;
+                    const doc: any = wb?.doctor;
                     const docName = doc ? (doc.fullName || `${doc.firstName || ''} ${doc.lastName || ''}`.trim() || 'N/A') : 'N/A';
-                    const amount = selectedAuction.awardedBid?.bidAmount ?? selectedAuction.winningBid?.bidAmount ?? 0;
-                    const company = selectedAuction.insuranceCompany || (selectedAuction as any).owner;
+                    const docPhoto = doc?.profileImageUrl || wb?.doctorProfileImageUrl;
+                    const docSpecialty = (doc?.specialties?.map((s: any) => s.name || s.code).filter(Boolean).join(', ')) || (selectedAuction as any).specialty?.name || null;
+                    const docLicense = doc?.licenseNumber || doc?.medicalLicenseNumber;
+                    const clinic: any = wb?.clinic;
+                    const clinicName = clinic?.name || wb?.clinicName || null;
+                    const clinicLogo = clinic?.logoUrl || wb?.clinicLogoUrl;
+                    const amount = wb?.bidAmount ?? 0;
+                    const company: any = selectedAuction.insuranceCompany || (selectedAuction as any).owner;
                     const companyName = company?.name || company?.commercialName || 'N/A';
+                    const companyLogo = company?.logoUrl;
+                    const methodNames: Record<string, string> = { BS_BANK_TRANSFER: 'Transferencia Bs.', BS_PAGO_MOVIL: 'Pago Móvil', USD_WIRE_SWIFT: 'Wire / SWIFT (USD)', USD_ACH: 'ACH (USD)', USD_IBAN: 'IBAN (USD)', BINANCE_PAY: 'Binance Pay', CRYPTO_WALLET: 'Cripto' };
+                    const method = (selectedAuction as any).methodType;
+                    const methodLabel = method ? (methodNames[method] || method) : 'No especificado';
+                    const modality = wb?.modality;
+                    const surgeryRaw = (selectedAuction as any).estimatedSurgeryDate;
+                    const surgeryDate = surgeryRaw ? (() => { const p = String(surgeryRaw).split('T')[0].split('-'); return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : String(surgeryRaw); })() : null;
+
                     return (
-                        <div className="space-y-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
-                                    <h4 className="font-bold text-slate-900 mb-3 flex items-center gap-2 text-sm"><Activity className="w-4 h-4 text-slate-400" /> Detalles de la Subasta</h4>
-                                    <div className="space-y-1.5 text-sm">
-                                        <p className="text-slate-600"><span className="font-semibold text-slate-900">Subasta:</span> {selectedAuction.auctionNumber}</p>
-                                        <p className="text-slate-600"><span className="font-semibold text-slate-900">Aseguradora:</span> {companyName}</p>
-                                        <p className="text-slate-600"><span className="font-semibold text-slate-900">Médico:</span> {docName}</p>
-                                        <p className="text-slate-600 truncate"><span className="font-semibold text-slate-900">Título:</span> {selectedAuction.title}</p>
+                        <div className="space-y-5">
+                            {/* Adjudicado a — médico + clínica */}
+                            <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-5 text-white">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-alteha-turquoise mb-3">Adjudicado a</p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div className="flex items-center gap-3 min-w-0">
+                                        <div className="w-14 h-14 rounded-2xl bg-white/10 overflow-hidden flex items-center justify-center shrink-0 border border-white/10">
+                                            {docPhoto ? <img src={docPhoto} alt="" className="w-full h-full object-cover" /> : <User className="w-7 h-7 text-white/40" />}
+                                        </div>
+                                        <div className="min-w-0">
+                                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Médico</p>
+                                            <p className="font-black truncate">{docName}</p>
+                                            {docSpecialty && <p className="text-[11px] text-alteha-turquoise font-bold truncate">{docSpecialty}</p>}
+                                            {docLicense && <p className="text-[10px] text-slate-400">MPPS: {docLicense}</p>}
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-3 min-w-0">
+                                        <div className="w-14 h-14 rounded-2xl bg-white overflow-hidden flex items-center justify-center shrink-0 p-1.5">
+                                            {clinicLogo ? <img src={clinicLogo} alt="" className="max-w-full max-h-full object-contain" /> : <Building2 className="w-7 h-7 text-slate-300" />}
+                                        </div>
+                                        <div className="min-w-0">
+                                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Clínica que interviene</p>
+                                            <p className="font-black truncate">{clinicName || 'No especificada'}</p>
+                                        </div>
                                     </div>
                                 </div>
-                                <div className="bg-amber-50 p-5 rounded-2xl border border-amber-100">
-                                    <h4 className="font-bold text-slate-900 mb-3 flex items-center gap-2 text-sm"><CheckCircle2 className="w-4 h-4 text-amber-500" /> Datos del Pago</h4>
+                            </div>
+
+                            {/* Subasta + Aseguradora | Pago declarado */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-2.5">
+                                    <h4 className="font-bold text-slate-900 flex items-center gap-2 text-sm"><Activity className="w-4 h-4 text-slate-400" /> Subasta</h4>
                                     <div className="space-y-1.5 text-sm">
-                                        <p className="text-slate-600"><span className="font-semibold text-slate-900">Método:</span> {selectedAuction.methodType || 'No especificado'}</p>
-                                        <p className="text-slate-600"><span className="font-semibold text-slate-900">Monto:</span> <span className="font-black text-slate-900 text-lg">${Number(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></p>
+                                        <p className="text-slate-600"><span className="font-semibold text-slate-900">N°:</span> {selectedAuction.auctionNumber}</p>
+                                        <p className="text-slate-600"><span className="font-semibold text-slate-900">Título:</span> {selectedAuction.title}</p>
+                                        {docSpecialty && <p className="text-slate-600"><span className="font-semibold text-slate-900">Especialidad:</span> {docSpecialty}</p>}
+                                        {surgeryDate && <p className="text-slate-600"><span className="font-semibold text-slate-900">Fecha procedimiento:</span> {surgeryDate}</p>}
+                                    </div>
+                                    <div className="flex items-center gap-2 pt-2.5 border-t border-slate-200">
+                                        <div className="w-9 h-9 rounded-lg bg-white border border-slate-200 overflow-hidden flex items-center justify-center shrink-0 p-1">
+                                            {companyLogo ? <img src={companyLogo} alt="" className="max-w-full max-h-full object-contain" /> : <ShieldCheck className="w-4 h-4 text-slate-400" />}
+                                        </div>
+                                        <div className="min-w-0">
+                                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Aseguradora / Fondo</p>
+                                            <p className="text-sm font-bold text-slate-900 truncate">{companyName}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="bg-amber-50 p-5 rounded-2xl border border-amber-100 space-y-2.5">
+                                    <h4 className="font-bold text-slate-900 flex items-center gap-2 text-sm"><CreditCard className="w-4 h-4 text-amber-500" /> Pago declarado</h4>
+                                    <div className="space-y-1.5 text-sm">
+                                        <p className="text-slate-600"><span className="font-semibold text-slate-900">Método:</span> {methodLabel}</p>
+                                        {modality && <p className="text-slate-600"><span className="font-semibold text-slate-900">Modalidad:</span> {modality === 'SOLO_MEDICO' ? 'Solo médico' : 'Paquete completo'}</p>}
+                                    </div>
+                                    <div className="pt-1">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Monto declarado</p>
+                                        <p className="font-black text-slate-900 text-3xl">${Number(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                                     </div>
                                 </div>
                             </div>

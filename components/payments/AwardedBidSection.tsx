@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { getAuctionBids, type BidDetailed, type Auction } from '@/lib/api';
 import { Trophy, Building2, User, Clock, Wallet, ShieldCheck, ArrowRight, Loader2, CreditCard, Calendar, Star, AlertCircle, MessageSquare } from 'lucide-react';
@@ -63,6 +64,22 @@ export default function AwardedBidSection({ auction, role }: AwardedBidSectionPr
     useEffect(() => {
         loadWinningBid();
     }, [auction.id]);
+
+    // Auto-open the "Reportar Pago" modal when arriving from the award summary (?pay=1).
+    const searchParams = useSearchParams();
+    const autoOpenedRef = useRef(false);
+    useEffect(() => {
+        if (
+            !autoOpenedRef.current &&
+            searchParams?.get('pay') === '1' &&
+            auction.status === 'AWARDED' &&
+            winningBid &&
+            role === 'INSURANCE_COMPANY'
+        ) {
+            autoOpenedRef.current = true;
+            setIsPaymentModalOpen(true);
+        }
+    }, [searchParams, auction.status, winningBid, role]);
 
     async function loadWinningBid() {
         // If auction already has winningBid, use it directly

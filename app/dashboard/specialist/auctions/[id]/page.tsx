@@ -447,7 +447,7 @@ export default function DoctorAuctionDetailPage() {
 
             {/* Previous Bids Section - only shown while auction is open/active */}
             {auction.id && !['AWARDED', 'PAYMENT_REPORTED', 'PAYMENT_VALIDATION', 'PAID', 'COMPLETED'].includes(auction.status) && (
-                <div className="mt-10 bg-white rounded-[3rem] shadow-2xl shadow-slate-200 border border-slate-100 p-10">
+                <div id="ofertas" className="mt-10 bg-white rounded-[3rem] shadow-2xl shadow-slate-200 border border-slate-100 p-10 scroll-mt-24">
                     <AuctionBidsList
                         auctionId={auction.id}
                         auctionNumber={auction.auctionNumber}
