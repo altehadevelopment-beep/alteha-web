@@ -501,7 +501,7 @@ export default function AdvancedBidForm({ auction, onSuccess, hideHeader = false
                         </p>
 
                         {(auction.doctorBudget || auction.clinicBudget || auction.maxBudget) && (
-                            <div className="grid grid-cols-3 gap-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                                 <div className="bg-white rounded-xl p-3 text-center border border-slate-100">
                                     <p className="text-[8px] font-black uppercase tracking-tight text-slate-400">Honorarios méd.</p>
                                     <p className="text-sm font-black text-slate-900">${money(auction.doctorBudget)}</p>

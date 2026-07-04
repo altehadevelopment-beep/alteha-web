@@ -778,7 +778,7 @@ export default function NewAuctionPage() {
                                                                         description="Número estimado de días que el paciente permanecerá en la clínica tras la cirugía."
                                                                     />
                                                                 </div>
-                                                            <div className="grid grid-cols-2 gap-3">
+                                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                                                 <FormInput 
                                                                     label="Fecha Estimada" 
                                                                     type="date" 
@@ -801,7 +801,7 @@ export default function NewAuctionPage() {
                                                         
                                                         <div className="space-y-4">
                                                             <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Parámetros Técnicos</h4>
-                                                            <div className="grid grid-cols-2 gap-3">
+                                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                                                 <div className={`p-3 rounded-xl border transition-all ${prefilledFields.has('biopsyRequired') ? 'bg-violet-50/50 border-alteha-violet/20 shadow-sm' : 'bg-slate-50 border-slate-100'}`}>
                                                                     <div className="flex justify-between items-center mb-1 px-1">
                                                                         <div className="flex items-center gap-2">
@@ -829,7 +829,7 @@ export default function NewAuctionPage() {
                                                                     </div>
                                                                 </div>
                                                             </div>
-                                                            <div className="grid grid-cols-2 gap-3">
+                                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                                                 <div>
                                                                     <div className="flex justify-between items-center px-1 mb-1">
                                                                         <p className="text-[10px] font-black text-slate-400 uppercase">Min. Quirófano</p>
@@ -884,7 +884,7 @@ export default function NewAuctionPage() {
                                                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Descripción / Observaciones</p>
                                                                     <textarea placeholder="Especificaciones técnicas, medidas, marcas preferidas..." value={supply.description} onChange={(e) => { const n = [...formData.requiredSupplies]; n[index].description = e.target.value; setFormData({ ...formData, requiredSupplies: n }); }} className="w-full bg-slate-50 px-4 py-4 rounded-xl text-sm font-medium text-slate-600 outline-none border-2 border-transparent focus:border-alteha-violet transition-all resize-none h-24" />
                                                                 </div>
-                                                                <div className="grid grid-cols-2 gap-4">
+                                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                                                     <div><p className="text-[9px] font-black text-slate-400 uppercase mb-1 ml-1">Cant.</p><input type="number" value={supply.quantity} onChange={(e) => { const n = [...formData.requiredSupplies]; n[index].quantity = parseInt(e.target.value); setFormData({ ...formData, requiredSupplies: n }); }} className="w-full bg-slate-50 px-4 py-3 rounded-xl text-base font-black outline-none border border-transparent focus:border-alteha-violet" /></div>
                                                                     <div><p className="text-[9px] font-black text-slate-400 uppercase mb-1 ml-1">Ref ($)</p><input type="number" value={supply.referenceAmount} onChange={(e) => { const n = [...formData.requiredSupplies]; n[index].referenceAmount = parseFloat(e.target.value); setFormData({ ...formData, requiredSupplies: n }); }} className="w-full bg-slate-50 px-4 py-3 rounded-xl text-base font-black outline-none border border-transparent focus:border-alteha-violet" /></div>
                                                                 </div>

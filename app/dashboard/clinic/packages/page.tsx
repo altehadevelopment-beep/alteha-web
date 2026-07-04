@@ -240,7 +240,7 @@ export default function PublishPackagePage() {
                                             value={formData.packageName}
                                             onChange={(e) => setFormData({...formData, packageName: e.target.value})}
                                         />
-                                        <div className="grid grid-cols-2 gap-6">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                                             <Input 
                                                 label="Código Interno" 
                                                 placeholder="Ej: CARD-2026" 
@@ -381,7 +381,7 @@ export default function PublishPackagePage() {
                                                         onChange={(e) => updateItem(idx, 'itemName', e.target.value)}
                                                     />
                                                 </div>
-                                                <div className="grid grid-cols-2 gap-4">
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                                     <div className="space-y-1.5">
                                                         <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest ml-1">Cant.</label>
                                                         <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-xl px-2">
@@ -446,7 +446,7 @@ export default function PublishPackagePage() {
                                     </p>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-4 max-w-md mx-auto">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-md mx-auto">
                                     <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100">
                                         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Precio Total</p>
                                         <p className="text-2xl font-black text-slate-400 line-through">${totalAmount.toLocaleString()}</p>

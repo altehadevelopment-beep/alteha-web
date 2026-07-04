@@ -1300,7 +1300,7 @@ export default function InsuranceRegistrationPage() {
                                 <p className="text-slate-500 font-medium">Hemos encontrado información oficial para <span className="text-alteha-turquoise font-bold">{foundCompanyData?.commercialName || foundCompanyData?.legalName}</span>. ¿Deseas completar el registro automáticamente?</p>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <button
                                     onClick={() => setShowPreloadPopup(false)}
                                     className="px-6 py-4 rounded-2xl border border-slate-100 text-slate-400 font-bold hover:bg-slate-50 transition-all"

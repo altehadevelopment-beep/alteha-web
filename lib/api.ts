@@ -136,6 +136,7 @@ export interface MedicalPackage {
     pharmacy?: any;
     specialty?: any;
     procedureType?: any;
+    imageUrl?: string | null;
     packageItems: MedicalPackageItem[];
 }
 
@@ -355,7 +356,7 @@ export interface PaymentMethod {
     id?: number;
     actorRole: string;
     methodType: 'BS_PAGO_MOVIL' | 'BS_BANK_TRANSFER' | 'USD_WIRE_SWIFT' | 'USD_ACH' | 'USD_IBAN' | 'BINANCE_PAY' | 'CRYPTO_WALLET';
-    beneficiaryType: 'PERSON' | 'BUSINESS';
+    beneficiaryType: 'PERSON' | 'COMPANY';
     verificationStatus?: string;
     displayName: string;
     active?: boolean;
@@ -557,6 +558,73 @@ export async function getDoctorSignature(): Promise<string | null> {
     } catch {
         return null;
     }
+}
+
+// Sello del recetario — preset elegido por el médico (Doctor.sealStyle).
+export async function getDoctorSeal(): Promise<string | null> {
+    const token = getStoredToken();
+    if (!token) return null;
+    try {
+        const response = await fetch('/api/prescriptions/seal', { headers: { 'X-Alteha-Token': token } });
+        const data = await response.json();
+        return data?.sealStyle ?? null;
+    } catch {
+        return null;
+    }
+}
+
+export async function setDoctorSeal(sealStyle: string): Promise<any> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+    const response = await fetch('/api/prescriptions/seal', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-Alteha-Token': token },
+        body: JSON.stringify({ sealStyle }),
+    });
+    return response.json();
+}
+
+// ===== Disputas ancladas a subastas =====
+export interface AuctionDispute {
+    id: number;
+    disputeNumber: string;
+    type: string;
+    respondentRole: 'INSURANCE' | 'ALTEHA' | 'CLINIC';
+    description?: string | null;
+    amount?: number | null;
+    status: 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED' | 'ESCALATED';
+    resolutionNotes?: string | null;
+    evidenceUrl?: string | null;
+    evidenceName?: string | null;
+    createdAt: string;
+    resolvedAt?: string | null;
+    auctionNumber?: string;
+    auctionTitle?: string;
+}
+
+export async function createDispute(
+    payload: { auctionNumber: string; type: string; respondentRole: string; description?: string; amount?: number | null },
+    evidence?: File | null
+): Promise<ApiResponse<AuctionDispute>> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+    const formData = new FormData();
+    formData.append('dispute', JSON.stringify(payload));
+    if (evidence) formData.append('evidence', evidence, evidence.name);
+    const response = await fetch('/api/disputes', {
+        method: 'POST',
+        headers: { 'X-Alteha-Token': token },
+        body: formData,
+    });
+    return response.json();
+}
+
+export async function getMyDisputes(): Promise<AuctionDispute[]> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+    const response = await fetch('/api/disputes/mine', { headers: { 'X-Alteha-Token': token } });
+    const data = await response.json();
+    return Array.isArray(data) ? data : (data?.content ?? data?.data ?? []);
 }
 
 // ===== Clinic invitations (doctor SOLO_MEDICO flow) =====
@@ -1666,6 +1734,129 @@ export const getAllMedicalPackages = async (page: number = 0, size: number = 10)
     }
 };
 
+// ===== Marketplace de paquetes: compra y redención de intervenciones =====
+
+export async function uploadPackageImage(file: File): Promise<{ imageUrl?: string; message?: string }> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+    const response = await fetch('/api/medical-packages/upload-image', {
+        method: 'POST',
+        headers: { 'X-Alteha-Token': token },
+        body: formData,
+    });
+    return response.json();
+}
+
+export async function purchaseMedicalPackage(medicalPackageId: number, notes?: string): Promise<any> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+    const response = await fetch('/api/medical-package-purchases/purchase', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Alteha-Token': token },
+        body: JSON.stringify({ medicalPackageId, notes: notes || null }),
+    });
+    return response.json();
+}
+
+export interface PackagePurchaseSummary {
+    id: number;
+    purchaseNumber: string;
+    amountPaid: number;
+    status: string;
+    purchaseDate: string;
+    packageId: number;
+    packageName: string;
+    packageDescription?: string;
+    packageImageUrl?: string | null;
+    basePrice?: number;
+    procedureTypeName?: string | null;
+    specialtyName?: string | null;
+    providerDoctorName?: string | null;
+    providerClinicName?: string | null;
+    totalInterventions: number;
+    usedInterventions: number;
+    remainingInterventions: number;
+}
+
+export interface PackageRedemptionItem {
+    id: number;
+    redemptionNumber: string;
+    status: 'REQUESTED' | 'ACCEPTED' | 'REJECTED' | 'COMPLETED' | 'SETTLED';
+    notes?: string | null;
+    rejectReason?: string | null;
+    finiquitoUrl?: string | null;
+    finiquitoName?: string | null;
+    settlementNotes?: string | null;
+    createdAt: string;
+    acceptedAt?: string | null;
+    completedAt?: string | null;
+    settledAt?: string | null;
+    purchaseId: number;
+    purchaseNumber?: string;
+    packageName?: string;
+    packageImageUrl?: string | null;
+    procedureTypeName?: string | null;
+    providerDoctorName?: string | null;
+    providerClinicName?: string | null;
+    insuranceCompanyName?: string | null;
+    patientId?: number;
+    patientName?: string;
+}
+
+async function redemptionGet(path: string): Promise<any[]> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+    const response = await fetch(path, { headers: { 'X-Alteha-Token': token } });
+    const data = await response.json();
+    return Array.isArray(data) ? data : (data?.content ?? data?.data ?? []);
+}
+
+export const getMyPackagePurchases = (): Promise<PackagePurchaseSummary[]> => redemptionGet('/api/package-redemptions/my-purchases');
+export const getInsuranceRedemptions = (): Promise<PackageRedemptionItem[]> => redemptionGet('/api/package-redemptions/mine-insurance');
+export const getProviderRedemptions = (): Promise<PackageRedemptionItem[]> => redemptionGet('/api/package-redemptions/mine-provider');
+export const getPendingSettlementRedemptions = (): Promise<PackageRedemptionItem[]> => redemptionGet('/api/package-redemptions/pending-settlement');
+
+export async function createPackageRedemption(payload: { purchaseId: number; patientId: number; notes?: string }): Promise<any> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+    const response = await fetch('/api/package-redemptions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Alteha-Token': token },
+        body: JSON.stringify(payload),
+    });
+    return response.json();
+}
+
+async function redemptionPut(id: number, action: string, body?: any): Promise<any> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+    const response = await fetch(`/api/package-redemptions/${id}/${action}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-Alteha-Token': token },
+        body: JSON.stringify(body || {}),
+    });
+    return response.json();
+}
+
+export const acceptRedemption = (id: number) => redemptionPut(id, 'accept');
+export const rejectRedemption = (id: number, reason?: string) => redemptionPut(id, 'reject', { reason });
+export const settleRedemption = (id: number, notes?: string) => redemptionPut(id, 'settle', { notes });
+
+export async function uploadRedemptionFiniquito(id: number, file: File): Promise<any> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+    const response = await fetch(`/api/package-redemptions/${id}/finiquito`, {
+        method: 'POST',
+        headers: { 'X-Alteha-Token': token },
+        body: formData,
+    });
+    return response.json();
+}
+
 // Payment Methods
 export async function getPaymentMethods(role: string, page: number = 0, size: number = 20): Promise<ApiResponse<PaymentMethod[]>> {
     const token = getStoredToken();
@@ -1917,6 +2108,46 @@ export async function getWinnerPaymentMethods(auctionNumber: string, role: 'DOCT
     }
     
     return Array.isArray(data) ? data : (data.data || []);
+}
+
+// El ganador confirma que recibió los fondos de la liquidación (COMPLETED/PENDING_SETTLEMENT → SETTLED)
+export async function validateSettlementReceipt(payload: {
+    auctionNumber: string;
+    isReceived: boolean;
+    notes?: string;
+}): Promise<ApiResponse<any>> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+    const response = await fetch('/api/auctions/validate-settlement-receipt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Alteha-Token': token },
+        body: JSON.stringify(payload)
+    });
+    return response.json();
+}
+
+// ===== Valoraciones por subasta (reviews del ganador hacia seguro / Alteha / clínica) =====
+// El backend resuelve las cuentas reviewer/reviewee a partir del token y la subasta.
+export async function rateAuctionActor(
+    auctionNumber: string,
+    payload: { targetRole: 'INSURANCE' | 'ALTEHA' | 'CLINIC'; rating: number; comment?: string }
+): Promise<ApiResponse<any>> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+    const response = await fetch(`/api/auctions/${encodeURIComponent(auctionNumber)}/actor-review`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Alteha-Token': token },
+        body: JSON.stringify(payload)
+    });
+    return response.json();
+}
+
+export async function getAuctionReviews(auctionId: number | string, reviewerId?: number): Promise<any[]> {
+    const params = new URLSearchParams({ 'auctionId.equals': String(auctionId), size: '50' });
+    if (reviewerId != null) params.set('reviewerId.equals', String(reviewerId));
+    const response = await fetch(`/api/reviews?${params.toString()}`);
+    const data = await response.json();
+    return Array.isArray(data) ? data : (data?.content ?? data?.data ?? []);
 }
 
 export async function createPaymentMethod(method: PaymentMethod): Promise<ApiResponse<PaymentMethod>> {

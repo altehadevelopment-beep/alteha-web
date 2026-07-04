@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Lock, ArrowRight, ArrowLeft, Loader2, Stethoscope, ShieldCheck, Building2, Pill } from 'lucide-react';
+import { User, Lock, ArrowRight, ArrowLeft, Loader2, Stethoscope, ShieldCheck, Building2, Pill, Key } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
@@ -21,6 +21,7 @@ const PROFILE_LOGINS = [
     { role: 'insurance', label: 'Seguro', Icon: ShieldCheck },
     { role: 'clinic', label: 'Clínica', Icon: Building2 },
     { role: 'provider', label: 'Farmacia', Icon: Pill },
+    { role: 'approval', label: 'Módulo de Aprobación', Icon: Key },
 ];
 
 export default function LoginPage() {

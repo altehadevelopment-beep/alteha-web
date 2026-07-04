@@ -1233,7 +1233,7 @@ export default function DoctorRegistrationPage() {
                                             </select>
                                         </div>
 
-                                        <div className="grid grid-cols-2 gap-3">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                             <select
                                                 className="text-xs bg-slate-100 rounded-lg px-2 py-2 outline-none text-slate-600 font-bold border border-slate-200 focus:border-alteha-turquoise/50"
                                                 value={stateFilter}
@@ -1571,7 +1571,7 @@ export default function DoctorRegistrationPage() {
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="p-4 bg-slate-50 rounded-2xl">
                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Nombre Completo</p>
                             <p className="font-bold text-slate-900">{foundDoctorData?.firstName} {foundDoctorData?.lastName}</p>

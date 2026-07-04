@@ -8,7 +8,7 @@ import {
     MapPin, Hash, Phone as PhoneIcon, FileText
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { getPaymentMethods, createPaymentMethod, updatePaymentMethod, deletePaymentMethod, type PaymentMethod } from '@/lib/api';
+import { getPaymentMethods, createPaymentMethod, updatePaymentMethod, deletePaymentMethod, getBanks, type PaymentMethod } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 
 interface PaymentMethodsManagerProps {
@@ -36,6 +36,12 @@ export default function PaymentMethodsManager({ role, onSelect, selectionMode = 
     const [isAdding, setIsAdding] = useState(false);
     const [editingMethod, setEditingMethod] = useState<PaymentMethod | null>(null);
     const [selectedType, setSelectedType] = useState<string | null>(null);
+    // Catálogo de bancos venezolanos (country_id=1) para métodos en Bs
+    const [banks, setBanks] = useState<any[]>([]);
+
+    useEffect(() => {
+        getBanks(1).then(setBanks).catch(() => setBanks([]));
+    }, []);
 
     // Form State
     const [formData, setFormData] = useState<Partial<PaymentMethod>>({
@@ -266,10 +272,12 @@ export default function PaymentMethodsManager({ role, onSelect, selectionMode = 
                         <Wallet className="w-8 h-8 text-alteha-turquoise" />
                         {selectionMode ? 'Seleccionar Método de Cobro' : 'Métodos de Cobro'}
                     </h2>
-                    <p className="text-slate-500 font-medium mt-1">
-                        {selectionMode 
+                    <p className="text-slate-500 font-medium mt-1 max-w-2xl">
+                        {selectionMode
                             ? 'Elige una de tus cuentas guardadas o agrega una nueva para procesar el pago.'
-                            : 'Configura tus cuentas para gestionar tus cobros de forma segura.'}
+                            : role === 'INSURANCE_COMPANY' || role === 'INSURANCE'
+                                ? 'Configura tus cuentas para gestionar tus pagos de forma segura.'
+                                : 'Estas son las cuentas mediante las cuales Alteha te liquidará los fondos de tus subastas. Mantén al menos un método activo y con datos correctos para recibir tus pagos sin retrasos.'}
                     </p>
                 </div>
                 {!isAdding && !editingMethod && (
@@ -336,18 +344,6 @@ export default function PaymentMethodsManager({ role, onSelect, selectionMode = 
                                             />
                                         </div>
                                     </div>
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Tipo de Beneficiario</label>
-                                        <select 
-                                            value={formData.beneficiaryType}
-                                            onChange={e => setFormData({...formData, beneficiaryType: e.target.value as any})}
-                                            className="w-full h-14 px-6 rounded-2xl bg-slate-50 border border-slate-200 focus:ring-4 focus:ring-alteha-turquoise/10 outline-none font-bold text-slate-700 transition-all appearance-none"
-                                        >
-                                            <option value="PERSON">Persona Natural</option>
-                                            <option value="BUSINESS">Persona Jurídica (Empresa)</option>
-                                        </select>
-                                    </div>
-
                                     {/* Specific Fields based on Method */}
                                     {formData.methodType === 'BINANCE_PAY' ? (
                                         <>
@@ -436,34 +432,85 @@ export default function PaymentMethodsManager({ role, onSelect, selectionMode = 
                                             </div>
                                             <div className="space-y-2">
                                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Cédula / RIF / ID Fiscal</label>
-                                                <div className="relative">
-                                                    <FileText className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
-                                                    <input 
-                                                        required
-                                                        value={formData.bankAccount?.holderDocument}
-                                                        onChange={e => setFormData({
-                                                            ...formData, 
-                                                            bankAccount: {...formData.bankAccount!, holderDocument: e.target.value}
-                                                        })}
-                                                        placeholder="V-12345678 o J-12345678"
-                                                        className="w-full h-14 pl-14 pr-6 rounded-2xl bg-slate-50 border border-slate-200 font-bold"
-                                                    />
-                                                </div>
+                                                {(() => {
+                                                    const doc = formData.bankAccount?.holderDocument || '';
+                                                    const m = doc.match(/^([A-Za-z])-?(.*)$/);
+                                                    const docType = m ? m[1].toUpperCase() : 'V';
+                                                    const docNumber = m ? m[2] : doc;
+                                                    const setDoc = (type: string, number: string) => setFormData({
+                                                        ...formData,
+                                                        // El tipo de documento determina el beneficiario: J (RIF) y G (gobierno) = COMPANY; V/E/P = PERSON
+                                                        beneficiaryType: (type === 'J' || type === 'G') ? 'COMPANY' : 'PERSON',
+                                                        bankAccount: {...formData.bankAccount!, holderDocument: `${type}-${number}`}
+                                                    });
+                                                    return (
+                                                        <div className="flex gap-2">
+                                                            <select
+                                                                value={docType}
+                                                                onChange={e => setDoc(e.target.value, docNumber)}
+                                                                className="h-14 w-40 px-4 rounded-2xl bg-slate-50 border border-slate-200 font-bold appearance-none"
+                                                            >
+                                                                <option value="V">V - Natural</option>
+                                                                <option value="E">E - Extranjero</option>
+                                                                <option value="J">J - RIF</option>
+                                                                <option value="G">G - Gobierno</option>
+                                                                <option value="P">P - Pasaporte</option>
+                                                            </select>
+                                                            <div className="relative flex-1">
+                                                                <FileText className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
+                                                                <input
+                                                                    required
+                                                                    value={docNumber}
+                                                                    onChange={e => setDoc(docType, e.target.value.replace(/\D/g, ''))}
+                                                                    placeholder="12345678"
+                                                                    className="w-full h-14 pl-14 pr-6 rounded-2xl bg-slate-50 border border-slate-200 font-bold"
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })()}
                                             </div>
                                             <div className="space-y-2">
                                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Nombre del Banco</label>
                                                 <div className="relative">
                                                     <Building2 className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
-                                                    <input 
-                                                        required
-                                                        value={formData.bankAccount?.bankName}
-                                                        onChange={e => setFormData({
-                                                            ...formData, 
-                                                            bankAccount: {...formData.bankAccount!, bankName: e.target.value}
-                                                        })}
-                                                        placeholder="Ej: Banesco, Wells Fargo, BBVA..."
-                                                        className="w-full h-14 pl-14 pr-6 rounded-2xl bg-slate-50 border border-slate-200 font-bold"
-                                                    />
+                                                    {(formData.methodType === 'BS_PAGO_MOVIL' || formData.methodType === 'BS_BANK_TRANSFER') ? (
+                                                        <select
+                                                            required
+                                                            value={formData.bankAccount?.bankName || ''}
+                                                            onChange={e => {
+                                                                const selected = banks.find(b => b.name === e.target.value);
+                                                                setFormData({
+                                                                    ...formData,
+                                                                    bankAccount: {
+                                                                        ...formData.bankAccount!,
+                                                                        bankName: e.target.value,
+                                                                        // Autocompleta el código de 4 dígitos del banco elegido
+                                                                        bankCode: selected?.code || formData.bankAccount?.bankCode || ''
+                                                                    }
+                                                                });
+                                                            }}
+                                                            className="w-full h-14 pl-14 pr-6 rounded-2xl bg-slate-50 border border-slate-200 font-bold appearance-none"
+                                                        >
+                                                            <option value="" disabled>Selecciona tu banco...</option>
+                                                            {banks.map(b => (
+                                                                <option key={b.id} value={b.name}>
+                                                                    {b.code ? `${b.code} - ${b.name}` : b.name}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    ) : (
+                                                        <input
+                                                            required
+                                                            value={formData.bankAccount?.bankName}
+                                                            onChange={e => setFormData({
+                                                                ...formData,
+                                                                bankAccount: {...formData.bankAccount!, bankName: e.target.value}
+                                                            })}
+                                                            placeholder="Ej: Wells Fargo, BBVA, Chase..."
+                                                            className="w-full h-14 pl-14 pr-6 rounded-2xl bg-slate-50 border border-slate-200 font-bold"
+                                                        />
+                                                    )}
                                                 </div>
                                             </div>
 
@@ -483,17 +530,6 @@ export default function PaymentMethodsManager({ role, onSelect, selectionMode = 
                                                             />
                                                         </div>
                                                     </div>
-                                                    <div className="space-y-2">
-                                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Código Banco (4 dígitos)</label>
-                                                        <input 
-                                                            required
-                                                            maxLength={4}
-                                                            value={formData.bankAccount?.bankCode}
-                                                            onChange={e => setFormData({...formData, bankAccount: {...formData.bankAccount!, bankCode: e.target.value}})}
-                                                            placeholder="0134"
-                                                            className="w-full h-14 px-6 rounded-2xl bg-slate-50 border border-slate-200 font-bold"
-                                                        />
-                                                    </div>
                                                 </>
                                             ) : (
                                                 <div className="space-y-2">
@@ -508,20 +544,6 @@ export default function PaymentMethodsManager({ role, onSelect, selectionMode = 
                                                             className="w-full h-14 pl-14 pr-6 rounded-2xl bg-slate-50 border border-slate-200 font-bold"
                                                         />
                                                     </div>
-                                                </div>
-                                            )}
-
-                                            {formData.methodType === 'BS_BANK_TRANSFER' && (
-                                                <div className="space-y-2">
-                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Código Banco</label>
-                                                    <input 
-                                                        required
-                                                        maxLength={4}
-                                                        value={formData.bankAccount?.bankCode}
-                                                        onChange={e => setFormData({...formData, bankAccount: {...formData.bankAccount!, bankCode: e.target.value}})}
-                                                        placeholder="0134"
-                                                        className="w-full h-14 px-6 rounded-2xl bg-slate-50 border border-slate-200 font-bold"
-                                                    />
                                                 </div>
                                             )}
 

@@ -116,7 +116,7 @@ export default function AuctionsPage() {
 
             {/* Filters */}
             <div className="bg-white p-6 rounded-[2rem] shadow-xl shadow-slate-100 border border-slate-100 mb-10 flex flex-wrap items-center gap-4">
-                <div className="flex-1 min-w-[300px] relative group">
+                <div className="flex-1 min-w-full sm:min-w-[300px] relative group">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-alteha-violet transition-colors" />
                     <input
                         type="text"

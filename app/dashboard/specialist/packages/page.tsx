@@ -25,7 +25,11 @@ import {
 import Link from 'next/link';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { createMedicalPackage, getMyMedicalPackages, type MedicalPackage, type MedicalPackageItem } from '@/lib/api';
+import {
+    createMedicalPackage, getMyMedicalPackages, getProcedureTypes, uploadPackageImage,
+    getProviderRedemptions, acceptRedemption, rejectRedemption, uploadRedemptionFiniquito,
+    type MedicalPackage, type MedicalPackageItem, type PackageRedemptionItem
+} from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function PublishPackagePage() {
@@ -47,6 +51,66 @@ export default function PublishPackagePage() {
         validFrom: new Date().toISOString().split('T')[0],
         validUntil: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 3 months later
     });
+
+    // Especialidad → tipo de intervención (igual que al crear una subasta)
+    const [specialtyId, setSpecialtyId] = useState<number | null>(null);
+    const [procedureTypeId, setProcedureTypeId] = useState<number | null>(null);
+    const [procedureTypes, setProcedureTypes] = useState<any[]>([]);
+    const [loadingProcedures, setLoadingProcedures] = useState(false);
+    // Imagen comercial del paquete
+    const [imageFile, setImageFile] = useState<File | null>(null);
+    const [imagePreview, setImagePreview] = useState<string | null>(null);
+    const [createError, setCreateError] = useState<string | null>(null);
+    // Solicitudes de uso (redenciones) dirigidas a este proveedor
+    const [redemptions, setRedemptions] = useState<PackageRedemptionItem[]>([]);
+    const [redemptionsLoading, setRedemptionsLoading] = useState(true);
+    const [actingId, setActingId] = useState<number | null>(null);
+
+    // Al elegir especialidad, cargar sus tipos de intervención
+    useEffect(() => {
+        if (!specialtyId) { setProcedureTypes([]); setProcedureTypeId(null); return; }
+        let active = true;
+        setLoadingProcedures(true);
+        getProcedureTypes(0, 2000, specialtyId)
+            .then(list => { if (active) setProcedureTypes(list || []); })
+            .catch(() => { if (active) setProcedureTypes([]); })
+            .finally(() => { if (active) setLoadingProcedures(false); });
+        return () => { active = false; };
+    }, [specialtyId]);
+
+    // Preseleccionar la primera especialidad del médico
+    useEffect(() => {
+        const first = userProfile?.specialties?.[0]?.id;
+        if (first && !specialtyId) setSpecialtyId(Number(first));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [userProfile?.specialties]);
+
+    const loadRedemptions = async () => {
+        try {
+            setRedemptionsLoading(true);
+            setRedemptions(await getProviderRedemptions());
+        } catch { setRedemptions([]); }
+        finally { setRedemptionsLoading(false); }
+    };
+    useEffect(() => { loadRedemptions(); }, []);
+
+    const handleAccept = async (id: number) => {
+        setActingId(id);
+        try { await acceptRedemption(id); await loadRedemptions(); } finally { setActingId(null); }
+    };
+    const handleReject = async (id: number) => {
+        const reason = prompt('Motivo del rechazo (se le mostrará al seguro):') || '';
+        setActingId(id);
+        try { await rejectRedemption(id, reason); await loadRedemptions(); } finally { setActingId(null); }
+    };
+    const handleFiniquito = async (id: number, file: File) => {
+        setActingId(id);
+        try {
+            const res = await uploadRedemptionFiniquito(id, file);
+            if (res?.code === 'ERROR') alert(res.message || 'No se pudo subir el finiquito');
+            await loadRedemptions();
+        } finally { setActingId(null); }
+    };
 
     const [items, setItems] = useState<MedicalPackageItem[]>([
         { itemName: 'Consulta Especialista', description: 'Evaluación médica inicial', quantity: 1, unitPrice: 50 },
@@ -73,15 +137,32 @@ export default function PublishPackagePage() {
     };
 
     const handleCreatePackage = async () => {
+        if (!procedureTypeId) {
+            setCreateError('Todo paquete debe estar asociado a un tipo de intervención.');
+            setStep(1);
+            return;
+        }
         try {
             setIsLoading(true);
+            setCreateError(null);
+            // Subir la imagen comercial (si el médico eligió una) antes de crear el paquete
+            let imageUrl: string | null = null;
+            if (imageFile) {
+                try {
+                    const up = await uploadPackageImage(imageFile);
+                    imageUrl = up?.imageUrl || null;
+                } catch { /* el paquete se crea igual sin imagen */ }
+            }
             const payload = {
                 ...formData,
                 basePrice: totalAmount,
                  discountedPrice: discountedAmount,
+                specialty: specialtyId ? { id: specialtyId } : undefined,
+                procedureType: { id: procedureTypeId },
+                imageUrl,
                 packageItems: items
             };
-            const response = await createMedicalPackage(payload);
+            const response = await createMedicalPackage(payload as any);
             // Handle both wrapped and unwrapped responses
             const success = (response as any).id || (response as any).code === '00';
             if (success) {
@@ -162,8 +243,12 @@ export default function PublishPackagePage() {
                                 key={pkg.id}
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm hover:shadow-2xl transition-all group p-8 flex flex-col h-full"
+                                className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm hover:shadow-2xl transition-all group overflow-hidden flex flex-col h-full"
                             >
+                                {pkg.imageUrl && (
+                                    <img src={pkg.imageUrl} alt={pkg.packageName} className="w-full h-36 object-cover" />
+                                )}
+                                <div className="p-8 flex flex-col flex-1">
                                 <div className="flex justify-between items-start mb-6">
                                     <div className="p-4 bg-alteha-turquoise/10 text-alteha-turquoise rounded-2xl">
                                         <Package className="w-6 h-6" />
@@ -173,6 +258,11 @@ export default function PublishPackagePage() {
                                     </div>
                                 </div>
                                 <h3 className="text-xl font-black text-slate-900 mb-2 leading-tight group-hover:text-alteha-turquoise transition-colors">{pkg.packageName}</h3>
+                                {pkg.procedureType?.name && (
+                                    <span className="inline-block w-fit px-3 py-1 mb-2 bg-alteha-violet/10 text-alteha-violet rounded-full text-[10px] font-black uppercase tracking-widest">
+                                        {pkg.procedureType.name}
+                                    </span>
+                                )}
                                 <p className="text-sm text-slate-500 font-medium line-clamp-2 mb-6 flex-1 italic">
                                     &ldquo;{pkg.description}&rdquo;
                                 </p>
@@ -183,7 +273,7 @@ export default function PublishPackagePage() {
                                             <p className="text-2xl font-black text-slate-900">${pkg.discountedPrice.toLocaleString()}</p>
                                         </div>
                                         <div className="text-right">
-                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Base</p>
+                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Precio Referencial</p>
                                             <p className="text-sm font-bold text-slate-300 line-through">${pkg.basePrice.toLocaleString()}</p>
                                         </div>
                                     </div>
@@ -192,10 +282,82 @@ export default function PublishPackagePage() {
                                         <span>Válido hasta: {pkg.validUntil ? new Date(pkg.validUntil).toLocaleDateString() : 'N/A'}</span>
                                     </div>
                                 </div>
+                                </div>
                             </motion.div>
                         ))}
                     </div>
                 )}
+
+                {/* ── Solicitudes de uso: el seguro pide redimir intervenciones de tus paquetes ── */}
+                <section className="space-y-5">
+                    <div>
+                        <h2 className="text-2xl font-black text-slate-900 tracking-tight">Solicitudes de Uso</h2>
+                        <p className="text-slate-400 font-medium text-sm">
+                            Intervenciones que las aseguradoras quieren redimir de tus paquetes vendidos. Acepta, ejecuta y sube el finiquito para que Alteha te liquide cada una.
+                        </p>
+                    </div>
+                    {redemptionsLoading ? (
+                        <div className="py-10 text-center"><Loader2 className="w-6 h-6 text-alteha-turquoise animate-spin mx-auto" /></div>
+                    ) : redemptions.length === 0 ? (
+                        <div className="py-12 bg-white rounded-[2.5rem] border-2 border-dashed border-slate-100 text-center">
+                            <p className="text-slate-400 font-bold text-sm">Sin solicitudes por ahora. Cuando un seguro compre tu paquete y pida usar una intervención, aparecerá aquí.</p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 gap-4">
+                            {redemptions.map(r => {
+                                const badge = r.status === 'REQUESTED' ? { t: 'Por aceptar', c: 'bg-amber-50 text-amber-600' }
+                                    : r.status === 'ACCEPTED' ? { t: 'Aceptada — sube el finiquito al ejecutar', c: 'bg-blue-50 text-blue-600' }
+                                    : r.status === 'COMPLETED' ? { t: 'Finiquito enviado — Alteha liquidará', c: 'bg-violet-50 text-violet-600' }
+                                    : r.status === 'SETTLED' ? { t: 'Liquidada ✓', c: 'bg-emerald-50 text-emerald-600' }
+                                    : { t: 'Rechazada', c: 'bg-red-50 text-red-500' };
+                                return (
+                                    <div key={r.id} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                                        <div className="min-w-0 space-y-1.5">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${badge.c}`}>{badge.t}</span>
+                                                <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">{r.redemptionNumber}</span>
+                                            </div>
+                                            <p className="font-black text-slate-800">{r.packageName} {r.procedureTypeName ? `· ${r.procedureTypeName}` : ''}</p>
+                                            <p className="text-xs text-slate-500 font-bold">
+                                                Paciente: <span className="text-slate-800">{r.patientName || '—'}</span>
+                                                {r.insuranceCompanyName ? <> · Seguro: <span className="text-slate-800">{r.insuranceCompanyName}</span></> : null}
+                                                {' '}· {new Date(r.createdAt).toLocaleDateString('es-ES')}
+                                            </p>
+                                            {r.notes && <p className="text-xs text-slate-400 italic">&ldquo;{r.notes}&rdquo;</p>}
+                                        </div>
+                                        <div className="flex items-center gap-2 shrink-0">
+                                            {r.status === 'REQUESTED' && (
+                                                <>
+                                                    <Button onClick={() => handleAccept(r.id)} disabled={actingId === r.id}
+                                                        className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold px-5 py-2.5 text-sm">
+                                                        {actingId === r.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Aceptar'}
+                                                    </Button>
+                                                    <Button onClick={() => handleReject(r.id)} disabled={actingId === r.id}
+                                                        className="bg-white border border-red-200 text-red-500 hover:bg-red-50 rounded-xl font-bold px-5 py-2.5 text-sm">
+                                                        Rechazar
+                                                    </Button>
+                                                </>
+                                            )}
+                                            {r.status === 'ACCEPTED' && (
+                                                <label className="relative cursor-pointer">
+                                                    <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="absolute inset-0 opacity-0 cursor-pointer"
+                                                        onChange={e => { const f = e.target.files?.[0]; if (f) handleFiniquito(r.id, f); }} />
+                                                    <span className="inline-flex items-center gap-2 bg-slate-900 text-white rounded-xl font-bold px-5 py-2.5 text-sm hover:bg-alteha-turquoise hover:text-slate-900 transition-all">
+                                                        {actingId === r.id ? <Loader2 className="w-4 h-4 animate-spin" /> : '📄 Subir finiquito'}
+                                                    </span>
+                                                </label>
+                                            )}
+                                            {r.finiquitoUrl && r.status !== 'ACCEPTED' && (
+                                                <a href={r.finiquitoUrl} target="_blank" rel="noopener noreferrer"
+                                                   className="text-xs font-black text-alteha-violet hover:underline">Ver finiquito</a>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </section>
             </div>
         );
     }
@@ -240,15 +402,71 @@ export default function PublishPackagePage() {
                                             value={formData.packageName}
                                             onChange={(e) => setFormData({...formData, packageName: e.target.value})}
                                         />
-                                        <div className="grid grid-cols-2 gap-6">
-                                            <Input 
-                                                label="Código Interno" 
-                                                placeholder="Ej: CARD-2026" 
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                            <Input
+                                                label="Código Interno"
+                                                placeholder="Ej: CARD-2026"
                                                 value={formData.packageCode}
                                                 onChange={(e) => setFormData({...formData, packageCode: e.target.value})}
                                             />
-                                            <Input label="Especialidad" defaultValue={userProfile?.specialties?.[0]?.name || "Especialista"} disabled />
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Especialidad</label>
+                                                <select
+                                                    value={specialtyId ?? ''}
+                                                    onChange={e => setSpecialtyId(e.target.value ? Number(e.target.value) : null)}
+                                                    className="w-full h-12 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm font-bold text-slate-800 outline-none"
+                                                >
+                                                    <option value="">Selecciona...</option>
+                                                    {(userProfile?.specialties || []).map((s: any) => (
+                                                        <option key={s.id} value={s.id}>{s.name}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
                                         </div>
+                                        {/* Tipo de intervención: obligatorio, filtrado por especialidad (como en las subastas) */}
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                                                Tipo de Intervención *
+                                            </label>
+                                            <select
+                                                value={procedureTypeId ?? ''}
+                                                onChange={e => setProcedureTypeId(e.target.value ? Number(e.target.value) : null)}
+                                                disabled={loadingProcedures || !specialtyId}
+                                                className="w-full h-12 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm font-bold text-slate-800 outline-none disabled:opacity-50"
+                                            >
+                                                <option value="">{loadingProcedures ? 'Cargando intervenciones...' : !specialtyId ? 'Elige primero la especialidad' : 'Selecciona la intervención...'}</option>
+                                                {procedureTypes.map((p: any) => (
+                                                    <option key={p.id} value={p.id}>{p.name}</option>
+                                                ))}
+                                            </select>
+                                            <p className="text-[11px] text-slate-400 mt-1.5">Todo paquete queda asociado a una intervención: el seguro la redime por paciente.</p>
+                                        </div>
+                                        {/* Imagen comercial del paquete */}
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Imagen del paquete (se muestra en el marketplace)</label>
+                                            <div className="relative border-2 border-dashed border-slate-200 rounded-2xl p-4 hover:border-alteha-turquoise transition-colors">
+                                                <input
+                                                    type="file" accept="image/*"
+                                                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                                                    onChange={e => {
+                                                        const f = e.target.files?.[0] || null;
+                                                        setImageFile(f);
+                                                        setImagePreview(f ? URL.createObjectURL(f) : null);
+                                                    }}
+                                                />
+                                                {imagePreview ? (
+                                                    <div className="flex items-center gap-4">
+                                                        <img src={imagePreview} alt="preview" className="w-24 h-16 object-cover rounded-xl" />
+                                                        <span className="text-sm font-bold text-slate-600 truncate">{imageFile?.name}</span>
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-sm font-bold text-slate-400 text-center py-2">📷 Haz clic para subir una imagen atractiva del paquete</p>
+                                                )}
+                                            </div>
+                                        </div>
+                                        {createError && (
+                                            <p className="text-sm font-bold text-red-500 bg-red-50 border border-red-100 rounded-xl px-4 py-3">{createError}</p>
+                                        )}
                                         <div className="space-y-2">
                                             <label className="text-xs font-bold text-slate-400 uppercase tracking-widest px-1">Descripción de la Oferta</label>
                                             <textarea
@@ -381,7 +599,7 @@ export default function PublishPackagePage() {
                                                         onChange={(e) => updateItem(idx, 'itemName', e.target.value)}
                                                     />
                                                 </div>
-                                                <div className="grid grid-cols-2 gap-4">
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                                     <div className="space-y-1.5">
                                                         <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest ml-1">Cant.</label>
                                                         <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-xl px-2">
@@ -446,7 +664,7 @@ export default function PublishPackagePage() {
                                     </p>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-4 max-w-md mx-auto">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-md mx-auto">
                                     <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100">
                                         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Precio Total</p>
                                         <p className="text-2xl font-black text-slate-400 line-through">${totalAmount.toLocaleString()}</p>

@@ -44,7 +44,7 @@ function PasswordStrength({ password }: { password: string }) {
             <p className={`text-xs font-bold ${passed >= 4 ? 'text-emerald-600' : passed >= 3 ? 'text-yellow-600' : 'text-red-500'}`}>
                 {strength}
             </p>
-            <div className="grid grid-cols-2 gap-1 text-[11px]">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-[11px]">
                 {[
                     { key: 'length',    label: 'Mínimo 8 caracteres' },
                     { key: 'uppercase', label: 'Una mayúscula' },

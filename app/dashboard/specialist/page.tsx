@@ -30,8 +30,10 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
-import { getDashboardAds, getMyInvitations, getAuctionBidsCount, type Advertisement, type Auction, getIdentityCompliance, searchIdentityCompliance } from '@/lib/api';
+import { getDashboardAds, getMyInvitations, getAuctionBidsCount, getAuctionDetailsAsDoctor, type Advertisement, type Auction, getIdentityCompliance, searchIdentityCompliance } from '@/lib/api';
 import AuctionCountdown from '@/components/auctions/AuctionCountdown';
+import { RatingExperienceModal } from '@/components/dashboard/RatingExperienceModal';
+import { ratedStorageKey } from '@/components/payments/WinnerSettlementSection';
 
 export default function SpecialistDashboard() {
     const { userProfile, isLoadingProfile } = useAuth();
@@ -44,8 +46,41 @@ export default function SpecialistDashboard() {
     const [complianceStatus, setComplianceStatus] = useState<string | null>(null);
     const [isLoadingCompliance, setIsLoadingCompliance] = useState(true);
     const [auctions, setAuctions] = useState<Auction[]>([]);
+    const [allAuctions, setAllAuctions] = useState<Auction[]>([]);
     const [isLoadingAuctions, setIsLoadingAuctions] = useState(true);
     const [nextIntervention, setNextIntervention] = useState<Auction | null>(null);
+    // Subasta liquidada pendiente de valoración → dispara el modal intrusivo
+    const [ratingAuction, setRatingAuction] = useState<any>(null);
+    // Estadísticas reales del dashboard (paquetes y reseñas se cargan aparte)
+    const [packagesCount, setPackagesCount] = useState<number | null>(null);
+    const [receivedReviews, setReceivedReviews] = useState<{ count: number; avg: number | null } | null>(null);
+
+    // Paquetes publicados por el médico
+    useEffect(() => {
+        (async () => {
+            try {
+                const { getMyMedicalPackages } = await import('@/lib/api');
+                const res: any = await getMyMedicalPackages();
+                const list = Array.isArray(res) ? res : (res?.data ?? res?.content ?? []);
+                setPackagesCount(Array.isArray(list) ? list.length : 0);
+            } catch { setPackagesCount(0); }
+        })();
+    }, []);
+
+    // Reseñas recibidas (reviews donde el médico es el valorado)
+    useEffect(() => {
+        const accountId = (userProfile as any)?.account?.id;
+        if (!accountId) return;
+        (async () => {
+            try {
+                const resp = await fetch(`/api/reviews?revieweeId.equals=${accountId}&size=200`);
+                const data = await resp.json();
+                const list: any[] = Array.isArray(data) ? data : (data?.content ?? []);
+                const avg = list.length ? list.reduce((s, r) => s + (Number(r.rating) || 0), 0) / list.length : null;
+                setReceivedReviews({ count: list.length, avg });
+            } catch { setReceivedReviews({ count: 0, avg: null }); }
+        })();
+    }, [(userProfile as any)?.account?.id]);
 
     useEffect(() => {
         const fetchAds = async () => {
@@ -76,7 +111,9 @@ export default function SpecialistDashboard() {
                 } else if ((result as any).content) {
                     list = (result as any).content;
                 }
-                setAuctions(list.slice(0, 3));
+                // Las SETTLED (ya cobradas) no van al dashboard: viven en el Histórico de Subastas
+                setAuctions(list.filter((a: any) => a.status !== 'SETTLED').slice(0, 3));
+                setAllAuctions(list);
                 // Find the next PAID (upcoming intervention) sorted by estimatedSurgeryDate
                 const paidAuctions = list
                     .filter((a: any) => a.status === 'PAID' && a.estimatedSurgeryDate)
@@ -90,6 +127,59 @@ export default function SpecialistDashboard() {
         };
         fetchAuctions();
     }, []);
+
+    // Modal intrusivo de valoración: si una subasta ganada ya tiene fondos liquidados
+    // y el médico aún no valoró a todos los actores, se le pide la valoración al entrar.
+    useEffect(() => {
+        if (!userProfile?.id || allAuctions.length === 0) return;
+        let active = true;
+        (async () => {
+            const candidates = allAuctions.filter((a: any) => {
+                if (a.status !== 'PENDING_SETTLEMENT' && a.status !== 'SETTLED') return false;
+                try { if (sessionStorage.getItem(`alteha_rating_snooze_${a.auctionNumber}`)) { console.log('[RatingModal]', a.auctionNumber, 'pospuesta en esta sesión (snooze)'); return false; } } catch { /* ignore */ }
+                return true;
+            });
+            console.log('[RatingModal] candidatas:', candidates.map((c: any) => `${c.auctionNumber}:${c.status}`), '| perfil id:', userProfile.id);
+            const accountId = Number((userProfile as any)?.account?.id ?? NaN);
+            for (const c of candidates) {
+                try {
+                    const res: any = await getAuctionDetailsAsDoctor(c.auctionNumber);
+                    const detail = res?.data || res;
+                    if (!detail?.auctionNumber) { console.log('[RatingModal]', c.auctionNumber, 'detalle sin datos:', res?.code, res?.message); continue; }
+                    const awardedDoctorId = detail.awardedBid?.doctor?.id ?? (detail.awardedBid as any)?.doctorId;
+                    if (!awardedDoctorId || Number(awardedDoctorId) !== Number(userProfile.id)) {
+                        console.log('[RatingModal]', c.auctionNumber, 'no es el ganador → awardedDoctorId:', awardedDoctorId, 'vs perfil:', userProfile.id);
+                        continue; // solo el ganador valora
+                    }
+                    const required = ['INSURANCE', 'ALTEHA', ...(detail.awardedBid?.clinic ? ['CLINIC'] : [])];
+
+                    // Verdad del backend: valoraciones reales de este médico en esta subasta.
+                    // (localStorage es solo caché por navegador; puede quedar desfasado o venir de otro dispositivo)
+                    let backendCount = -1;
+                    if (!Number.isNaN(accountId) && detail.id) {
+                        try {
+                            const { getAuctionReviews } = await import('@/lib/api');
+                            const revs = await getAuctionReviews(detail.id, accountId);
+                            backendCount = Array.isArray(revs) ? revs.length : -1;
+                        } catch { /* sin acceso a reviews: caeremos al caché local */ }
+                    }
+                    if (backendCount === 0) {
+                        // El backend no tiene valoraciones: limpiar marcas locales viejas para no bloquear el modal
+                        required.forEach(r => { try { localStorage.removeItem(ratedStorageKey(detail.auctionNumber, r)); } catch { /* ignore */ } });
+                    }
+                    const pendingLocal = required.some(r => !localStorage.getItem(ratedStorageKey(detail.auctionNumber, r)));
+                    // Solo molestar si el backend está incompleto Y hay pasos accionables en este navegador.
+                    // (Evita bucles cuando un actor no es valorable, p.ej. clínica sin cuenta registrada.)
+                    const backendPending = backendCount >= 0 ? backendCount < required.length : true;
+                    const pending = backendPending && pendingLocal;
+                    console.log('[RatingModal]', c.auctionNumber, 'ganador OK | reviews backend:', backendCount, '/', required.length, '| pasos locales pendientes:', pendingLocal, '| abrir modal:', pending);
+                    if (pending && active) { setRatingAuction(detail); return; }
+                } catch (e) { console.log('[RatingModal]', c.auctionNumber, 'error al traer detalle:', e); }
+            }
+            console.log('[RatingModal] ninguna candidata disparó el modal');
+        })();
+        return () => { active = false; };
+    }, [userProfile?.id, allAuctions]);
 
     useEffect(() => {
         if (ads.length > 1) {
@@ -223,7 +313,18 @@ export default function SpecialistDashboard() {
         ? new Date(displayProfile.createdAt).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })
         : 'Reciente';
 
-    const rating = 5;
+    // Promedio real de reseñas recibidas (5.0 por defecto mientras no haya ninguna)
+    const rating = receivedReviews?.avg ?? 5;
+    const reviewsCount = receivedReviews?.count ?? null;
+
+    // Derivadas de las subastas del médico
+    const activeAuctionsCount = allAuctions.filter((a: any) => a.status === 'ACTIVE' || a.status === 'PUBLISHED').length;
+    const now = new Date();
+    const monthEarnings = allAuctions
+        .filter((a: any) => a.status === 'SETTLED' && a.updatedAt &&
+            new Date(a.updatedAt).getMonth() === now.getMonth() &&
+            new Date(a.updatedAt).getFullYear() === now.getFullYear())
+        .reduce((sum: number, a: any) => sum + Number(a.awardedBid?.bidAmount ?? 0), 0);
 
     return (
         <div className="space-y-10 font-outfit">
@@ -500,7 +601,7 @@ export default function SpecialistDashboard() {
                                         <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
                                         <span className="font-bold text-slate-900">{rating.toFixed(1)}</span>
                                         <Link href="/dashboard/specialist/reviews" className="hover:text-alteha-violet transition-colors">
-                                            (128 reseñas)
+                                            ({reviewsCount == null ? '…' : reviewsCount} reseña{reviewsCount === 1 ? '' : 's'})
                                         </Link>
                                     </div>
                                     <span className="w-1.5 h-1.5 rounded-full bg-slate-300 hidden md:block" />
@@ -558,28 +659,28 @@ export default function SpecialistDashboard() {
             <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 <StatCard
                     label="Subastas Activas"
-                    value="12"
+                    value={isLoadingAuctions ? '…' : String(activeAuctionsCount)}
                     icon={TrendingUp}
                     color="text-alteha-turquoise"
                     bg="bg-alteha-turquoise/10"
                 />
                 <StatCard
                     label="Paquetes Publicados"
-                    value="08"
+                    value={packagesCount == null ? '…' : String(packagesCount).padStart(2, '0')}
                     icon={Package}
                     color="text-alteha-violet"
                     bg="bg-alteha-violet/10"
                 />
                 <StatCard
                     label="Reseñas Recibidas"
-                    value="128"
+                    value={reviewsCount == null ? '…' : String(reviewsCount)}
                     icon={Star}
                     color="text-amber-500"
                     bg="bg-amber-500/10"
                 />
                 <StatCard
                     label="Ganancias del Mes"
-                    value="$4,250"
+                    value={isLoadingAuctions ? '…' : `$${monthEarnings.toLocaleString('en-US', { maximumFractionDigits: 0 })}`}
                     icon={DollarSign}
                     color="text-emerald-500"
                     bg="bg-emerald-500/10"
@@ -701,6 +802,11 @@ export default function SpecialistDashboard() {
                     </div>
                 )}
             </section>
+
+            {/* Valoración obligatoria al terminar el proceso de una subasta (fondos liquidados) */}
+            {ratingAuction && (
+                <RatingExperienceModal auction={ratingAuction} onClose={() => setRatingAuction(null)} />
+            )}
         </div>
     );
 }
@@ -718,6 +824,24 @@ function StatCard({ label, value, icon: Icon, color, bg }: any) {
         </div>
     );
 }
+
+// Estados en los que la subasta todavía admite ofertas (mismo criterio que el resto de la app)
+const BIDDABLE_STATUSES = ['ACTIVE', 'PUBLISHED'];
+
+// Etiqueta/color para subastas que ya NO son ofertables (adjudicadas o en fase de pago)
+const AUCTION_STATUS_BADGE: Record<string, { label: string; color: string; dot: string }> = {
+    'AWARDED': { label: 'Adjudicada', color: 'bg-violet-50 text-violet-600', dot: 'bg-violet-500' },
+    'PAYMENT_REPORTED': { label: 'Pago Reportado', color: 'bg-amber-50 text-amber-600', dot: 'bg-amber-500' },
+    'PAYMENT_VALIDATION': { label: 'Validando Pago', color: 'bg-orange-50 text-orange-600', dot: 'bg-orange-500' },
+    'PAID': { label: 'Pago Confirmado', color: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500' },
+    'CLOSED': { label: 'Cerrada', color: 'bg-slate-100 text-slate-600', dot: 'bg-slate-400' },
+    'CANCELLED': { label: 'Cancelada', color: 'bg-red-50 text-red-600', dot: 'bg-red-500' },
+    // Finiquito subido: en espera de que Alteha liquide los fondos
+    'COMPLETED': { label: 'Esperando liquidación', color: 'bg-amber-50 text-amber-600', dot: 'bg-amber-500' },
+    // Alteha ya pagó: el médico debe revisar el comprobante y confirmar recepción
+    'PENDING_SETTLEMENT': { label: 'Fondos liquidados', color: 'bg-emerald-50 text-emerald-600', dot: 'bg-emerald-500' },
+    'SETTLED': { label: 'Liquidada', color: 'bg-slate-900 text-white', dot: 'bg-white' },
+};
 
 function AuctionCard({ auction }: { auction: Auction }) {
     const router = useRouter();
@@ -808,12 +932,19 @@ function AuctionCard({ auction }: { auction: Auction }) {
                         Ver Detalle
                     </button>
                 </Link>
-                <Link onClick={(e) => e.stopPropagation()} href={`/dashboard/specialist/auctions/${auction.auctionNumber}`} className="flex-1 lg:w-full">
-                    <button className="w-full py-4 bg-alteha-turquoise text-slate-900 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-alteha-turquoise/20 hover:scale-[1.02] transition-all">
-                        Ofertar
-                        <ArrowRight className="w-4 h-4" />
-                    </button>
-                </Link>
+                {BIDDABLE_STATUSES.includes(auction.status) ? (
+                    <Link onClick={(e) => e.stopPropagation()} href={`/dashboard/specialist/auctions/${auction.auctionNumber}`} className="flex-1 lg:w-full">
+                        <button className="w-full py-4 bg-alteha-turquoise text-slate-900 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-alteha-turquoise/20 hover:scale-[1.02] transition-all">
+                            Ofertar
+                            <ArrowRight className="w-4 h-4" />
+                        </button>
+                    </Link>
+                ) : (
+                    <div className={`flex-1 lg:w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-2 ${AUCTION_STATUS_BADGE[auction.status]?.color || 'bg-slate-100 text-slate-600'}`}>
+                        <span className={`w-2 h-2 rounded-full ${AUCTION_STATUS_BADGE[auction.status]?.dot || 'bg-slate-400'}`} />
+                        {AUCTION_STATUS_BADGE[auction.status]?.label || auction.status}
+                    </div>
+                )}
             </div>
         </m.div>
     );

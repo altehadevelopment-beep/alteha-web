@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { getAppToken } from '@/lib/auth-service';
 
-const API_BASE = 'https://qaback.alteha.com:3232/api';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://qaback.alteha.com:3232/api';
 
 export async function POST(
     request: NextRequest,

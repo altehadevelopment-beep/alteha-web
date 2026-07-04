@@ -195,7 +195,7 @@ export default function EditPatientPage() {
                             <div className="space-y-4">
                                 <FormInput label="Nombres" value={formData.firstName} onChange={(v: string) => handleInputChange('firstName', v)} />
                                 <FormInput label="Apellidos" value={formData.lastName} onChange={(v: string) => handleInputChange('lastName', v)} />
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div className="space-y-1">
                                         <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Género</label>
                                         <select

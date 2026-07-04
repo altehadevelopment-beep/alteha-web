@@ -815,7 +815,7 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
                                                 </div>
 
                                                 {/* Budget breakdown */}
-                                                <div className="grid grid-cols-2 gap-3">
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                                     {bid.doctorFee != null && (
                                                         <div className="bg-slate-50 p-3 rounded-xl">
                                                             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Hon. Médicos</p>

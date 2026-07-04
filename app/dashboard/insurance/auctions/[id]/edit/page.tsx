@@ -396,7 +396,7 @@ export default function EditAuctionPage() {
                                         value={formData.maxBudget}
                                         description="Calculado automáticamente: Honorarios + Gastos de Clínica."
                                     />
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <FormInput
                                             label="Honorarios Médicos ($)"
                                             type="number"
@@ -480,7 +480,7 @@ export default function EditAuctionPage() {
                                         </div>
                                         <p className="text-[9px] text-slate-400 font-medium ml-1 italic">Indica si los médicos pueden ver tu presupuesto al ofertar.</p>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         {/* 
                                          <FormInput
                                              label="Ofertas Mínimas"

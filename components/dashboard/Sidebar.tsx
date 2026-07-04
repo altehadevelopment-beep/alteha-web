@@ -23,7 +23,10 @@ import {
     Stethoscope,
     CheckCircle2,
     Banknote,
-    UserCheck
+    UserCheck,
+    History,
+    Wrench,
+    ChevronDown
 } from 'lucide-react';
 import { Logo } from '@/components/ui/Logo';
 import { cn } from '@/lib/utils';
@@ -31,13 +34,19 @@ import { useAuth } from '@/contexts/AuthContext';
 
 const specialistItems = [
     { title: 'Dashboard', icon: LayoutDashboard, href: '/dashboard/specialist' },
-    { title: 'Métodos de Pago', icon: CreditCard, href: '/dashboard/specialist/payments' },
-    { title: 'Recepción de Fondos', icon: Wallet, href: '/dashboard/specialist/withdrawals' },
+    { title: 'Métodos de Cobro', icon: CreditCard, href: '/dashboard/specialist/payments' },
     { title: 'Paquetes', icon: Package, href: '/dashboard/specialist/packages' },
     { title: 'Conversaciones', icon: MessageSquare, href: '/dashboard/specialist/conversations' },
     { title: 'Referir Colega', icon: Users, href: '/dashboard/specialist/referrals' },
     { title: 'Disputas', icon: AlertCircle, href: '/dashboard/specialist/disputes' },
-    { title: 'Recetas Médicas', icon: Stethoscope, href: '/dashboard/specialist/recipes' },
+    {
+        title: 'Utilitarios',
+        icon: Wrench,
+        children: [
+            { title: 'Recetario', icon: Stethoscope, href: '/dashboard/specialist/recipes' },
+        ],
+    },
+    { title: 'Histórico de Subastas', icon: History, href: '/dashboard/specialist/history' },
 ];
 
 const clinicItems = [
@@ -54,6 +63,7 @@ const insuranceItems = [
     { title: 'Dashboard', icon: LayoutDashboard, href: '/dashboard/insurance' },
     { title: 'Crear Subasta', icon: Plus, href: '/dashboard/insurance/auctions/new' },
     { title: 'Mis Subastas', icon: Gavel, href: '/dashboard/insurance/auctions' },
+    { title: 'Paquetes Médicos', icon: Package, href: '/dashboard/insurance/packages' },
     { title: 'Métodos de Pago', icon: CreditCard, href: '/dashboard/insurance/payments' },
     { title: 'Conversaciones', icon: MessageSquare, href: '/dashboard/insurance/conversations' },
     { title: 'Directorio Médico', icon: Users, href: '/dashboard/insurance/directory' },
@@ -81,6 +91,7 @@ export function DashboardSidebar() {
     const router = useRouter();
     const { logout } = useAuth();
     const [isOpen, setIsOpen] = React.useState(false);
+    const [expandedMenu, setExpandedMenu] = React.useState<string | null>(null);
 
     const isClinic = pathname.includes('/dashboard/clinic');
     const isInsurance = pathname.includes('/dashboard/insurance');
@@ -131,7 +142,54 @@ export function DashboardSidebar() {
                     </Link>
 
                     <nav className="flex-1 space-y-2">
-                        {menuItems.map((item) => {
+                        {menuItems.map((item: any) => {
+                            // Grupo con submenú (ej: Utilitarios → Recetario)
+                            if (item.children) {
+                                const childActive = item.children.some((c: any) => pathname.startsWith(c.href));
+                                const isExpanded = expandedMenu === item.title || childActive;
+                                return (
+                                    <div key={item.title}>
+                                        <button
+                                            onClick={() => setExpandedMenu(isExpanded && !childActive ? null : item.title)}
+                                            className={cn(
+                                                "w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl font-semibold transition-all duration-300",
+                                                childActive
+                                                    ? "bg-alteha-turquoise/10 text-alteha-turquoise"
+                                                    : "text-slate-400 hover:bg-slate-50 hover:text-slate-600"
+                                            )}
+                                        >
+                                            <item.icon className={cn("w-5 h-5", childActive ? "text-alteha-turquoise" : "text-slate-400")} />
+                                            <span>{item.title}</span>
+                                            <ChevronDown className={cn("ml-auto w-4 h-4 transition-transform", isExpanded && "rotate-180")} />
+                                        </button>
+                                        {isExpanded && (
+                                            <div className="ml-5 mt-1 pl-4 border-l-2 border-slate-100 space-y-1">
+                                                {item.children.map((child: any) => {
+                                                    const isChildActive = pathname.startsWith(child.href);
+                                                    return (
+                                                        <Link
+                                                            key={child.href}
+                                                            href={child.href}
+                                                            onClick={() => setIsOpen(false)}
+                                                            className={cn(
+                                                                "flex items-center gap-3 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all duration-300",
+                                                                isChildActive
+                                                                    ? "bg-alteha-turquoise/10 text-alteha-turquoise"
+                                                                    : "text-slate-400 hover:bg-slate-50 hover:text-slate-600"
+                                                            )}
+                                                        >
+                                                            <child.icon className={cn("w-4 h-4", isChildActive ? "text-alteha-turquoise" : "text-slate-400")} />
+                                                            <span>{child.title}</span>
+                                                            {isChildActive && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-alteha-turquoise" />}
+                                                        </Link>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            }
+
                             const isActive = pathname === item.href || (item.href !== '/dashboard/approval' && pathname.startsWith(item.href));
                             return (
                                 <Link

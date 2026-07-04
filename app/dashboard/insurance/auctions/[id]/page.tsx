@@ -580,7 +580,7 @@ export default function AuctionDetailsPage() {
                                                 </div>
                                             </div>
                                             
-                                            <div className="grid grid-cols-2 gap-4 relative z-10">
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 relative z-10">
                                                 <div className="bg-white/5 p-5 rounded-[1.5rem] border border-white/5 backdrop-blur-sm">
                                                     <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest leading-none mb-2 flex items-center gap-2">
                                                         <div className="w-1.5 h-1.5 rounded-full bg-alteha-turquoise" /> Hon. Médicos
@@ -596,7 +596,7 @@ export default function AuctionDetailsPage() {
                                             </div>
                                         </div>
                                         
-                                        <div className="grid grid-cols-2 gap-6">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                                             <div className="bg-white p-8 rounded-[2.5rem] border-2 border-slate-50 shadow-xl shadow-slate-100 flex flex-col justify-between group hover:border-alteha-turquoise/30 transition-all">
                                                 <div className="w-12 h-12 bg-alteha-turquoise/10 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                                                     <Gavel className="w-6 h-6 text-alteha-turquoise" />
@@ -747,7 +747,7 @@ export default function AuctionDetailsPage() {
                                         <p className="text-lg font-black text-slate-900">{auction.preferredLocation}</p>
                                     </div>
                                 </div>
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div className="flex items-start gap-4">
                                         <div className="p-3 bg-alteha-turquoise/5 rounded-2xl border border-alteha-turquoise/10"><Clock className="w-5 h-5 text-alteha-turquoise" /></div>
                                         <div>
@@ -1144,7 +1144,7 @@ export default function AuctionDetailsPage() {
                             </p>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-6 mb-6 shrink-0">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6 shrink-0">
                             <div className="p-5 border-2 border-slate-200 rounded-2xl bg-slate-50">
                                 <h3 className="text-xs font-black uppercase tracking-widest text-slate-500 mb-3">Especialista Asignado</h3>
                                 <p className="text-xl font-black text-slate-900">Dr. {

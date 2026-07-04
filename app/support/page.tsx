@@ -47,7 +47,7 @@ export default function SupportPage() {
                                 <Clock className="w-5 h-5 text-alteha-violet" />
                                 Horario de Atención
                             </h2>
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div className="p-4 bg-slate-50 rounded-2xl">
                                     <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 text-center">Lunes a Viernes</p>
                                     <p className="text-lg font-bold text-slate-700 text-center">8:00 AM - 8:00 PM</p>

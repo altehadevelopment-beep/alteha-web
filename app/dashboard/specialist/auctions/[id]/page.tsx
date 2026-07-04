@@ -253,7 +253,7 @@ export default function DoctorAuctionDetailPage() {
 
                 <div className="p-10 lg:p-12 space-y-12">
                     {/* Settlement Section for Winner */}
-                    {(auction.status === 'AWARDED' || auction.status === 'PAID' || auction.status === 'PAYMENT_REPORTED' || auction.status === 'PAYMENT_VALIDATION' || auction.status === 'COMPLETED') && (
+                    {(auction.status === 'AWARDED' || auction.status === 'PAID' || auction.status === 'PAYMENT_REPORTED' || auction.status === 'PAYMENT_VALIDATION' || auction.status === 'COMPLETED' || auction.status === 'PENDING_SETTLEMENT' || auction.status === 'SETTLED') && (
                         (() => {
                             const awardedDoctorId = auction.awardedBid?.doctor?.id || (auction.awardedBid as any)?.doctorId;
                             const isWinner = userProfile?.id && Number(awardedDoctorId) === Number(userProfile.id);
@@ -275,7 +275,7 @@ export default function DoctorAuctionDetailPage() {
                                 <span className="text-xl font-black text-alteha-turquoise">$</span>
                                 <span className="text-4xl font-black tracking-tighter">{(auction.maxBudget || 0).toLocaleString()}</span>
                             </div>
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div className="bg-white/5 p-3 rounded-xl border border-white/5">
                                     <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest leading-none mb-1">Hon. Médicos</p>
                                     <p className="text-sm font-black text-white">${(auction.doctorBudget || 0).toLocaleString()}</p>

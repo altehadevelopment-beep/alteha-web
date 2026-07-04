@@ -5,9 +5,19 @@ import {
     Banknote, Clock, CheckCircle2, AlertCircle, FileCheck,
     DollarSign, Upload, Loader2
 } from 'lucide-react';
-import { getAllAuctions, registerSettlement, type Auction, type SettlementPayload } from '@/lib/api';
+import { getAllAuctions, registerSettlement, getWinnerPaymentMethods, getPendingSettlementRedemptions, settleRedemption, type Auction, type SettlementPayload, type PaymentMethod, type PackageRedemptionItem } from '@/lib/api';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
+
+const METHOD_LABELS: Record<string, string> = {
+    BS_PAGO_MOVIL: 'Pago Móvil (BS)',
+    BS_BANK_TRANSFER: 'Transferencia BS',
+    USD_ACH: 'ACH / Zelle (USD)',
+    USD_WIRE_SWIFT: 'SWIFT (USD)',
+    USD_IBAN: 'IBAN (EUR/USD)',
+    BINANCE_PAY: 'Binance Pay',
+    CRYPTO_WALLET: 'Crypto Wallet',
+};
 
 export default function SettlementsPage() {
     const [completedAuctions, setCompletedAuctions] = useState<Auction[]>([]);
@@ -24,6 +34,109 @@ export default function SettlementsPage() {
     const [isRegistering, setIsRegistering] = useState(false);
     const [success, setSuccess] = useState(false);
     const [formError, setFormError] = useState<string | null>(null);
+    // Métodos de cobro que el destinatario (médico/clínica) tiene realmente registrados
+    const [recipientMethods, setRecipientMethods] = useState<PaymentMethod[]>([]);
+    const [methodsLoading, setMethodsLoading] = useState(false);
+    const [selectedMethodId, setSelectedMethodId] = useState<number | null>(null);
+    // Oferta ganadora (modalidad + monto) y dupla (parte de la clínica en SOLO_MEDICO)
+    const [winningBid, setWinningBid] = useState<any>(null);
+    const [dupla, setDupla] = useState<any>(null);
+    // Intervenciones de paquetes ejecutadas (con finiquito) pendientes de liquidar
+    const [pkgRedemptions, setPkgRedemptions] = useState<PackageRedemptionItem[]>([]);
+    const [settlingId, setSettlingId] = useState<number | null>(null);
+
+    const loadPkgRedemptions = async () => {
+        try { setPkgRedemptions(await getPendingSettlementRedemptions()); } catch { setPkgRedemptions([]); }
+    };
+    useEffect(() => { loadPkgRedemptions(); }, []);
+
+    const handleSettleRedemption = async (r: PackageRedemptionItem) => {
+        const notes = prompt(`Liquidar ${r.redemptionNumber} (${r.packageName}). Referencia/notas del pago al proveedor:`) ?? '';
+        setSettlingId(r.id);
+        try {
+            const res: any = await settleRedemption(r.id, notes);
+            if (res?.status === 'SETTLED' || res?.code === '00') await loadPkgRedemptions();
+            else alert(res?.message || 'No se pudo liquidar.');
+        } finally { setSettlingId(null); }
+    };
+
+    // Al abrir el modal, carga la oferta ganadora y (si es dupla) la parte de la clínica
+    useEffect(() => {
+        if (!settlementAuction) { setWinningBid(null); setDupla(null); return; }
+        let active = true;
+        (async () => {
+            try {
+                let wb: any = (settlementAuction as any).awardedBid || null;
+                if ((!wb || wb.modality == null || wb.bidAmount == null) && settlementAuction.id) {
+                    const { getAuctionBids } = await import('@/lib/api');
+                    const res = await getAuctionBids(settlementAuction.id);
+                    const bids: any[] = Array.isArray(res) ? res : ((res as any)?.content ?? (res as any)?.data ?? []);
+                    const awardedId = (settlementAuction as any).awardedBid?.id ?? null;
+                    wb = bids.find((b: any) => awardedId ? b.id === awardedId : (b.isWinning || b.status === 'WINNING' || b.status === 'AWARDED' || b.status === 'ACCEPTED')) || wb || bids[0] || null;
+                }
+                if (!active) return;
+                setWinningBid(wb || null);
+                if (wb && wb.modality === 'SOLO_MEDICO' && settlementAuction.id) {
+                    try {
+                        const { getAuctionDuplas } = await import('@/lib/api');
+                        const duplas = await getAuctionDuplas(settlementAuction.id);
+                        const d = (duplas || []).find((x: any) => String(x.bidId) === String(wb.id)) || (duplas || [])[0] || null;
+                        if (active) setDupla(d);
+                    } catch { /* ignore */ }
+                } else {
+                    setDupla(null);
+                }
+            } catch { /* ignore */ }
+        })();
+        return () => { active = false; };
+    }, [settlementAuction]);
+
+    // Monto que corresponde según destinatario + modalidad de la oferta ganadora
+    const suggestedAmount = (role: string | undefined): number | null => {
+        if (!winningBid) return null;
+        const bidAmount = Number(winningBid.bidAmount ?? 0);
+        if (winningBid.modality === 'SOLO_MEDICO') {
+            if (role === 'DOCTOR') return bidAmount;                                  // honorarios médicos
+            if (role === 'CLINIC') return dupla?.clinicFee != null ? Number(dupla.clinicFee) : null; // parte de la clínica
+            return null;
+        }
+        // PAQUETE_COMPLETO: el médico cobra el total; la clínica no recibe liquidación directa
+        if (role === 'DOCTOR') return bidAmount;
+        if (role === 'CLINIC') return 0;
+        return null;
+    };
+
+    // Prefija el monto correcto cuando cambia el destinatario o cargan la oferta/dupla
+    useEffect(() => {
+        const amt = suggestedAmount(settlementForm.recipientRole);
+        if (amt != null) setSettlementForm(p => ({ ...p, amount: amt }));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [winningBid, dupla, settlementForm.recipientRole]);
+
+    // Al abrir el modal (o cambiar el destinatario) trae solo los métodos registrados por ese destinatario
+    useEffect(() => {
+        const role = settlementForm.recipientRole;
+        if (!settlementAuction || (role !== 'DOCTOR' && role !== 'CLINIC')) {
+            setRecipientMethods([]);
+            setSelectedMethodId(null);
+            setSettlementForm(p => ({ ...p, paymentMethodType: '' }));
+            return;
+        }
+        let active = true;
+        setMethodsLoading(true);
+        getWinnerPaymentMethods(settlementAuction.auctionNumber, role as 'DOCTOR' | 'CLINIC')
+            .then(methods => {
+                if (!active) return;
+                const list = (methods || []).filter(m => m.active !== false);
+                setRecipientMethods(list);
+                const first = list[0] || null;
+                setSelectedMethodId(first?.id ?? null);
+                setSettlementForm(p => ({ ...p, paymentMethodType: first?.methodType || '' }));
+            })
+            .catch(() => { if (active) { setRecipientMethods([]); setSelectedMethodId(null); setSettlementForm(p => ({ ...p, paymentMethodType: '' })); } })
+            .finally(() => { if (active) setMethodsLoading(false); });
+        return () => { active = false; };
+    }, [settlementAuction, settlementForm.recipientRole]);
 
     useEffect(() => {
         const fetch = async () => {
@@ -63,6 +176,10 @@ export default function SettlementsPage() {
             setFormError('El monto y la referencia son obligatorios.');
             return;
         }
+        if (!settlementForm.paymentMethodType) {
+            setFormError('El destinatario no tiene un método de cobro registrado. No se puede liquidar.');
+            return;
+        }
         setIsRegistering(true);
         setFormError(null);
         try {
@@ -100,7 +217,7 @@ export default function SettlementsPage() {
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-2 gap-4 mb-8 max-w-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8 max-w-sm">
                 <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-lg shadow-slate-100/50">
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
@@ -183,6 +300,48 @@ export default function SettlementsPage() {
                 )}
             </div>
 
+            {/* ── Intervenciones de paquetes por liquidar (redenciones con finiquito) ── */}
+            <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm p-6 md:p-8 mt-8 space-y-4">
+                <div>
+                    <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
+                        <Banknote className="w-5 h-5 text-alteha-violet" /> Intervenciones de Paquetes por Liquidar
+                    </h2>
+                    <p className="text-slate-400 text-sm font-medium">
+                        Intervenciones de paquetes comprados ya ejecutadas (finiquito recibido). Alteha debe liquidar cada una al médico/clínica.
+                    </p>
+                </div>
+                {pkgRedemptions.length === 0 ? (
+                    <p className="text-slate-400 font-bold text-sm py-6 text-center bg-slate-50 rounded-2xl">Sin intervenciones pendientes de liquidar. 🎉</p>
+                ) : (
+                    <div className="space-y-3">
+                        {pkgRedemptions.map(r => (
+                            <div key={r.id} className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-slate-50 rounded-2xl px-5 py-4">
+                                <div className="min-w-0">
+                                    <p className="font-black text-slate-800 truncate">{r.packageName} {r.procedureTypeName ? `· ${r.procedureTypeName}` : ''}</p>
+                                    <p className="text-xs text-slate-500 font-bold">
+                                        {r.redemptionNumber} · Paciente: {r.patientName || '—'} · Proveedor: {r.providerDoctorName ? `Dr. ${r.providerDoctorName}` : r.providerClinicName || '—'}
+                                        {r.insuranceCompanyName ? ` · Seguro: ${r.insuranceCompanyName}` : ''}
+                                    </p>
+                                    {r.finiquitoUrl && (
+                                        <a href={r.finiquitoUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-black text-alteha-violet hover:underline">
+                                            Ver finiquito ({r.finiquitoName || 'archivo'})
+                                        </a>
+                                    )}
+                                </div>
+                                <button
+                                    onClick={() => handleSettleRedemption(r)}
+                                    disabled={settlingId === r.id}
+                                    className="shrink-0 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                                >
+                                    {settlingId === r.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <DollarSign className="w-4 h-4" />}
+                                    Liquidar al proveedor
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+
             {/* Settlement registration modal */}
             <Modal
                 isOpen={!!settlementAuction}
@@ -193,13 +352,43 @@ export default function SettlementsPage() {
                 {settlementAuction && (
                     <div className="space-y-6">
                         {success ? (
-                            <div className="text-center py-10 space-y-4">
+                            <div className="text-center py-8 space-y-5">
                                 <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto">
                                     <CheckCircle2 className="w-10 h-10 text-emerald-600" />
                                 </div>
-                                <h3 className="text-xl font-black text-slate-900">Liquidación Registrada</h3>
-                                <p className="text-slate-400 text-sm">El actor recibirá una notificación por correo.</p>
-                                <Button onClick={() => { setSettlementAuction(null); setSuccess(false); }} className="bg-emerald-600 hover:bg-emerald-700 text-white border-none">Cerrar</Button>
+                                <div className="space-y-1">
+                                    <h3 className="text-xl font-black text-slate-900">Liquidación Registrada</h3>
+                                    <p className="text-slate-500 text-sm font-medium max-w-md mx-auto">
+                                        {settlementForm.recipientRole === 'CLINIC' ? 'La clínica' : settlementForm.recipientRole === 'PHARMACY' ? 'La farmacia' : 'El médico'} recibirá
+                                        una <strong className="text-slate-700">notificación por correo</strong> con el detalle del pago.
+                                    </p>
+                                </div>
+
+                                {/* Resumen de lo registrado */}
+                                <div className="bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 max-w-md mx-auto text-left space-y-1.5">
+                                    <div className="flex justify-between text-xs">
+                                        <span className="font-bold text-slate-400 uppercase tracking-wider">Monto</span>
+                                        <span className="font-black text-slate-900">${Number(settlementForm.amount || 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })}</span>
+                                    </div>
+                                    <div className="flex justify-between text-xs">
+                                        <span className="font-bold text-slate-400 uppercase tracking-wider">Método</span>
+                                        <span className="font-black text-slate-900">{METHOD_LABELS[settlementForm.paymentMethodType || ''] || settlementForm.paymentMethodType}</span>
+                                    </div>
+                                    <div className="flex justify-between text-xs">
+                                        <span className="font-bold text-slate-400 uppercase tracking-wider">Referencia</span>
+                                        <span className="font-black text-slate-900">{settlementForm.referenceNumber}</span>
+                                    </div>
+                                    <div className="flex justify-between text-xs">
+                                        <span className="font-bold text-slate-400 uppercase tracking-wider">Subasta</span>
+                                        <span className="font-black text-slate-900">{settlementAuction.auctionNumber}</span>
+                                    </div>
+                                </div>
+
+                                <p className="text-[11px] text-slate-400 max-w-md mx-auto">
+                                    Próximamente también enviaremos una notificación push a la app móvil del destinatario.
+                                </p>
+
+                                <Button onClick={() => { setSettlementAuction(null); setSuccess(false); }} className="bg-emerald-600 hover:bg-emerald-700 text-white border-none px-10 mx-auto">Cerrar</Button>
                             </div>
                         ) : (
                             <>
@@ -213,6 +402,7 @@ export default function SettlementsPage() {
                                     </div>
                                 </div>
 
+                                {/* Fila 1: a quién y por qué método */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
                                         <label className="block text-xs font-black uppercase tracking-widest text-slate-400 mb-1.5">Destinatario</label>
@@ -224,16 +414,70 @@ export default function SettlementsPage() {
                                     </div>
                                     <div>
                                         <label className="block text-xs font-black uppercase tracking-widest text-slate-400 mb-1.5">Método de Pago</label>
-                                        <select value={settlementForm.paymentMethodType} onChange={e => setSettlementForm(p => ({ ...p, paymentMethodType: e.target.value }))} className="w-full bg-slate-50 border-2 border-transparent focus:border-emerald-400 rounded-xl px-4 py-3 text-sm font-bold text-slate-900 outline-none transition-all">
-                                            <option value="BS_PAGO_MOVIL">Pago Móvil (BS)</option>
-                                            <option value="BS_BANK_TRANSFER">Transferencia BS</option>
-                                            <option value="USD_ACH">ACH / Zelle (USD)</option>
-                                            <option value="USD_WIRE_SWIFT">SWIFT (USD)</option>
-                                            <option value="USD_IBAN">IBAN (EUR/USD)</option>
-                                            <option value="BINANCE_PAY">Binance Pay</option>
-                                            <option value="CRYPTO_WALLET">Crypto Wallet</option>
-                                        </select>
+                                        {methodsLoading ? (
+                                            <div className="w-full bg-slate-50 rounded-xl px-4 py-3 text-sm font-bold text-slate-400 flex items-center gap-2">
+                                                <Loader2 className="w-4 h-4 animate-spin" /> Cargando métodos...
+                                            </div>
+                                        ) : recipientMethods.length === 0 ? (
+                                            <div className="w-full bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs font-bold text-amber-700 flex items-center gap-2">
+                                                <AlertCircle className="w-4 h-4 shrink-0" /> Sin métodos de cobro registrados.
+                                            </div>
+                                        ) : (
+                                            <select
+                                                value={selectedMethodId ?? ''}
+                                                onChange={e => {
+                                                    const id = Number(e.target.value);
+                                                    const m = recipientMethods.find(x => x.id === id);
+                                                    setSelectedMethodId(id);
+                                                    setSettlementForm(p => ({ ...p, paymentMethodType: m?.methodType || '' }));
+                                                }}
+                                                className="w-full bg-slate-50 border-2 border-transparent focus:border-emerald-400 rounded-xl px-4 py-3 text-sm font-bold text-slate-900 outline-none transition-all"
+                                            >
+                                                {recipientMethods.map(m => (
+                                                    <option key={m.id} value={m.id}>
+                                                        {METHOD_LABELS[m.methodType] || m.methodType}{m.displayName ? ` — ${m.displayName}` : ''}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        )}
                                     </div>
+                                </div>
+
+                                {/* Datos de la cuenta destino (ancho completo) */}
+                                {(() => {
+                                    const m = recipientMethods.find(x => x.id === selectedMethodId);
+                                    if (!m) return null;
+                                    const ba = m.bankAccount;
+                                    const rows: { label: string; value: string }[] = [];
+                                    if (ba?.holderFullName) rows.push({ label: 'Titular', value: `${ba.holderFullName}${ba?.holderDocument ? ` (${ba.holderDocument})` : ''}` });
+                                    if (m.methodType === 'BS_PAGO_MOVIL') {
+                                        if (ba?.bankName) rows.push({ label: 'Banco', value: `${ba.bankName}${ba?.bankCode ? ` (${ba.bankCode})` : ''}` });
+                                        if (ba?.phone) rows.push({ label: 'Teléfono', value: ba.phone });
+                                    } else if (m.methodType === 'BINANCE_PAY') {
+                                        if (m.binancePayId) rows.push({ label: 'Binance Pay ID', value: m.binancePayId });
+                                    } else if (m.methodType === 'CRYPTO_WALLET') {
+                                        if (m.cryptoWalletAddress) rows.push({ label: 'Wallet', value: `${m.cryptoWalletAddress}${m.cryptoNetwork ? ` (${m.cryptoNetwork})` : ''}` });
+                                    } else {
+                                        if (ba?.bankName) rows.push({ label: 'Banco', value: ba.bankName });
+                                        if (ba?.accountNumber) rows.push({ label: 'Cuenta', value: ba.accountNumber });
+                                        if (ba?.swiftCode) rows.push({ label: 'SWIFT', value: ba.swiftCode });
+                                        if (ba?.iban) rows.push({ label: 'IBAN', value: ba.iban });
+                                    }
+                                    if (rows.length === 0) return null;
+                                    return (
+                                        <div className="bg-emerald-50/60 border border-emerald-100 rounded-2xl px-5 py-4">
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600 mb-2">Cuenta destino</p>
+                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-1">
+                                                {rows.map(r => (
+                                                    <p key={r.label} className="text-xs text-slate-600 truncate"><span className="font-black text-slate-700">{r.label}:</span> {r.value}</p>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+
+                                {/* Fila 2: monto y referencia */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
                                         <label className="block text-xs font-black uppercase tracking-widest text-slate-400 mb-1.5">Monto</label>
                                         <div className="relative">
@@ -246,6 +490,23 @@ export default function SettlementsPage() {
                                         <input type="text" value={settlementForm.referenceNumber} onChange={e => setSettlementForm(p => ({ ...p, referenceNumber: e.target.value }))} className="w-full bg-slate-50 border-2 border-transparent focus:border-emerald-400 rounded-xl px-4 py-3 text-sm font-bold text-slate-900 outline-none transition-all" placeholder="Ej: REF-998877" />
                                     </div>
                                 </div>
+
+                                {/* Desglose por modalidad (ancho completo) */}
+                                {winningBid && (
+                                    <div className="bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 text-xs text-slate-500">
+                                        {winningBid.modality === 'SOLO_MEDICO' ? (
+                                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                                <p className="font-black text-slate-600">Modalidad: Solo médico (dupla con clínica)</p>
+                                                <div className="flex gap-6">
+                                                    <p><span className="font-black text-slate-600">Médico:</span> ${Number(winningBid.bidAmount ?? 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })}</p>
+                                                    <p><span className="font-black text-slate-600">Clínica:</span> {dupla?.clinicFee != null ? `$${Number(dupla.clinicFee).toLocaleString('es-VE', { minimumFractionDigits: 2 })}` : 'no disponible'}</p>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <p><span className="font-black text-slate-600">Modalidad: Paquete completo.</span> El médico cobra el total (${Number(winningBid.bidAmount ?? 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })}) y paga a la clínica por su cuenta; no hay liquidación directa a la clínica.</p>
+                                        )}
+                                    </div>
+                                )}
 
                                 <div>
                                     <label className="block text-xs font-black uppercase tracking-widest text-slate-400 mb-1.5">Notas (Opcional)</label>

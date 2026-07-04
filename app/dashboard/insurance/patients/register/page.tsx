@@ -259,7 +259,7 @@ export default function RegisterPatientPage() {
                                                 required
                                             />
                                         </div>
-                                        <div className="grid grid-cols-2 gap-4">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                             <div className="space-y-1">
                                                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Género</label>
                                                 <select
@@ -290,7 +290,7 @@ export default function RegisterPatientPage() {
                                             Identificación & Foto
                                         </h3>
 
-                                        <div className="grid grid-cols-3 gap-3">
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                             <div className="space-y-1">
                                                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tipo</label>
                                                 <select

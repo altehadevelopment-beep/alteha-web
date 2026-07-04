@@ -15,7 +15,16 @@ import {
     Info
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
-import { completeAuction, getWinnerPaymentMethods, getStoredToken, type PaymentMethod } from '@/lib/api';
+import {
+    completeAuction,
+    getWinnerPaymentMethods,
+    getStoredToken,
+    getAuctionAttachments,
+    validateSettlementReceipt,
+    rateAuctionActor,
+    type PaymentMethod
+} from '@/lib/api';
+import { Star, FileText, ExternalLink } from 'lucide-react';
 
 interface WinnerSettlementSectionProps {
     auction: any;
@@ -111,20 +120,37 @@ export const WinnerSettlementSection: React.FC<WinnerSettlementSectionProps> = (
         }
     };
 
+    // Finiquito subido por el médico: en espera de que Alteha registre la liquidación.
     if (auction.status === 'COMPLETED') {
         return (
             <div className="bg-slate-900 rounded-[3rem] p-10 text-white space-y-8 shadow-2xl relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+                <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
                 <div className="text-center space-y-4">
-                    <div className="w-20 h-20 bg-emerald-500/20 text-emerald-500 rounded-full flex items-center justify-center mx-auto shadow-2xl">
-                        <CheckCircle2 className="w-10 h-10" />
+                    <div className="w-20 h-20 bg-amber-500/20 text-amber-400 rounded-full flex items-center justify-center mx-auto shadow-2xl">
+                        <Clock className="w-10 h-10" />
                     </div>
                     <div>
-                        <h3 className="text-2xl font-black">Intervención Finalizada</h3>
-                        <p className="text-slate-400 text-sm font-medium mt-2">La subasta ha sido cerrada y el acta de finiquito ha sido registrada exitosamente.</p>
+                        <h3 className="text-2xl font-black">Finiquito registrado</h3>
+                        <p className="text-slate-300 text-sm font-medium mt-2">
+                            Tu acta de finiquito fue registrada correctamente. Ahora está <strong className="text-white">en espera de que Alteha liquide los fondos</strong> a tu método de cobro. Te notificaremos cuando el pago sea liberado.
+                        </p>
                     </div>
                 </div>
             </div>
+        );
+    }
+
+    // Alteha ya registró la liquidación (PENDING_SETTLEMENT) o el proceso terminó (SETTLED):
+    // el ganador ve el comprobante, confirma la recepción y valora a los actores.
+    if (auction.status === 'PENDING_SETTLEMENT' || auction.status === 'SETTLED') {
+        return (
+            <SettlementFundsPanel
+                auction={auction}
+                role={role}
+                clinicName={dupla?.clinicName || winningBid?.clinic?.name || null}
+                hasClinic={!!(winningBid?.clinic || dupla)}
+                settled={auction.status === 'SETTLED'}
+            />
         );
     }
 
@@ -364,3 +390,220 @@ export const WinnerSettlementSection: React.FC<WinnerSettlementSectionProps> = (
         </div>
     );
 };
+
+// ===== Panel post-liquidación: comprobante + confirmación de recepción + valoraciones =====
+
+// Clave local para recordar (por navegador) qué actores ya valoró el ganador en cada subasta
+export const ratedStorageKey = (auctionNumber: string, targetRole: string) => `alteha_rated_${auctionNumber}_${targetRole}`;
+
+export function StarPicker({ value, onChange, disabled }: { value: number; onChange: (v: number) => void; disabled?: boolean }) {
+    return (
+        <div className="flex gap-1">
+            {[1, 2, 3, 4, 5].map(n => (
+                <button
+                    key={n}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => onChange(n)}
+                    className={`transition-transform ${disabled ? 'cursor-default' : 'hover:scale-110'}`}
+                >
+                    <Star className={`w-7 h-7 ${n <= value ? 'text-amber-400 fill-amber-400' : 'text-slate-600'}`} />
+                </button>
+            ))}
+        </div>
+    );
+}
+
+export function ActorRatingCard({ auctionNumber, targetRole, label, sublabel, onSaved }: {
+    auctionNumber: string;
+    targetRole: 'INSURANCE' | 'ALTEHA' | 'CLINIC';
+    label: string;
+    sublabel?: string | null;
+    onSaved?: () => void;
+}) {
+    const [rating, setRating] = useState(0);
+    const [comment, setComment] = useState('');
+    const [saving, setSaving] = useState(false);
+    const [saved, setSaved] = useState(() => typeof window !== 'undefined' && !!localStorage.getItem(ratedStorageKey(auctionNumber, targetRole)));
+    const [error, setError] = useState<string | null>(null);
+
+    const save = async () => {
+        if (rating === 0) return;
+        setSaving(true);
+        setError(null);
+        try {
+            const res = await rateAuctionActor(auctionNumber, { targetRole, rating, comment });
+            if (res.code === '00') {
+                setSaved(true);
+                try { localStorage.setItem(ratedStorageKey(auctionNumber, targetRole), String(Date.now())); } catch { /* ignore */ }
+                onSaved?.();
+            } else setError(res.message || 'Error al guardar la valoración');
+        } catch {
+            setError('Error de conexión');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-5 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+                <div>
+                    <p className="text-sm font-black text-white">{label}</p>
+                    {sublabel && <p className="text-[11px] text-slate-400 font-medium">{sublabel}</p>}
+                </div>
+                {saved && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-emerald-400">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Guardada
+                    </span>
+                )}
+            </div>
+            <StarPicker value={rating} onChange={v => { setRating(v); setSaved(false); }} disabled={saving} />
+            <textarea
+                value={comment}
+                onChange={e => { setComment(e.target.value); setSaved(false); }}
+                rows={2}
+                disabled={saving}
+                placeholder="Comentario (opcional)..."
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-slate-500 outline-none focus:border-alteha-turquoise/50 resize-none"
+            />
+            {error && <p className="text-xs font-bold text-red-400">{error}</p>}
+            <Button
+                onClick={save}
+                disabled={saving || rating === 0 || saved}
+                className="bg-alteha-turquoise text-slate-900 border-none px-6 py-2 text-sm disabled:opacity-40"
+            >
+                {saving ? <span className="flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Guardando...</span> : saved ? 'Valoración guardada' : 'Guardar valoración'}
+            </Button>
+        </div>
+    );
+}
+
+function SettlementFundsPanel({ auction, role, clinicName, hasClinic, settled }: {
+    auction: any;
+    role: 'DOCTOR' | 'CLINIC';
+    clinicName: string | null;
+    hasClinic: boolean;
+    settled: boolean;
+}) {
+    const [proofs, setProofs] = useState<any[]>([]);
+    const [isConfirming, setIsConfirming] = useState(false);
+    const [confirmError, setConfirmError] = useState<string | null>(null);
+
+    // Comprobante(s) de liquidación subidos por Alteha al registrar el pago
+    useEffect(() => {
+        let active = true;
+        getAuctionAttachments(auction.auctionNumber, role)
+            .then((res: any) => {
+                if (!active) return;
+                const list: any[] = Array.isArray(res) ? res : (res?.data ?? res?.content ?? []);
+                setProofs(list.filter(a => (a.description || '').startsWith('Comprobante de Liquidación')));
+            })
+            .catch(() => { /* sin comprobantes visibles */ });
+        return () => { active = false; };
+    }, [auction.auctionNumber, role]);
+
+    const confirmReceipt = async () => {
+        setIsConfirming(true);
+        setConfirmError(null);
+        try {
+            const res = await validateSettlementReceipt({ auctionNumber: auction.auctionNumber, isReceived: true, notes: '' });
+            if (res.code === '00') window.location.reload();
+            else setConfirmError(res.message || 'Error al confirmar la recepción');
+        } catch {
+            setConfirmError('Error de conexión');
+        } finally {
+            setIsConfirming(false);
+        }
+    };
+
+    return (
+        <div className="bg-slate-900 rounded-[3rem] p-8 md:p-10 text-white space-y-8 shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+
+            {/* Estado */}
+            <div className="text-center space-y-4 relative z-10">
+                <div className="w-20 h-20 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto shadow-2xl">
+                    <CheckCircle2 className="w-10 h-10" />
+                </div>
+                <div>
+                    <h3 className="text-2xl font-black">{settled ? 'Liquidación completada' : '¡Tus fondos fueron liquidados!'}</h3>
+                    <p className="text-slate-300 text-sm font-medium mt-2 max-w-lg mx-auto">
+                        {settled
+                            ? 'Confirmaste la recepción de los fondos. El proceso de esta subasta está finalizado.'
+                            : 'Alteha registró el pago de tu liquidación a tu método de cobro. Revisa el comprobante y confirma la recepción de los fondos.'}
+                    </p>
+                </div>
+            </div>
+
+            {/* Comprobante(s) */}
+            {proofs.length > 0 && (
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-5 space-y-2 relative z-10">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Comprobante de pago</p>
+                    {proofs.map(p => (
+                        <a
+                            key={p.id}
+                            href={p.fileUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center justify-between gap-3 bg-white/5 hover:bg-white/10 rounded-xl px-4 py-3 transition-colors group"
+                        >
+                            <span className="flex items-center gap-3 text-sm font-bold text-white truncate">
+                                <FileText className="w-4 h-4 text-alteha-turquoise shrink-0" />
+                                <span className="truncate">{p.fileName || 'Comprobante'}</span>
+                            </span>
+                            <ExternalLink className="w-4 h-4 text-slate-400 group-hover:text-white shrink-0" />
+                        </a>
+                    ))}
+                </div>
+            )}
+
+            {/* Confirmar recepción */}
+            {!settled && (
+                <div className="text-center space-y-2 relative z-10">
+                    <Button
+                        onClick={confirmReceipt}
+                        disabled={isConfirming}
+                        className="bg-emerald-500 hover:bg-emerald-600 text-white border-none px-10 py-4 mx-auto"
+                    >
+                        {isConfirming
+                            ? <span className="flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Confirmando...</span>
+                            : <span className="flex items-center gap-2"><ShieldCheck className="w-4 h-4" /> Confirmar recepción de fondos</span>}
+                    </Button>
+                    {confirmError && <p className="text-xs font-bold text-red-400">{confirmError}</p>}
+                    <p className="text-[11px] text-slate-500">Al confirmar, la subasta quedará cerrada como liquidada.</p>
+                </div>
+            )}
+
+            {/* Valoraciones de los actores */}
+            <div className="space-y-4 relative z-10">
+                <div className="text-center">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-alteha-turquoise">Valora tu experiencia</p>
+                    <p className="text-slate-400 text-xs font-medium mt-1">Tu valoración ayuda a mejorar la calidad de la red. Puedes valorar a cada actor de esta subasta.</p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <ActorRatingCard
+                        auctionNumber={auction.auctionNumber}
+                        targetRole="INSURANCE"
+                        label="Compañía de Seguros"
+                        sublabel={auction.insuranceCompany?.name || null}
+                    />
+                    <ActorRatingCard
+                        auctionNumber={auction.auctionNumber}
+                        targetRole="ALTEHA"
+                        label="Alteha"
+                        sublabel="Plataforma y gestión de pagos"
+                    />
+                    {role === 'DOCTOR' && hasClinic && (
+                        <ActorRatingCard
+                            auctionNumber={auction.auctionNumber}
+                            targetRole="CLINIC"
+                            label="Clínica"
+                            sublabel={clinicName}
+                        />
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}

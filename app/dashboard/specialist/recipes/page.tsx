@@ -5,12 +5,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import {
     FileText, Plus, Printer, Trash2, Save, ChevronDown,
     ChevronUp, User, Calendar, Pill, ClipboardList, ArrowLeft,
-    Download, Eye, X, Search, AlignLeft, Hash, Clock, PenLine, Loader2, Check
+    Download, Eye, X, Search, AlignLeft, Hash, Clock, PenLine, Loader2, Check,
+    Stamp, Settings2, Wrench
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { getMyPrescriptions, createPrescription, updatePrescription, deletePrescription, uploadDoctorSignature, getDoctorSignature } from '@/lib/api';
+import { getMyPrescriptions, createPrescription, updatePrescription, deletePrescription, uploadDoctorSignature, getDoctorSignature, getDoctorSeal, setDoctorSeal } from '@/lib/api';
+import { SEAL_PRESETS, buildSealHTML } from '@/components/recipes/seals';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface MedicationLine {
@@ -91,21 +93,24 @@ function toBackendPayload(r: Recipe) {
 const isPersisted = (id: string) => !!id && !id.startsWith('new-');
 
 // ─── Print Styles (injected into a new window) ───────────────────────────────
-function buildPrintHTML(recipe: Recipe, doctor: any, format: PrintFormat, signatureUrl?: string | null) {
+function buildPrintHTML(recipe: Recipe, doctor: any, format: PrintFormat, signatureUrl?: string | null, sealStyleId?: string | null) {
     const specs = doctor?.specialties?.map((s: any) => s.name).filter(Boolean).join(', ') || 'Especialista Médico';
     const license = doctor?.medicalLicenseNumber || '';
     const phone = doctor?.phone || doctor?.mobilePhone || '';
     const email = doctor?.email || '';
     const name = `Dr. ${doctor?.firstName || ''} ${doctor?.lastName || ''}`.trim();
     const isMediaCarta = format === 'MEDIA_CARTA';
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const sealHTML = buildSealHTML(sealStyleId, name, license, specs, isMediaCarta ? 88 : 104);
 
     const pageStyle = isMediaCarta
         ? 'width:140mm; min-height:215mm; padding:14mm 14mm 12mm;'
         : 'width:215mm; min-height:279mm; padding:20mm 20mm 16mm;';
 
-    const headerFontSize = isMediaCarta ? '11pt' : '13pt';
     const bodyFontSize = isMediaCarta ? '9pt' : '10.5pt';
     const titleFontSize = isMediaCarta ? '15pt' : '18pt';
+    // Especialidades en tamaño reducido para un membrete más estético
+    const specFontSize = isMediaCarta ? '7.5pt' : '8.5pt';
 
     return `<!DOCTYPE html>
 <html lang="es">
@@ -113,9 +118,17 @@ function buildPrintHTML(recipe: Recipe, doctor: any, format: PrintFormat, signat
   <meta charset="UTF-8"/>
   <title>Recipe — ${recipe.patientName}</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     body { font-family: 'Georgia', serif; background: white; }
     .page { ${pageStyle} margin: 0 auto; position: relative; }
+
+    /* ── Marca de agua (logo Alteha) ── */
+    .watermark {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      z-index: 0; pointer-events: none;
+    }
+    .watermark img { width: 62%; max-width: 420px; opacity: 0.05; }
+    .page > *:not(.watermark) { position: relative; z-index: 1; }
 
     /* ── Membrete ── */
     .header {
@@ -124,8 +137,8 @@ function buildPrintHTML(recipe: Recipe, doctor: any, format: PrintFormat, signat
     }
     .header-left { flex: 1; }
     .doctor-name { font-size: ${titleFontSize}; font-weight: 900; color: #0f172a; letter-spacing: -0.5px; }
-    .specialty { font-size: ${headerFontSize}; color: #0d9488; font-weight: 700; margin-top: 2px; }
-    .license { font-size: 8.5pt; color: #64748b; margin-top: 4px; }
+    .specialty { font-size: ${specFontSize}; color: #0d9488; font-weight: 600; margin-top: 3px; line-height: 1.5; max-width: 95%; }
+    .license { font-size: 8pt; color: #64748b; margin-top: 3px; }
     .header-right { text-align: right; font-size: 8pt; color: #64748b; line-height: 1.6; }
     .alteha-badge {
       display: inline-block; background: #0d9488; color: white;
@@ -175,12 +188,23 @@ function buildPrintHTML(recipe: Recipe, doctor: any, format: PrintFormat, signat
       margin-bottom: 14px; min-height: 30px;
     }
 
-    /* ── Footer firma ── */
-    .footer {
-      margin-top: 30px; display: flex; justify-content: flex-end;
+    /* ── Footer: firma superpuesta sobre el sello (como documento real) ── */
+    .footer { margin-top: 30px; display: flex; justify-content: flex-end; }
+    .signature { text-align: center; min-width: 200px; }
+    .sig-stack {
+      position: relative; height: ${isMediaCarta ? 100 : 118}px;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: -4px;
     }
-    .signature { text-align: center; min-width: 160px; }
-    .sig-line { border-top: 1.5px solid #94a3b8; padding-top: 6px; margin-top: 40px; }
+    .sig-stack .seal-wrap {
+      position: absolute; inset: 0; display: flex;
+      align-items: center; justify-content: center; z-index: 0;
+    }
+    .sig-stack .rubrica {
+      position: relative; z-index: 1;
+      max-height: ${isMediaCarta ? 56 : 66}px; max-width: 190px; object-fit: contain;
+    }
+    .sig-line { border-top: 1.5px solid #94a3b8; padding-top: 6px; margin-top: ${sealHTML || signatureUrl ? '8px' : '40px'}; }
     .sig-name { font-size: 8.5pt; font-weight: 700; color: #0f172a; }
     .sig-spec { font-size: 7.5pt; color: #64748b; }
 
@@ -200,6 +224,9 @@ function buildPrintHTML(recipe: Recipe, doctor: any, format: PrintFormat, signat
 </head>
 <body>
 <div class="page">
+
+  <!-- Marca de agua Alteha -->
+  ${origin ? `<div class="watermark"><img src="${origin}/logoalteha.svg" alt="" /></div>` : ''}
 
   <!-- Membrete -->
   <div class="header">
@@ -255,10 +282,14 @@ function buildPrintHTML(recipe: Recipe, doctor: any, format: PrintFormat, signat
   <div class="indications-box">${recipe.followUp}</div>
   ` : ''}
 
-  <!-- Firma -->
+  <!-- Firma superpuesta sobre el sello -->
   <div class="footer">
     <div class="signature">
-      ${signatureUrl ? `<img src="${signatureUrl}" alt="firma" style="max-height:58px;max-width:180px;object-fit:contain;display:block;margin:0 auto -8px;" />` : ''}
+      ${sealHTML || signatureUrl ? `
+      <div class="sig-stack">
+        ${sealHTML ? `<div class="seal-wrap">${sealHTML}</div>` : ''}
+        ${signatureUrl ? `<img class="rubrica" src="${signatureUrl}" alt="firma" />` : ''}
+      </div>` : ''}
       <div class="sig-line">
         <div class="sig-name">${name}</div>
         <div class="sig-spec">${specs}</div>
@@ -279,11 +310,42 @@ function buildPrintHTML(recipe: Recipe, doctor: any, format: PrintFormat, signat
 </html>`;
 }
 
-// ─── Signature capture modal (draw the rúbrica on a canvas) ────────────────────
-function SignatureModal({ onClose, onSaved }: { onClose: () => void; onSaved: (url: string) => void }) {
+// ─── Configuración del Recetario: firma (canvas) + sello (10 presets) ─────────
+function RecetarioConfigModal({ onClose, onSignatureSaved, onSealSaved, signatureUrl, currentSeal, doctor }: {
+    onClose: () => void;
+    onSignatureSaved: (url: string) => void;
+    onSealSaved: (sealId: string) => void;
+    signatureUrl: string | null;
+    currentSeal: string | null;
+    doctor: any;
+}) {
+    const [tab, setTab] = useState<'firma' | 'sello'>('firma');
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const drawing = useRef(false);
     const [saving, setSaving] = useState(false);
+    const [selectedSeal, setSelectedSeal] = useState<string | null>(currentSeal);
+    const [savingSeal, setSavingSeal] = useState(false);
+    const [sealFlash, setSealFlash] = useState(false);
+
+    const doctorName = `Dr. ${doctor?.firstName || ''} ${doctor?.lastName || ''}`.trim();
+    const license = doctor?.medicalLicenseNumber || '';
+    const specialty = doctor?.specialties?.map((s: any) => s.name).filter(Boolean).join(', ') || 'Médico';
+
+    const saveSeal = async () => {
+        if (!selectedSeal) return;
+        setSavingSeal(true);
+        try {
+            const res = await setDoctorSeal(selectedSeal);
+            if (res?.sealStyle) {
+                onSealSaved(res.sealStyle);
+                setSealFlash(true);
+                setTimeout(() => setSealFlash(false), 2000);
+            } else {
+                alert(res?.message || 'No se pudo guardar el sello.');
+            }
+        } catch { alert('No se pudo guardar el sello.'); }
+        finally { setSavingSeal(false); }
+    };
 
     const point = (e: any) => {
         const canvas = canvasRef.current!;
@@ -312,7 +374,7 @@ function SignatureModal({ onClose, onSaved }: { onClose: () => void; onSaved: (u
             if (!blob) { setSaving(false); return; }
             try {
                 const res = await uploadDoctorSignature(blob);
-                if (res?.digitalSignatureUrl) { onSaved(res.digitalSignatureUrl); onClose(); }
+                if (res?.digitalSignatureUrl) { onSignatureSaved(res.digitalSignatureUrl); }
                 else { alert(res?.message || 'No se pudo guardar la firma.'); }
             } catch { alert('No se pudo guardar la firma.'); }
             finally { setSaving(false); }
@@ -321,27 +383,90 @@ function SignatureModal({ onClose, onSaved }: { onClose: () => void; onSaved: (u
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" onClick={onClose}>
-            <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-lg p-6 space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-2xl p-6 space-y-4 max-h-[92vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
                 <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-black text-slate-900 flex items-center gap-2"><PenLine className="w-5 h-5 text-alteha-turquoise" /> Tu firma / rúbrica</h3>
+                    <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                        <Settings2 className="w-5 h-5 text-alteha-turquoise" /> Configuración del Recetario
+                    </h3>
                     <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400"><X className="w-5 h-5" /></button>
                 </div>
-                <p className="text-xs text-slate-500 font-medium">Dibujá tu firma con el mouse (o el dedo en móvil). Se guarda en tu perfil y aparece en tus recetas impresas.</p>
-                <canvas
-                    ref={canvasRef}
-                    width={500}
-                    height={180}
-                    className="w-full h-44 bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl touch-none cursor-crosshair"
-                    onMouseDown={start} onMouseMove={move} onMouseUp={end} onMouseLeave={end}
-                    onTouchStart={start} onTouchMove={move} onTouchEnd={end}
-                />
-                <div className="flex gap-3">
-                    <Button onClick={clear} variant="outline" className="flex-1 rounded-xl border-slate-200 text-slate-600 font-bold">Limpiar</Button>
-                    <Button onClick={save} disabled={saving} className="flex-[2] bg-alteha-turquoise text-slate-900 rounded-xl font-black disabled:opacity-60 flex items-center justify-center gap-2">
-                        {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                        {saving ? 'Guardando…' : 'Guardar firma'}
-                    </Button>
+
+                {/* Tabs */}
+                <div className="flex gap-2 bg-slate-50 p-1.5 rounded-2xl w-fit">
+                    <button
+                        onClick={() => setTab('firma')}
+                        className={`px-5 py-2 rounded-xl text-sm font-black flex items-center gap-2 transition-all ${tab === 'firma' ? 'bg-white shadow text-slate-900' : 'text-slate-400 hover:text-slate-600'}`}
+                    >
+                        <PenLine className="w-4 h-4" /> Firma {signatureUrl && <Check className="w-3.5 h-3.5 text-emerald-500" />}
+                    </button>
+                    <button
+                        onClick={() => setTab('sello')}
+                        className={`px-5 py-2 rounded-xl text-sm font-black flex items-center gap-2 transition-all ${tab === 'sello' ? 'bg-white shadow text-slate-900' : 'text-slate-400 hover:text-slate-600'}`}
+                    >
+                        <Stamp className="w-4 h-4" /> Sello {currentSeal && <Check className="w-3.5 h-3.5 text-emerald-500" />}
+                    </button>
                 </div>
+
+                {tab === 'firma' ? (
+                    <>
+                        <p className="text-xs text-slate-500 font-medium">Dibuja tu firma con el mouse (o el dedo en móvil). Queda guardada para <strong>todos tus recipes</strong>.</p>
+                        {signatureUrl && (
+                            <div className="bg-slate-50 border border-slate-100 rounded-2xl p-3 flex items-center gap-3">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Firma actual:</span>
+                                <img src={signatureUrl} alt="firma actual" className="h-10 object-contain" />
+                            </div>
+                        )}
+                        <canvas
+                            ref={canvasRef}
+                            width={500}
+                            height={180}
+                            className="w-full h-44 bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl touch-none cursor-crosshair"
+                            onMouseDown={start} onMouseMove={move} onMouseUp={end} onMouseLeave={end}
+                            onTouchStart={start} onTouchMove={move} onTouchEnd={end}
+                        />
+                        <div className="flex gap-3">
+                            <Button onClick={clear} variant="outline" className="flex-1 rounded-xl border-slate-200 text-slate-600 font-bold">Limpiar</Button>
+                            <Button onClick={save} disabled={saving} className="flex-[2] bg-alteha-turquoise text-slate-900 rounded-xl font-black disabled:opacity-60 flex items-center justify-center gap-2">
+                                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                                {saving ? 'Guardando…' : 'Guardar firma'}
+                            </Button>
+                        </div>
+                    </>
+                ) : (
+                    <>
+                        <p className="text-xs text-slate-500 font-medium">
+                            Elige el estilo de sello para tus recipes. El sistema lo genera con tu nombre, especialidad y <strong>número de licencia ({license || 'sin registrar'})</strong>.
+                        </p>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[46vh] overflow-y-auto pr-1">
+                            {SEAL_PRESETS.map(preset => (
+                                <button
+                                    key={preset.id}
+                                    onClick={() => setSelectedSeal(preset.id)}
+                                    className={`relative p-3 rounded-2xl border-2 bg-white flex flex-col items-center gap-2 transition-all hover:shadow-md ${selectedSeal === preset.id ? 'border-alteha-turquoise bg-alteha-turquoise/5' : 'border-slate-100'}`}
+                                >
+                                    {selectedSeal === preset.id && (
+                                        <span className="absolute top-2 right-2 w-5 h-5 bg-alteha-turquoise text-slate-900 rounded-full flex items-center justify-center">
+                                            <Check className="w-3 h-3" />
+                                        </span>
+                                    )}
+                                    <div
+                                        className="h-[92px] flex items-center justify-center scale-90"
+                                        dangerouslySetInnerHTML={{ __html: buildSealHTML(preset.id, doctorName, license, specialty, 88) }}
+                                    />
+                                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">{preset.name}</span>
+                                </button>
+                            ))}
+                        </div>
+                        <Button
+                            onClick={saveSeal}
+                            disabled={savingSeal || !selectedSeal || selectedSeal === currentSeal}
+                            className="w-full bg-alteha-turquoise text-slate-900 rounded-xl font-black disabled:opacity-40 flex items-center justify-center gap-2 py-3"
+                        >
+                            {savingSeal ? <Loader2 className="w-4 h-4 animate-spin" /> : sealFlash ? <Check className="w-4 h-4" /> : <Stamp className="w-4 h-4" />}
+                            {savingSeal ? 'Guardando…' : sealFlash ? 'Sello guardado' : selectedSeal === currentSeal && currentSeal ? 'Sello en uso' : 'Usar este sello'}
+                        </Button>
+                    </>
+                )}
             </div>
         </div>
     );
@@ -360,6 +485,7 @@ export default function RecipesPage() {
     const [isSaving, setIsSaving] = useState(false);
     const [savedFlash, setSavedFlash] = useState(false);
     const [signatureUrl, setSignatureUrl] = useState<string | null>(null);
+    const [sealStyle, setSealStyle] = useState<string | null>(null);
     const [sigOpen, setSigOpen] = useState(false);
 
     useEffect(() => {
@@ -371,6 +497,7 @@ export default function RecipesPage() {
             finally { setIsLoading(false); }
         })();
         getDoctorSignature().then(setSignatureUrl).catch(() => {});
+        getDoctorSeal().then(setSealStyle).catch(() => {});
     }, []);
 
     const active = recipes.find(r => r.id === activeId) ?? null;
@@ -435,9 +562,25 @@ export default function RecipesPage() {
     };
 
     // ── Print ──
-    const handlePrint = () => {
+    const handlePrint = async () => {
         if (!active) return;
-        const html = buildPrintHTML(active, userProfile, printFormat, signatureUrl);
+        // Autoguardar antes de imprimir para que el recipe quede siempre en el historial
+        let rec = active;
+        if (active.patientName.trim()) {
+            try {
+                const payload = toBackendPayload(active);
+                const res = isPersisted(active.id)
+                    ? await updatePrescription(active.id, payload)
+                    : await createPrescription(payload);
+                if (res?.id) {
+                    const saved = mapFromBackend(res);
+                    setRecipes(prev => prev.map(r => r.id === active.id ? saved : r));
+                    setActiveId(saved.id);
+                    rec = saved;
+                }
+            } catch { /* si falla el guardado, se imprime igual */ }
+        }
+        const html = buildPrintHTML(rec, userProfile, printFormat, signatureUrl, sealStyle);
         const win = window.open('', '_blank', 'width=900,height=700');
         if (!win) return;
         win.document.write(html);
@@ -452,7 +595,7 @@ export default function RecipesPage() {
         setPreviewOpen(true);
         setTimeout(() => {
             if (iframeRef.current) {
-                const html = buildPrintHTML(active, userProfile, printFormat, signatureUrl);
+                const html = buildPrintHTML(active, userProfile, printFormat, signatureUrl, sealStyle);
                 const doc = iframeRef.current.contentDocument;
                 if (doc) { doc.open(); doc.write(html); doc.close(); }
             }
@@ -467,14 +610,24 @@ export default function RecipesPage() {
     const specs = userProfile?.specialties?.map((s: any) => s.name).filter(Boolean).join(', ') || 'Especialista';
 
     return (
-        <div className="flex h-[calc(100vh-2rem)] gap-6 font-outfit">
-            {sigOpen && <SignatureModal onClose={() => setSigOpen(false)} onSaved={setSignatureUrl} />}
+        <div className="flex flex-col lg:flex-row lg:h-[calc(100vh-2rem)] gap-6 font-outfit">
+            {sigOpen && (
+                <RecetarioConfigModal
+                    onClose={() => setSigOpen(false)}
+                    onSignatureSaved={setSignatureUrl}
+                    onSealSaved={setSealStyle}
+                    signatureUrl={signatureUrl}
+                    currentSeal={sealStyle}
+                    doctor={userProfile}
+                />
+            )}
 
             {/* ── Left: list ── */}
-            <aside className="w-72 shrink-0 flex flex-col gap-4">
+            <aside className="w-full lg:w-72 shrink-0 flex flex-col gap-4">
                 <div>
-                    <h1 className="text-2xl font-black text-slate-900 tracking-tight">Recetas Médicas</h1>
-                    <p className="text-sm text-slate-400 font-medium">Redacta, guarda e imprime</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-alteha-turquoise flex items-center gap-1.5"><Wrench className="w-3 h-3" /> Utilitarios</p>
+                    <h1 className="text-2xl font-black text-slate-900 tracking-tight">Recetario</h1>
+                    <p className="text-sm text-slate-400 font-medium">Redacta, guarda e imprime · historial incluido</p>
                 </div>
 
                 <Button
@@ -494,7 +647,7 @@ export default function RecipesPage() {
                     />
                 </div>
 
-                <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+                <div className="max-h-56 lg:max-h-none lg:flex-1 overflow-y-auto space-y-2 pr-1">
                     {filtered.length === 0 && (
                         <div className="text-center py-10 text-slate-400 text-sm font-medium">
                             <FileText className="w-10 h-10 mx-auto mb-3 opacity-30" />
@@ -555,51 +708,55 @@ export default function RecipesPage() {
                     <div className="space-y-6 pb-10">
 
                         {/* ── Toolbar ── */}
-                        <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border border-slate-100 rounded-[2rem] p-4 flex flex-wrap items-center justify-between gap-4 shadow-sm">
-                            <div>
-                                <h2 className="font-black text-slate-900 text-lg">
+                        <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border border-slate-100 rounded-[2rem] p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3 shadow-sm">
+                            <div className="min-w-0 lg:flex-1">
+                                <h2 className="font-black text-slate-900 text-lg truncate">
                                     {active.patientName || 'Nueva Receta'}
                                 </h2>
-                                <p className="text-xs text-slate-400 font-medium">{specs}</p>
+                                <p className="text-xs text-slate-400 font-medium truncate" title={specs}>{specs}</p>
                             </div>
-                            <div className="flex items-center gap-3">
-                                {/* Format selector */}
-                                <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
-                                    <Printer className="w-4 h-4 text-slate-400" />
+                            <div className="flex flex-wrap items-center gap-2 lg:shrink-0">
+                                {/* Formato de impresión */}
+                                <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2" title="Formato de impresión">
+                                    <FileText className="w-4 h-4 text-slate-400 shrink-0" />
                                     <select
                                         value={printFormat}
                                         onChange={e => setPrintFormat(e.target.value as PrintFormat)}
                                         className="bg-transparent text-sm font-bold text-slate-700 outline-none cursor-pointer"
                                     >
-                                        <option value="CARTA">Hoja Carta (Letter)</option>
-                                        <option value="MEDIA_CARTA">Media Carta</option>
+                                        <option value="CARTA">Carta</option>
+                                        <option value="MEDIA_CARTA">Media carta</option>
                                     </select>
                                 </div>
                                 <Button
                                     onClick={saveActive}
                                     disabled={isSaving}
-                                    className="flex items-center gap-2 bg-alteha-turquoise text-slate-900 rounded-xl font-black px-5 py-2 disabled:opacity-60"
+                                    className="flex items-center gap-2 whitespace-nowrap bg-alteha-turquoise text-slate-900 rounded-xl font-black px-4 py-2 disabled:opacity-60"
                                 >
                                     {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : savedFlash ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
                                     {isSaving ? 'Guardando…' : savedFlash ? 'Guardado' : 'Guardar'}
                                 </Button>
+                                {/* Acciones secundarias: solo icono, con tooltip */}
                                 <Button
                                     onClick={() => setSigOpen(true)}
                                     variant="outline"
-                                    className="flex items-center gap-2 rounded-xl border-slate-200 text-slate-600 font-bold px-4 py-2"
+                                    title={signatureUrl && sealStyle ? 'Firma y sello' : 'Configurar firma y sello'}
+                                    className="relative rounded-xl border-slate-200 text-slate-600 font-bold px-3 py-2"
                                 >
-                                    <PenLine className="w-4 h-4" /> {signatureUrl ? 'Mi firma' : 'Agregar firma'}
+                                    <Settings2 className="w-4 h-4" />
+                                    {!(signatureUrl && sealStyle) && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-amber-400 rounded-full" />}
                                 </Button>
                                 <Button
                                     onClick={handlePreview}
                                     variant="outline"
-                                    className="flex items-center gap-2 rounded-xl border-slate-200 text-slate-600 font-bold px-4 py-2"
+                                    title="Vista previa"
+                                    className="rounded-xl border-slate-200 text-slate-600 font-bold px-3 py-2"
                                 >
-                                    <Eye className="w-4 h-4" /> Vista previa
+                                    <Eye className="w-4 h-4" />
                                 </Button>
                                 <Button
                                     onClick={handlePrint}
-                                    className="flex items-center gap-2 bg-slate-900 text-white rounded-xl font-bold px-5 py-2 hover:bg-alteha-turquoise hover:text-slate-900 transition-all"
+                                    className="flex items-center gap-2 whitespace-nowrap bg-slate-900 text-white rounded-xl font-bold px-4 py-2 hover:bg-alteha-turquoise hover:text-slate-900 transition-all"
                                 >
                                     <Printer className="w-4 h-4" /> Imprimir
                                 </Button>
@@ -799,7 +956,7 @@ export default function RecipesPage() {
                                             // Re-render iframe
                                             setTimeout(() => {
                                                 if (iframeRef.current && active) {
-                                                    const html = buildPrintHTML(active, userProfile, e.target.value as PrintFormat);
+                                                    const html = buildPrintHTML(active, userProfile, e.target.value as PrintFormat, signatureUrl, sealStyle);
                                                     const doc = iframeRef.current.contentDocument;
                                                     if (doc) { doc.open(); doc.write(html); doc.close(); }
                                                 }
