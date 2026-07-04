@@ -40,6 +40,36 @@ export const WinnerSettlementSection: React.FC<WinnerSettlementSectionProps> = (
     const [methodsError, setMethodsError] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [isSuccess, setIsSuccess] = useState(false);
+    const [winningBid, setWinningBid] = useState<any>(null);
+    const [dupla, setDupla] = useState<any>(null);
+
+    // Load the winning bid (modality + amount) and, for SOLO_MEDICO, the clinic's separate fee (dupla).
+    useEffect(() => {
+        let active = true;
+        (async () => {
+            try {
+                let wb: any = (auction as any).awardedBid || (auction as any).winningBid || null;
+                if ((!wb || wb.modality == null || wb.bidAmount == null) && auction.id) {
+                    const { getAuctionBids } = await import('@/lib/api');
+                    const res = await getAuctionBids(auction.id);
+                    const bids: any[] = Array.isArray(res) ? res : ((res as any)?.content ?? (res as any)?.data ?? []);
+                    const awardedId = (auction as any).awardedBid?.id ?? null;
+                    wb = bids.find((b: any) => awardedId ? b.id === awardedId : (b.isWinning || b.status === 'WINNING' || b.status === 'AWARDED' || b.status === 'ACCEPTED')) || wb || bids[0] || null;
+                }
+                if (!active) return;
+                setWinningBid(wb || null);
+                if (wb && wb.modality === 'SOLO_MEDICO' && auction.id) {
+                    try {
+                        const { getAuctionDuplas } = await import('@/lib/api');
+                        const duplas = await getAuctionDuplas(auction.id);
+                        const d = (duplas || []).find((x: any) => String(x.bidId) === String(wb.id)) || (duplas || [])[0] || null;
+                        if (active) setDupla(d);
+                    } catch { /* ignore */ }
+                }
+            } catch { /* ignore */ }
+        })();
+        return () => { active = false; };
+    }, [auction.id, auction.auctionNumber]);
 
     useEffect(() => {
         const loadMethods = async () => {
@@ -98,8 +128,72 @@ export const WinnerSettlementSection: React.FC<WinnerSettlementSectionProps> = (
         );
     }
 
+    const wbAmount = Number(winningBid?.bidAmount ?? 0);
+    const wbModality = winningBid?.modality;
+    const clinicSep = dupla?.clinicFee != null ? Number(dupla.clinicFee) : null;
+    const clinicNm = dupla?.clinicName || winningBid?.clinic?.name || 'la clínica';
+    const fmtMoney = (n: number) => `$${n.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="space-y-8">
+            {/* Cuánto te corresponde cobrar — transparencia por modalidad */}
+            {winningBid && (
+                <div className="bg-slate-900 rounded-[3rem] p-8 md:p-10 text-white relative overflow-hidden shadow-2xl">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-alteha-turquoise/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+                    <div className="relative z-10 space-y-5">
+                        <div className="inline-flex items-center gap-2 px-3 py-1 bg-alteha-turquoise/10 text-alteha-turquoise rounded-full text-[10px] font-black uppercase tracking-widest">
+                            <DollarSign className="w-3 h-3" /> Cuánto te corresponde cobrar
+                        </div>
+                        {role === 'DOCTOR' ? (
+                            <>
+                                <div>
+                                    <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-1">
+                                        {wbModality === 'PAQUETE_COMPLETO' ? 'Cobrás el monto total de la subasta' : 'Cobrás tus honorarios médicos'}
+                                    </p>
+                                    <p className="text-5xl font-black tracking-tight">{fmtMoney(wbAmount)}</p>
+                                </div>
+                                {wbModality === 'SOLO_MEDICO' ? (
+                                    <div className="bg-white/5 border border-white/10 rounded-2xl p-5 space-y-2">
+                                        <p className="text-sm font-bold text-white flex items-center gap-2"><Building2 className="w-4 h-4 text-alteha-turquoise" /> Modalidad: Solo médico (dupla con clínica)</p>
+                                        <p className="text-sm text-slate-300 font-medium leading-relaxed">
+                                            Este monto corresponde <strong className="text-white">solo a tus honorarios médicos</strong>. {clinicNm}{clinicSep != null ? <> cobra su parte (<strong className="text-white">{fmtMoney(clinicSep)}</strong>)</> : ' cobra su parte'} <strong className="text-white">por separado</strong>, directamente del seguro.
+                                        </p>
+                                        {clinicSep != null && (
+                                            <p className="text-[11px] text-slate-400 pt-2 border-t border-white/10">
+                                                Monto total de la subasta {fmtMoney(wbAmount + clinicSep)} = tus honorarios {fmtMoney(wbAmount)} + clínica {fmtMoney(clinicSep)}
+                                            </p>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
+                                        <p className="text-sm font-bold text-white flex items-center gap-2 mb-1"><ShieldCheck className="w-4 h-4 text-alteha-turquoise" /> Modalidad: Paquete completo</p>
+                                        <p className="text-sm text-slate-300 font-medium leading-relaxed">
+                                            Cobrás el <strong className="text-white">monto total</strong> de la subasta. Vos te encargás de <strong className="text-white">pagarle a la clínica</strong> su parte por la intervención.
+                                        </p>
+                                    </div>
+                                )}
+                            </>
+                        ) : (
+                            <>
+                                <div>
+                                    <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-1">
+                                        {wbModality === 'SOLO_MEDICO' ? 'Cobrás los honorarios de la clínica' : 'Cobro de la clínica'}
+                                    </p>
+                                    <p className="text-5xl font-black tracking-tight">{clinicSep != null ? fmtMoney(clinicSep) : '—'}</p>
+                                </div>
+                                <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
+                                    <p className="text-sm text-slate-300 font-medium leading-relaxed">
+                                        {wbModality === 'SOLO_MEDICO'
+                                            ? <>El médico cobra sus honorarios (<strong className="text-white">{fmtMoney(wbAmount)}</strong>) por separado. Tu clínica cobra su parte directamente del seguro.</>
+                                            : <>Modalidad <strong className="text-white">paquete completo</strong>: el médico cobra el total y te paga tu parte directamente.</>}
+                                    </p>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </div>
+            )}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Payment Methods Section */}
             <div className="bg-white rounded-[3rem] p-10 shadow-xl border border-slate-100 space-y-8">
                 <div className="space-y-2">
@@ -163,9 +257,10 @@ export const WinnerSettlementSection: React.FC<WinnerSettlementSectionProps> = (
                             <Button 
                                 variant="outline" 
                                 onClick={() => {
-                                    const baseUrl = `/dashboard/${role.toLowerCase() === 'doctor' ? 'specialist' : 'clinic'}/payment-methods`;
-                                    const redirectUrl = (auction?.allowedPaymentMethods && auction.allowedPaymentMethods.length > 0)
-                                        ? `${baseUrl}?addMethod=${auction.allowedPaymentMethods[0]}`
+                                    const baseUrl = `/dashboard/${role.toLowerCase() === 'doctor' ? 'specialist' : 'clinic'}/payments`;
+                                    const allowed: string[] = auction?.allowedPaymentMethods || [];
+                                    const redirectUrl = allowed.length > 0
+                                        ? `${baseUrl}?addMethod=${allowed[0]}&required=${allowed.join(',')}`
                                         : baseUrl;
                                     window.location.href = redirectUrl;
                                 }}
@@ -264,6 +359,7 @@ export const WinnerSettlementSection: React.FC<WinnerSettlementSectionProps> = (
                         </div>
                     </div>
                 )}
+            </div>
             </div>
         </div>
     );

@@ -228,8 +228,38 @@ export default function PaymentMethodsManager({ role, onSelect, selectionMode = 
         }
     };
 
+    // Methods this auction requires (passed via ?required=BS_PAGO_MOVIL,BS_BANK_TRANSFER when arriving from a won auction).
+    const requiredMethods = (searchParams.get('required') || '').split(',').map(s => s.trim()).filter(Boolean);
+
     return (
         <div className="w-full max-w-6xl mx-auto space-y-8">
+            {requiredMethods.length > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-[2rem] p-6 flex items-start gap-4 animate-in fade-in slide-in-from-top-2 duration-500">
+                    <div className="w-12 h-12 rounded-2xl bg-amber-100 flex items-center justify-center shrink-0">
+                        <AlertCircle className="w-6 h-6 text-amber-500" />
+                    </div>
+                    <div className="space-y-2 min-w-0">
+                        <p className="font-black text-amber-800">Esta subasta requiere un método de cobro específico</p>
+                        <p className="text-sm text-amber-700 font-medium">Para cobrar esta subasta y luego subir el finiquito, configurá y activá al menos uno de estos métodos:</p>
+                        <div className="flex flex-wrap gap-2 pt-1">
+                            {requiredMethods.map(m => {
+                                const t = METHOD_TYPES.find(x => x.id === m);
+                                const has = methods.some(pm => pm.methodType === m && pm.active);
+                                return (
+                                    <span key={m} className={cn(
+                                        "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black border",
+                                        has ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-white text-amber-700 border-amber-300"
+                                    )}>
+                                        {has ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                                        {t?.name || m}
+                                        {has && <span className="text-[9px] uppercase tracking-widest opacity-70">listo</span>}
+                                    </span>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+            )}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                     <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">

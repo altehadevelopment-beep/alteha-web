@@ -88,6 +88,7 @@ export default function PaymentValidationPage() {
     const [error, setError] = useState<string | null>(null);
     const [selectedAuction, setSelectedAuction] = useState<Auction | null>(null);
     const [attachments, setAttachments] = useState<AuctionAttachment[]>([]);
+    const [paymentOrder, setPaymentOrder] = useState<any>(null);
     const [isLoadingAttachments, setIsLoadingAttachments] = useState(false);
     const [notes, setNotes] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -108,28 +109,58 @@ export default function PaymentValidationPage() {
                     }
                 } catch { /* access denied for attachments */ }
 
-                const currentBid = selectedAuction.awardedBid || selectedAuction.winningBid;
-                let hasWinnerDetails = !!(currentBid && currentBid.bidAmount != null && currentBid.doctor);
+                const { getAuctionDetails, getAuctionBids, getDoctorById, getClinics } = await import('@/lib/api');
 
-                const { getAuctionDetails, getAuctionBids } = await import('@/lib/api');
+                // 1. Full auction details. Backend returns the AuctionDTO directly (NO {code,data} wrapper).
+                let winnerBid: any = selectedAuction.awardedBid || selectedAuction.winningBid;
+                let fullData: any = null;
                 try {
-                    const detailsResult = await getAuctionDetails(selectedAuction.auctionNumber, 'ADMIN');
-                    if (detailsResult.code === '00' && detailsResult.data) {
-                        const fullData = detailsResult.data as any;
-                        const newBid = fullData.winningBid || fullData.awardedBid;
-                        if (newBid?.bidAmount != null && newBid?.doctor) hasWinnerDetails = true;
-                        setSelectedAuction(prev => prev ? { ...prev, ...fullData, insuranceCompany: fullData.insuranceCompany || fullData.owner || prev.insuranceCompany } : prev);
+                    const detailsResult: any = await getAuctionDetails(selectedAuction.auctionNumber, 'ADMIN');
+                    const dto = (detailsResult && detailsResult.code === '00' && detailsResult.data) ? detailsResult.data : detailsResult;
+                    if (dto && (dto.id || dto.auctionNumber)) {
+                        fullData = dto;
+                        winnerBid = dto.winningBid || dto.awardedBid || winnerBid;
                     }
-                } catch { /* fallback */ }
+                } catch { /* fallback below */ }
 
-                if (!hasWinnerDetails && selectedAuction.id) {
+                // 2. If still no winner bid with a doctor, pull it from the bids list.
+                if ((!winnerBid || !winnerBid.doctor) && selectedAuction.id) {
                     try {
                         const bidsResult = await getAuctionBids(selectedAuction.id);
-                        let bids: any[] = Array.isArray(bidsResult) ? bidsResult : (bidsResult as any)?.content ?? [];
+                        const bids: any[] = Array.isArray(bidsResult) ? bidsResult : (bidsResult as any)?.content ?? [];
                         const winner = bids.find((b: any) => b.isWinning || b.status === 'WINNING' || b.status === 'AWARDED' || b.status === 'ACCEPTED');
-                        if (winner) setSelectedAuction(prev => prev ? { ...prev, awardedBid: winner } : prev);
+                        if (winner) winnerBid = winner;
                     } catch { /* no winner found */ }
                 }
+
+                // 3. Enrich doctor/clinic with display data (name + photo/logo) when the bid only carries ids.
+                if (winnerBid) {
+                    const docId = winnerBid.doctor?.id ?? (winnerBid as any).doctorId;
+                    if (docId && !(winnerBid.doctor?.fullName || winnerBid.doctor?.firstName)) {
+                        try {
+                            const dr: any = await getDoctorById(docId);
+                            const d = dr?.data || dr;
+                            if (d && (d.firstName || d.fullName)) winnerBid = { ...winnerBid, doctor: { ...(winnerBid.doctor || {}), ...d } };
+                        } catch { /* ignore */ }
+                    }
+                    const clinicId = winnerBid.clinic?.id ?? (winnerBid as any).clinicId;
+                    if (clinicId && !winnerBid.clinic?.name) {
+                        try {
+                            const clinics: any[] = await getClinics(0, 200);
+                            const c = (clinics || []).find((x: any) => String(x.id) === String(clinicId));
+                            if (c) winnerBid = { ...winnerBid, clinic: { ...(winnerBid.clinic || {}), ...c } };
+                        } catch { /* ignore */ }
+                    }
+                }
+
+                // 4. Merge everything into the selected auction in a single update.
+                setSelectedAuction(prev => {
+                    if (!prev) return prev;
+                    const merged: any = { ...prev, ...(fullData || {}) };
+                    if (winnerBid) merged.awardedBid = winnerBid;
+                    if (fullData) merged.insuranceCompany = fullData.insuranceCompany || fullData.owner || prev.insuranceCompany;
+                    return merged;
+                });
 
                 const currentIns = selectedAuction.insuranceCompany || (selectedAuction as any).owner;
                 if (currentIns?.id && !currentIns.name && !currentIns.commercialName) {
@@ -147,6 +178,28 @@ export default function PaymentValidationPage() {
         };
         fetchDetails();
     }, [selectedAuction?.id, selectedAuction?.auctionNumber]);
+
+    // Load the declared-payment record (origin bank, reference, phone, notes...) for the modal.
+    useEffect(() => {
+        if (!selectedAuction?.auctionNumber) { setPaymentOrder(null); return; }
+        let active = true;
+        (async () => {
+            try {
+                const { getPaymentOrdersByAuction, getBanks } = await import('@/lib/api');
+                let po: any = (await getPaymentOrdersByAuction(selectedAuction.auctionNumber))?.[0] || null;
+                // The DTO carries originBank as id-only; resolve its name/code from the banks list.
+                if (po?.originBank?.id && !po.originBank.name) {
+                    try {
+                        const banks = await getBanks();
+                        const bank = (banks || []).find((b: any) => String(b.id) === String(po.originBank.id));
+                        if (bank) po = { ...po, originBank: { ...po.originBank, ...bank } };
+                    } catch { /* ignore */ }
+                }
+                if (active) setPaymentOrder(po);
+            } catch { if (active) setPaymentOrder(null); }
+        })();
+        return () => { active = false; };
+    }, [selectedAuction?.auctionNumber]);
 
     useEffect(() => {
         const fetch = async () => {
@@ -301,6 +354,18 @@ export default function PaymentValidationPage() {
                     const surgeryRaw = (selectedAuction as any).estimatedSurgeryDate;
                     const surgeryDate = surgeryRaw ? (() => { const p = String(surgeryRaw).split('T')[0].split('-'); return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : String(surgeryRaw); })() : null;
 
+                    // Declared-payment record (what the insurer actually loaded when reporting the payment).
+                    const po: any = paymentOrder;
+                    const poMethodLabel = po?.methodType ? (methodNames[po.methodType] || po.methodType) : methodLabel;
+                    const poAmount = po?.amount ?? amount;
+                    const poCurrency = po?.currency?.code;
+                    const referencia = po?.referenceNumber;
+                    const bankName = po?.originBank?.name;
+                    const bankCode = po?.originBank?.code;
+                    const originPhone = po?.originPhone;
+                    const poNotes = po?.description;
+                    const reportedAt = po?.createdAt ? (() => { try { return new Date(po.createdAt).toLocaleString('es-VE', { dateStyle: 'medium', timeStyle: 'short' }); } catch { return po.createdAt; } })() : null;
+
                     return (
                         <div className="space-y-5">
                             {/* Adjudicado a — médico + clínica */}
@@ -350,16 +415,22 @@ export default function PaymentValidationPage() {
                                         </div>
                                     </div>
                                 </div>
-                                <div className="bg-amber-50 p-5 rounded-2xl border border-amber-100 space-y-2.5">
-                                    <h4 className="font-bold text-slate-900 flex items-center gap-2 text-sm"><CreditCard className="w-4 h-4 text-amber-500" /> Pago declarado</h4>
-                                    <div className="space-y-1.5 text-sm">
-                                        <p className="text-slate-600"><span className="font-semibold text-slate-900">Método:</span> {methodLabel}</p>
-                                        {modality && <p className="text-slate-600"><span className="font-semibold text-slate-900">Modalidad:</span> {modality === 'SOLO_MEDICO' ? 'Solo médico' : 'Paquete completo'}</p>}
-                                    </div>
-                                    <div className="pt-1">
+                                <div className="bg-amber-50 p-5 rounded-2xl border border-amber-100 space-y-3">
+                                    <h4 className="font-bold text-slate-900 flex items-center gap-2 text-sm"><CreditCard className="w-4 h-4 text-amber-500" /> Pago declarado por la aseguradora</h4>
+                                    <div>
                                         <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Monto declarado</p>
-                                        <p className="font-black text-slate-900 text-3xl">${Number(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                                        <p className="font-black text-slate-900 text-3xl leading-none mt-0.5">{Number(poAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-base font-bold text-slate-400">{poCurrency || 'USD'}</span></p>
                                     </div>
+                                    <div className="space-y-1.5 text-sm border-t border-amber-200/70 pt-2.5">
+                                        <p className="text-slate-600"><span className="font-semibold text-slate-900">Método:</span> {poMethodLabel}</p>
+                                        {modality && <p className="text-slate-600"><span className="font-semibold text-slate-900">Modalidad:</span> {modality === 'SOLO_MEDICO' ? 'Solo médico' : 'Paquete completo'}</p>}
+                                        {referencia && <p className="text-slate-600 break-all"><span className="font-semibold text-slate-900">Referencia / TXID:</span> {referencia}</p>}
+                                        {bankName && <p className="text-slate-600"><span className="font-semibold text-slate-900">Banco de origen:</span> {bankName}{bankCode ? ` (${bankCode})` : ''}</p>}
+                                        {originPhone && <p className="text-slate-600"><span className="font-semibold text-slate-900">Teléfono de origen:</span> {originPhone}</p>}
+                                        {reportedAt && <p className="text-slate-600"><span className="font-semibold text-slate-900">Fecha de reporte:</span> {reportedAt}</p>}
+                                        {poNotes && <p className="text-slate-600"><span className="font-semibold text-slate-900">Notas del seguro:</span> {poNotes}</p>}
+                                    </div>
+                                    {!po && <p className="text-[11px] text-amber-700/80 font-semibold">⚠ Sin registro de pago declarado (mostrando datos de la oferta).</p>}
                                 </div>
                             </div>
 

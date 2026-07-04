@@ -1810,6 +1810,41 @@ export async function validateAuctionPayment(payload: {
     return response.json();
 }
 
+// Declared-payment record (everything the insurer submitted when reporting a payment).
+export interface PaymentOrder {
+    id?: number;
+    orderNumber?: string;
+    referenceNumber?: string;
+    methodType?: string;
+    originBank?: { id?: number; name?: string; code?: string; swiftCode?: string; routingNumber?: string };
+    originPhone?: string;
+    amount?: number;
+    currency?: { id?: number; code?: string; name?: string };
+    description?: string;
+    status?: string;
+    type?: string;
+    createdAt?: string;
+    updatedAt?: string;
+    paymentDate?: string;
+    payer?: { id?: number; email?: string; name?: string };
+    payee?: { id?: number; email?: string; name?: string };
+}
+
+// Admin: declared payment orders for an auction (most recent first).
+export async function getPaymentOrdersByAuction(auctionNumber: string, status?: string): Promise<PaymentOrder[]> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+    const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+    const response = await fetch(`/api/payment-orders/auction/${auctionNumber}${qs}`, {
+        method: 'GET',
+        headers: { 'X-Alteha-Token': token }
+    });
+    if (!response.ok) return [];
+    const data = await response.json();
+    const list: PaymentOrder[] = Array.isArray(data) ? data : (data?.content ?? data?.data ?? []);
+    return list.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+}
+
 export interface SettlementPayload {
     auctionNumber: string;
     recipientRole: 'DOCTOR' | 'CLINIC' | 'PHARMACY';
