@@ -30,6 +30,8 @@ const METHOD_TYPES = [
 import { useSearchParams } from 'next/navigation';
 
 export default function PaymentMethodsManager({ role, onSelect, selectionMode = false }: PaymentMethodsManagerProps) {
+    const isPayer = role === 'INSURANCE_COMPANY' || role === 'INSURANCE';
+    const methodWord = isPayer ? 'Pago' : 'Cobro';
     const searchParams = useSearchParams();
     const [methods, setMethods] = useState<PaymentMethod[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -213,7 +215,7 @@ export default function PaymentMethodsManager({ role, onSelect, selectionMode = 
                 await loadMethods();
                 resetForm();
             } else {
-                alert(res.message || 'Error al guardar el método de pago');
+                alert(res.message || 'Error al guardar el método');
             }
         } catch (error) {
             console.error('Error saving method:', error);
@@ -270,7 +272,7 @@ export default function PaymentMethodsManager({ role, onSelect, selectionMode = 
                 <div>
                     <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
                         <Wallet className="w-8 h-8 text-alteha-turquoise" />
-                        {selectionMode ? 'Seleccionar Método de Cobro' : 'Métodos de Cobro'}
+                        {selectionMode ? `Seleccionar Método de ${methodWord}` : `Métodos de ${methodWord}`}
                     </h2>
                     <p className="text-slate-500 font-medium mt-1 max-w-2xl">
                         {selectionMode
@@ -301,7 +303,7 @@ export default function PaymentMethodsManager({ role, onSelect, selectionMode = 
                     <div className="p-8 md:p-12">
                         <div className="flex justify-between items-center mb-10">
                             <h3 className="text-2xl font-black text-slate-900">
-                                {editingMethod ? 'Editar Método de Pago' : 'Nuevo Método de Pago'}
+                                {editingMethod ? `Editar Método de ${methodWord}` : `Nuevo Método de ${methodWord}`}
                             </h3>
                             <button onClick={resetForm} className="p-3 hover:bg-slate-100 rounded-2xl transition-colors">
                                 <X className="w-6 h-6 text-slate-400" />
@@ -662,9 +664,11 @@ export default function PaymentMethodsManager({ role, onSelect, selectionMode = 
                     <div className="w-24 h-24 rounded-[2rem] bg-slate-50 flex items-center justify-center mb-8">
                         <CreditCard className="w-12 h-12 text-slate-200" />
                     </div>
-                    <h3 className="text-3xl font-black text-slate-900 mb-3 tracking-tight">Configura tus Pagos</h3>
+                    <h3 className="text-3xl font-black text-slate-900 mb-3 tracking-tight">{isPayer ? 'Configura tus Pagos' : 'Configura tus Cobros'}</h3>
                     <p className="text-slate-400 font-medium mb-10 max-w-md mx-auto">
-                        No tienes métodos de pago registrados. Agrega una cuenta para empezar a recibir o realizar transacciones en la plataforma.
+                        {isPayer
+                            ? 'No tienes métodos de pago registrados. Agrega una cuenta para realizar tus pagos en la plataforma.'
+                            : 'No tienes métodos de cobro registrados. Agrega una cuenta para que Alteha pueda liquidarte los fondos de tus subastas.'}
                     </p>
                     <Button 
                         onClick={() => setIsAdding(true)}
