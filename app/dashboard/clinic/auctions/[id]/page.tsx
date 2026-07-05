@@ -73,7 +73,7 @@ export default function ClinicAuctionDetailPage() {
         const load = async () => {
             setIsLoading(true);
             try {
-                const res = await getAuctionDetailsAsDoctor(auctionNumber);
+                const res = await getAuctionDetailsAsDoctor(auctionNumber, 'CLINIC');
                 if (res.code === '00' && res.data) {
                     setAuction(res.data);
                 } else if ((res as any).id) {

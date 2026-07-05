@@ -1595,12 +1595,13 @@ export function getStoredToken(): string | null {
 }
 
 export async function getAuctionDetailsAsDoctor(
-    auctionNumber: string
+    auctionNumber: string,
+    role: string = 'DOCTOR'
 ): Promise<ApiResponse<Auction>> {
     const token = getStoredToken();
     if (!token) throw new Error('No token found');
 
-    const response = await fetch(`/api/auctions/doctor/details/${auctionNumber}`, {
+    const response = await fetch(`/api/auctions/doctor/details/${auctionNumber}?role=${role}`, {
         method: 'GET',
         headers: {
             'X-Alteha-Token': token

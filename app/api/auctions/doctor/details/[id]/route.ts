@@ -22,7 +22,8 @@ export async function GET(
 
         const adminToken = await getAppToken();
 
-        const response = await fetch(`${API_BASE}/auctions/auctions/details/${id}?role=DOCTOR`, {
+        const role = request.nextUrl.searchParams.get('role') || 'DOCTOR';
+        const response = await fetch(`${API_BASE}/auctions/auctions/details/${id}?role=${role}`, {
             method: 'GET',
             headers: {
                 'Accept': '*/*',
@@ -31,7 +32,7 @@ export async function GET(
             }
         });
 
-        console.log(`[API Proxy] GET /auctions/auctions/details/${id}?role=DOCTOR - Status: ${response.status}`);
+        console.log(`[API Proxy] GET /auctions/auctions/details/${id}?role=${role} - Status: ${response.status}`);
 
         const data = await response.json();
         return NextResponse.json(data, { status: response.status });
