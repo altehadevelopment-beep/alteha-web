@@ -586,6 +586,62 @@ export default function AdvancedBidForm({ auction, onSuccess, hideHeader = false
                     </div>
                 )}
 
+                {/* Desglose para la clínica: monto de clínica y de médico con vista previa */}
+                {role === 'CLINIC' && (
+                    <div className="bg-slate-50 rounded-[2rem] border border-slate-100 p-5 space-y-4">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                            <Info className="w-3.5 h-3.5 text-alteha-violet" /> Transparencia de la subasta
+                        </p>
+
+                        {(auction.doctorBudget || auction.clinicBudget || auction.maxBudget) && (
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                {/* Clínica: resaltada siempre (en ambas modalidades los cobra la clínica) */}
+                                <div className="bg-alteha-violet/10 rounded-xl p-3 text-center border-2 border-alteha-violet/40 shadow-sm">
+                                    <p className="text-[8px] font-black uppercase tracking-tight text-alteha-violet">Gastos clínica ★</p>
+                                    <p className="text-base font-black text-alteha-violet">${money(auction.clinicBudget)}</p>
+                                </div>
+                                {/* Médico: resaltado solo en paquete completo (la clínica también lo gestiona/paga) */}
+                                <div className={bidType === 'BOTH'
+                                    ? 'bg-alteha-violet/10 rounded-xl p-3 text-center border-2 border-alteha-violet/40 shadow-sm'
+                                    : 'bg-white rounded-xl p-3 text-center border border-slate-100'}>
+                                    <p className={`text-[8px] font-black uppercase tracking-tight ${bidType === 'BOTH' ? 'text-alteha-violet' : 'text-slate-400'}`}>
+                                        Honorarios méd.{bidType === 'BOTH' ? ' ★' : ''}
+                                    </p>
+                                    <p className={`font-black ${bidType === 'BOTH' ? 'text-base text-alteha-violet' : 'text-sm text-slate-900'}`}>${money(auction.doctorBudget)}</p>
+                                </div>
+                                <div className="bg-white rounded-xl p-3 text-center border border-slate-100">
+                                    <p className="text-[8px] font-black uppercase tracking-tight text-slate-400">Total subasta</p>
+                                    <p className="text-sm font-black text-slate-900">${money(auction.maxBudget)}</p>
+                                </div>
+                            </div>
+                        )}
+
+                        {bidType === 'CLINIC_ONLY' ? (
+                            <div className="space-y-1.5 text-xs font-bold">
+                                <p className="text-[10px] text-slate-500 font-black uppercase tracking-tight">Oferta solo por tus gastos hospitalarios</p>
+                                <div className="flex justify-between"><span className="text-slate-400">Presupuesto de clínica (ref.)</span><span className="text-slate-700">${money(auction.clinicBudget)}</span></div>
+                                {bidAmount && (
+                                    <div className="flex justify-between border-t border-slate-200 pt-1.5"><span className="text-slate-600">Tu oferta de clínica</span><span className="text-slate-900 font-black">${money(parseFloat(bidAmount))}</span></div>
+                                )}
+                                {bidAmount && auction.doctorBudget != null && (
+                                    <div className="flex justify-between"><span className="text-slate-400">≈ Total dupla (si el médico acepta el tope)</span><span className="text-slate-700">${money((parseFloat(bidAmount) || 0) + (auction.doctorBudget || 0))}</span></div>
+                                )}
+                                <p className="text-[10px] text-slate-400 italic pt-1">El médico que invites define sus honorarios al aceptar (puede bajarlos del tope, reduciendo el total).</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-1.5 text-xs font-bold">
+                                <p className="text-[10px] text-slate-500 font-black uppercase tracking-tight">Oferta de paquete completo</p>
+                                <div className="flex justify-between"><span className="text-slate-600">Tu oferta total</span><span className="text-slate-900 font-black">${money(parseFloat(bidAmount) || 0)}</span></div>
+                                <div className="flex justify-between"><span className="text-slate-400">Honorarios del médico (ref.)</span><span className="text-slate-700">${money(auction.doctorBudget)}</span></div>
+                                {bidAmount && auction.doctorBudget != null && (
+                                    <div className="flex justify-between"><span className="text-slate-400">≈ Tu parte de clínica (total − médico)</span><span className="text-slate-700">${money(Math.max(0, (parseFloat(bidAmount) || 0) - (auction.doctorBudget || 0)))}</span></div>
+                                )}
+                                <p className="text-[10px] text-slate-400 italic pt-1">Tú le pagas al médico sus honorarios; el seguro te paga el total.</p>
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 {/* Pharmacy Supplies Table */}
                 {role === 'PHARMACY' && (
                     <div className="space-y-4">
