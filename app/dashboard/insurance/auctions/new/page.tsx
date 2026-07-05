@@ -58,6 +58,15 @@ export default function NewAuctionPage() {
     const [step, setStep] = useState(1);
     const [isLoading, setIsLoading] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
+    // Búsqueda inteligente: sin acentos, por varios términos y sobre varios campos
+    // (nombre, razón social, ciudad, estado, dirección; especialidades en médicos)
+    const normalize = (v: any) => String(v ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const smartMatch = (query: string, ...fields: any[]) => {
+        const q = normalize(query).trim();
+        if (!q) return true;
+        const haystack = fields.map(normalize).join(' ');
+        return q.split(/\s+/).every(term => haystack.includes(term));
+    };
     const [clinicSearch, setClinicSearch] = useState('');
     const [doctorSearch, setDoctorSearch] = useState('');
     const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
@@ -994,7 +1003,7 @@ export default function NewAuctionPage() {
                                                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
                                                 <input 
                                                     type="text" 
-                                                    placeholder="Filtrar clínicas..." 
+                                                    placeholder="Nombre, ciudad o estado…" 
                                                     value={clinicSearch}
                                                     onChange={(e) => setClinicSearch(e.target.value)}
                                                     className="w-full pl-10 pr-4 py-3 bg-slate-50 border-2 border-transparent focus:border-alteha-violet focus:bg-white rounded-xl text-xs font-bold text-slate-900 transition-all outline-none"
@@ -1002,7 +1011,7 @@ export default function NewAuctionPage() {
                                             </div>
                                             <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
                                                 {(Array.isArray(clinics) ? clinics : [])
-                                                    .filter(c => c.name?.toLowerCase().includes(clinicSearch.toLowerCase()))
+                                                    .filter(c => smartMatch(clinicSearch, c.name, (c as any).legalName, (c as any).cityName, (c as any).stateProvinceName, (c as any).address, (c as any).preferredLocation))
                                                     .map(clinic => (
                                                     <div
                                                         key={clinic.id}
@@ -1049,7 +1058,7 @@ export default function NewAuctionPage() {
                                                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
                                                 <input 
                                                     type="text" 
-                                                    placeholder="Filtrar médicos..." 
+                                                    placeholder="Nombre, especialidad o ciudad…" 
                                                     value={doctorSearch}
                                                     onChange={(e) => setDoctorSearch(e.target.value)}
                                                     className="w-full pl-10 pr-4 py-3 bg-slate-50 border-2 border-transparent focus:border-alteha-violet focus:bg-white rounded-xl text-xs font-bold text-slate-900 transition-all outline-none"
@@ -1057,7 +1066,7 @@ export default function NewAuctionPage() {
                                             </div>
                                             <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
                                                 {filteredDoctors
-                                                    .filter(d => `${d.firstName} ${d.lastName}`.toLowerCase().includes(doctorSearch.toLowerCase()))
+                                                    .filter(d => smartMatch(doctorSearch, d.firstName, d.lastName, (d as any).fullName, (d as any).cityName, (d as any).stateProvinceName, (d as any).address, ((d as any).specialties || []).map((sp: any) => sp.name).join(' ')))
                                                     .map(doctor => (
                                                     <div
                                                         key={doctor.id}
