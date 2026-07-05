@@ -125,11 +125,7 @@ export default function AdvancedBidForm({ auction, onSuccess, hideHeader = false
                 /* ignore */
             }
         })();
-        if (planLimitMsg) {
-        return <UpgradeModal message={planLimitMsg} onClose={() => setPlanLimitMsg(null)} />;
-    }
-
-    return () => { active = false; };
+        return () => { active = false; };
     }, [auction?.id]);
 
     // Items for Pharmacy / Supplies
@@ -293,6 +289,11 @@ export default function AdvancedBidForm({ auction, onSuccess, hideHeader = false
                 </p>
             </div>
         );
+    }
+
+    // Función bloqueada por el plan de suscripción → modal de upgrade
+    if (planLimitMsg) {
+        return <UpgradeModal message={planLimitMsg} onClose={() => setPlanLimitMsg(null)} />;
     }
 
     return (
