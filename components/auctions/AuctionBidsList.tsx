@@ -230,6 +230,14 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
             };
             setBids([...bidsData].sort((a, b) => effTotal(a) - effTotal(b)));
 
+            // Hidratar nombre/foto de todos los oferentes (las ofertas traen solo ids)
+            bidsData.forEach((b: any) => {
+                const dId = typeof b.doctor === 'object' ? b.doctor?.id : (typeof b.doctor === 'number' ? b.doctor : b.doctorId);
+                if (dId) fetchDoctorProfile(Number(dId));
+                const cId = typeof b.clinic === 'object' ? b.clinic?.id : b.clinicId;
+                if (cId) fetchClinicProfile(Number(cId));
+            });
+
             // Handle top offers
             if (Array.isArray(topRes)) {
                 setTopOffers(topRes);
@@ -530,7 +538,29 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
                                         </div>
                                     )}
 
-                                    {/* Avatar */}
+                                    {/* Avatar: grande = creador de la oferta; insignia pequeña = el otro actor */}
+                                    <div className="relative flex-shrink-0">
+                                    {(() => {
+                                        const isClinicBid = (bid as any).modality === 'SOLO_CLINICA' || bid.bidType === 'CLINIC_ONLY' || bid.bidType === 'BOTH';
+                                        const dId = typeof bid.doctor === 'object' ? bid.doctor?.id : (typeof bid.doctor === 'number' ? bid.doctor : (bid as any).doctorId);
+                                        const cId = typeof (bid as any).clinic === 'object' ? (bid as any).clinic?.id : (bid as any).clinicId;
+                                        const doctorImg = (dId ? doctorProfiles[dId]?.profileImageUrl : null) || bid.doctor?.profileImageUrl;
+                                        const clinicImg = bid.clinic?.logoUrl || (cId ? clinicProfiles[cId]?.logoUrl : null) || duplaMap[bid.id]?.clinicLogoUrl;
+                                        const partnerImg = isClinicBid ? doctorImg : clinicImg;
+                                        const hasPartner = isClinicBid ? !!dId : !!cId;
+                                        if (!hasPartner) return null;
+                                        return (
+                                            <div className="absolute -bottom-1.5 -right-1.5 w-6 h-6 rounded-lg bg-white border border-slate-200 shadow-sm overflow-hidden flex items-center justify-center z-10" title={isClinicBid ? 'Médico asociado' : 'Clínica asociada'}>
+                                                {partnerImg ? (
+                                                    <img src={partnerImg} className="w-full h-full object-cover" alt="" />
+                                                ) : isClinicBid ? (
+                                                    <User className="w-3.5 h-3.5 text-slate-300" />
+                                                ) : (
+                                                    <Building2 className="w-3.5 h-3.5 text-emerald-400" />
+                                                )}
+                                            </div>
+                                        );
+                                    })()}
                                     <div 
                                         className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 overflow-hidden flex-shrink-0 flex items-center justify-center cursor-pointer hover:ring-2 hover:ring-alteha-violet/30 transition-all"
                                         onClick={(e) => {
@@ -561,6 +591,7 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
                                                 <User className="w-6 h-6 text-slate-300" />
                                             );
                                         })()}
+                                    </div>
                                     </div>
 
                                     {/* Info */}
@@ -692,7 +723,8 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
                                         {(() => {
                                             const isClinicBid = (bid as any).modality === 'SOLO_CLINICA' || bid.bidType === 'CLINIC_ONLY' || bid.bidType === 'BOTH';
                                             if (isClinicBid) {
-                                                const dName = bid.doctor?.fullName || (bid.doctor?.firstName ? `${bid.doctor.firstName} ${bid.doctor.lastName}` : (bid as any).doctorName);
+                                                const dId2 = typeof bid.doctor === 'object' ? bid.doctor?.id : (typeof bid.doctor === 'number' ? bid.doctor : (bid as any).doctorId);
+                                                const dName = bid.doctor?.fullName || (bid.doctor?.firstName ? `${bid.doctor.firstName} ${bid.doctor.lastName}` : null) || (dId2 ? doctorProfiles[dId2]?.fullName : null) || (bid as any).doctorName || duplaMap[bid.id]?.doctorName;
                                                 return dName ? (
                                                     <p className="text-xs font-bold text-slate-400 flex items-center gap-1">
                                                         <Stethoscope className="w-3 h-3" /> Médico: {dName}
