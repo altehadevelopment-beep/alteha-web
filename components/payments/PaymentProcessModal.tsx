@@ -32,6 +32,17 @@ interface PaymentProcessModalProps {
 const VENEZUELA_COUNTRY_ID = 1;
 
 export default function PaymentProcessModal({ isOpen, onClose, bid, auctionTitle, auctionNumber, role, allowedPaymentMethods }: PaymentProcessModalProps) {
+    // Comisión de Alteha: el pago del seguro incluye la comisión (total = base con dupla + comisión)
+    const [commission, setCommission] = React.useState<{ baseAmount?: number; rate?: number; amount?: number; total?: number } | null>(null);
+    React.useEffect(() => {
+        const auctionNum = auctionNumber || (bid as any)?.auctionNumber;
+        if (!isOpen || !auctionNum) return;
+        fetch(`/api/commissions/auction/${auctionNum}`)
+            .then(r => r.json())
+            .then(d => { if (d && d.total != null) setCommission(d); })
+            .catch(() => {});
+    }, [isOpen, auctionNumber, bid]);
+    const payableTotal: number = Number(commission?.total ?? bid?.bidAmount ?? 0);
     const [step, setStep] = useState<'select' | 'confirm' | 'success'>('select');
     const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
@@ -246,7 +257,7 @@ export default function PaymentProcessModal({ isOpen, onClose, bid, auctionTitle
 
                 <div class="amount-box">
                     <div class="amount-label">Monto Reportado</div>
-                    <div class="amount-value">$${bid?.bidAmount?.toLocaleString()}</div>
+                    <div class="amount-value">$${payableTotal.toLocaleString()}</div>
                 </div>
 
                 <div class="footer">
@@ -291,7 +302,12 @@ export default function PaymentProcessModal({ isOpen, onClose, bid, auctionTitle
                             </div>
                             <div className="text-right">
                                 <h4 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-1">Monto a Pagar</h4>
-                                <p className="text-3xl font-black text-alteha-violet">${bid?.bidAmount?.toLocaleString()}</p>
+                                <p className="text-3xl font-black text-alteha-violet">${payableTotal.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</p>
+                                {commission?.amount != null && (
+                                    <p className="text-[10px] font-bold text-slate-400">
+                                        Subasta ${Number(commission.baseAmount).toLocaleString('es-VE', { minimumFractionDigits: 2 })} + Comisión Alteha ({commission.rate}%) ${Number(commission.amount).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                                    </p>
+                                )}
                             </div>
                         </div>
                         
@@ -412,7 +428,12 @@ export default function PaymentProcessModal({ isOpen, onClose, bid, auctionTitle
                             <div className="flex justify-between items-center pb-6 border-b border-slate-50">
                                 <div>
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Monto Total a Transferir</p>
-                                    <p className="text-3xl font-black text-slate-900">${bid?.bidAmount?.toLocaleString()}</p>
+                                    <p className="text-3xl font-black text-slate-900">${payableTotal.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</p>
+                                    {commission?.amount != null && (
+                                        <p className="text-[10px] font-bold text-slate-400">
+                                            Incluye comisión Alteha ({commission.rate}%): ${Number(commission.amount).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                                        </p>
+                                    )}
                                 </div>
                                 <div className="text-right">
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">ID Subasta</p>
@@ -740,7 +761,7 @@ export default function PaymentProcessModal({ isOpen, onClose, bid, auctionTitle
                             )}
                             <div className="flex justify-between items-center gap-4">
                                 <span className="text-xs font-bold text-slate-400">Monto</span>
-                                <span className="text-xs font-black text-alteha-violet">${bid?.bidAmount?.toLocaleString()}</span>
+                                <span className="text-xs font-black text-alteha-violet">${payableTotal.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</span>
                             </div>
                         </div>
 
