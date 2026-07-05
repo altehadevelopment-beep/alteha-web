@@ -144,6 +144,14 @@ export default function NewAuctionPage() {
             try {
                 const specs = await getSpecialties();
                 setSpecialties(Array.isArray(specs) ? specs : []);
+                // La especialidad por defecto {id:1} puede no existir en BD (FK error al publicar):
+                // normalizar al primer id real del catálogo si la actual no está en la lista.
+                if (Array.isArray(specs) && specs.length > 0) {
+                    setFormData(prev => {
+                        const exists = specs.some((sp: any) => Number(sp.id) === Number(prev.specialty?.id));
+                        return exists ? prev : { ...prev, specialty: { id: Number(specs[0].id) } };
+                    });
+                }
 
                 const clinicsRes = await getClinics();
                 setClinics(Array.isArray(clinicsRes) ? clinicsRes : []);
@@ -240,7 +248,7 @@ export default function NewAuctionPage() {
             protocol: template.protocol || '',
             subSpecialty: template.subSpecialty || '',
             equipment: template.equipment || '',
-            specialty: template.specialty ? { id: template.specialty.id } : prev.specialty
+            specialty: template.specialty ? { id: template.specialty.id } : (template.procedureType?.specialty?.id ? { id: template.procedureType.specialty.id } : prev.specialty)
         }));
     };
 

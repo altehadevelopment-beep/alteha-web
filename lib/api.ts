@@ -693,6 +693,18 @@ export async function getAuctionBidsSummary(auctionId: number | string): Promise
     }
 }
 
+// Tasa de comisión de Alteha (%) sobre subastas adjudicadas (administrable en BD).
+export async function getCommissionRate(): Promise<number> {
+    try {
+        const res = await fetch('/api/commissions/rate');
+        const d = await res.json();
+        const r = Number(d?.rate);
+        return isFinite(r) ? r : 5;
+    } catch {
+        return 5;
+    }
+}
+
 // El seguro cancela su subasta según la matriz de estados (motivo obligatorio si hay ofertas).
 export async function cancelAuction(
     auctionNumber: string,

@@ -87,6 +87,12 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
     const [loadingProfiles, setLoadingProfiles] = useState<Record<number, boolean>>({});
     const [isAwarding, setIsAwarding] = useState<number | null>(null);
     const [awardModalOpen, setAwardModalOpen] = useState(false);
+    // Comisión de Alteha (%): se muestra al seguro antes de confirmar la adjudicación
+    const [commissionRate, setCommissionRate] = useState<number>(5);
+    useEffect(() => {
+        if (mode !== 'insurance') return;
+        import('@/lib/api').then(({ getCommissionRate }) => getCommissionRate().then(setCommissionRate).catch(() => {}));
+    }, [mode]);
     const [selectedBidId, setSelectedBidId] = useState<number | null>(null);
     const [awardSummary, setAwardSummary] = useState<{ doctorName: string; clinicName: string | null; amount: any } | null>(null);
     const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(null);
@@ -1093,10 +1099,27 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
                     <div>
                         <h4 className="text-2xl font-black text-slate-900 mb-2 tracking-tight">¿Confirmar Adjudicación?</h4>
                         <p className="text-slate-500 font-medium leading-relaxed">
-                            ¿Estás seguro de que deseas adjudicar la subasta a este médico? <br/>
-                            <span className="text-amber-600 font-bold block mt-2">Esta acción cerrará la subasta permanentemente.</span>
+                            Al adjudicar, la subasta se cierra permanentemente y se genera la comisión de servicio de Alteha.
                         </p>
                     </div>
+
+                    {/* Desglose del monto a pagar: subasta + comisión Alteha */}
+                    {(() => {
+                        const sel = bids.find(b => b.id === selectedBidId);
+                        if (!sel) return null;
+                        const d = duplaMap[sel.id];
+                        const base = d && d.status === 'ACCEPTED' && d.total != null ? Number(d.total) : Number(sel.bidAmount) || 0;
+                        const fee = Math.round(base * commissionRate) / 100;
+                        const total = base + fee;
+                        return (
+                            <div className="bg-slate-50 rounded-2xl p-5 text-left space-y-2 text-sm font-bold">
+                                <div className="flex justify-between"><span className="text-slate-500">Monto adjudicado{d?.status === 'ACCEPTED' ? ' (dupla)' : ''}</span><span className="text-slate-900">${base.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</span></div>
+                                <div className="flex justify-between"><span className="text-slate-500">Comisión Alteha ({commissionRate}%)</span><span className="text-slate-900">${fee.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</span></div>
+                                <div className="flex justify-between border-t border-slate-200 pt-2"><span className="text-slate-700 font-black">Total a pagar</span><span className="text-alteha-violet font-black text-base">${total.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</span></div>
+                                <p className="text-[10px] text-slate-400 font-medium pt-1">La comisión queda registrada a nombre de tu compañía y se cobra junto con el pago de la subasta.</p>
+                            </div>
+                        );
+                    })()}
                     <div className="flex flex-col gap-3 pt-4">
                         <Button
                             onClick={confirmAward}
