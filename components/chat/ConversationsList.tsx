@@ -11,7 +11,7 @@ import { es } from 'date-fns/locale';
 import { Modal } from '@/components/ui/Modal';
 import { ChatWindow } from '@/components/chat/ChatWindow';
 import { useUnreadCount } from '@/hooks/useChat';
-import { getDoctorById, getAuctionDetailsAsDoctor } from '@/lib/api';
+import { getDoctorById, getAuctionDetailsAsDoctor , actorDisplayName, actorDisplayPhoto } from '@/lib/api';
 
 interface Conversation {
     id: string;
@@ -150,8 +150,8 @@ export const ConversationsList = ({ role }: { role: 'specialist' | 'insurance' |
                             participantName={activeChat.participantName}
                             participantPhoto={activeChat.participantPhoto}
                             currentUserId={String(userProfile?.id || 'guest')}
-                            currentUserName={userProfile?.firstName ? `${userProfile.firstName} ${userProfile.lastName}` : (userProfile?.name || 'Usuario')}
-                            currentUserPhoto={userProfile?.profileImageUrl || userProfile?.logoUrl || (userProfile as any)?.imageUrl || (userProfile as any)?.avatarUrl}
+                            currentUserName={actorDisplayName(userProfile)}
+                            currentUserPhoto={actorDisplayPhoto(userProfile)}
                             onClose={() => setActiveChat(null)}
                         />
                     )}

@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { getAuctionBids, type BidDetailed, type Auction } from '@/lib/api';
+import { getAuctionBids, type BidDetailed, type Auction , actorDisplayName, actorDisplayPhoto } from '@/lib/api';
 import { Trophy, Building2, User, Clock, Wallet, ShieldCheck, ArrowRight, Loader2, CreditCard, Calendar, Star, AlertCircle, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -345,8 +345,8 @@ export default function AwardedBidSection({ auction, role }: AwardedBidSectionPr
                             participantPhoto={activeChat.participantPhoto}
                             participantProfileUrl={activeChat.participantProfileUrl}
                             currentUserId={String(userProfile?.id || 'guest')}
-                            currentUserName={userProfile?.firstName ? `${userProfile.firstName} ${userProfile.lastName}` : (userProfile?.name || 'Usuario')}
-                            currentUserPhoto={userProfile?.profileImageUrl || userProfile?.logoUrl || (userProfile as any)?.imageUrl || (userProfile as any)?.avatarUrl}
+                            currentUserName={actorDisplayName(userProfile)}
+                            currentUserPhoto={actorDisplayPhoto(userProfile)}
                             onClose={() => setActiveChat(null)}
                         />
                     )}

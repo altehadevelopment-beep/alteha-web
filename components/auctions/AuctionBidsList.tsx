@@ -8,7 +8,7 @@ import {
     DollarSign, Stethoscope, Building2, Clock, Trophy, ChevronDown, ChevronUp,
     Calendar, Timer, ShieldCheck, Info, ExternalLink, Medal, X, MapPin, MessageSquare
 } from 'lucide-react';
-import { getAuctionBids, getTopOffers, getDoctorById, getAuctionDuplas, type BidDetailed, type TopOffer } from '@/lib/api';
+import { getAuctionBids, getTopOffers, getDoctorById, getAuctionDuplas, type BidDetailed, type TopOffer , actorDisplayName, actorDisplayPhoto } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
@@ -1411,8 +1411,8 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
                             participantName={activeChat.participantName}
                             participantPhoto={activeChat.participantPhoto}
                             currentUserId={String(userProfile?.id || 'guest')}
-                            currentUserName={userProfile?.firstName ? `${userProfile.firstName} ${userProfile.lastName}` : (userProfile?.name || 'Usuario')}
-                            currentUserPhoto={userProfile?.profileImageUrl || userProfile?.logoUrl || (userProfile as any)?.imageUrl || (userProfile as any)?.avatarUrl}
+                            currentUserName={actorDisplayName(userProfile)}
+                            currentUserPhoto={actorDisplayPhoto(userProfile)}
                             onClose={() => setActiveChat(null)}
                         />
                     )}

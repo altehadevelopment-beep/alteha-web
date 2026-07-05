@@ -19,7 +19,7 @@ import {
     MessageSquare
 , ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
-import { getMyInvitations, type Auction } from '@/lib/api';
+import { getMyInvitations, type Auction , actorDisplayName, actorDisplayPhoto } from '@/lib/api';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/Button';
@@ -246,8 +246,8 @@ export default function DoctorAuctionsPage() {
                             participantName={activeChat.participantName}
                             participantPhoto={activeChat.participantPhoto}
                             currentUserId={String(userProfile?.id || 'guest')}
-                            currentUserName={userProfile?.firstName ? `${userProfile.firstName} ${userProfile.lastName}` : (userProfile?.name || 'Usuario')}
-                            currentUserPhoto={userProfile?.profileImageUrl || userProfile?.logoUrl || (userProfile as any)?.imageUrl || (userProfile as any)?.avatarUrl}
+                            currentUserName={actorDisplayName(userProfile)}
+                            currentUserPhoto={actorDisplayPhoto(userProfile)}
                             onClose={() => setActiveChat(null)}
                         />
                     )}

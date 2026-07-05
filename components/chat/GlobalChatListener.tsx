@@ -4,6 +4,7 @@ import React, { useEffect, useRef } from 'react';
 import { collection, query, where, onSnapshot, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase-db';
 import { useAuth } from '@/contexts/AuthContext';
+import { actorDisplayName, actorDisplayPhoto } from '@/lib/api';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { MessageSquare } from 'lucide-react';
@@ -95,8 +96,8 @@ export const GlobalChatListener = () => {
                 participantId={floatingChat.participantId}
                 participantName={floatingChat.participantName}
                 currentUserId={String(userProfile.id)}
-                currentUserName={(userProfile as any)?.firstName ? `${(userProfile as any).firstName} ${(userProfile as any).lastName}` : ((userProfile as any)?.name || 'Usuario')}
-                currentUserPhoto={(userProfile as any)?.profileImageUrl || (userProfile as any)?.logoUrl}
+                currentUserName={actorDisplayName(userProfile)}
+                currentUserPhoto={actorDisplayPhoto(userProfile)}
                 onClose={() => setFloatingChat(null)}
             />
         </div>

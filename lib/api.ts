@@ -693,6 +693,18 @@ export async function getAuctionBidsSummary(auctionId: number | string): Promise
     }
 }
 
+// Nombre y foto/logo para mostrar de un perfil (médico, clínica o seguro).
+export function actorDisplayName(p: any): string {
+    if (!p) return 'Usuario';
+    if (p.firstName) return `${p.firstName} ${p.lastName || ''}`.trim();
+    return p.fullName || p.name || p.commercialName || p.legalName || 'Usuario';
+}
+
+export function actorDisplayPhoto(p: any): string | undefined {
+    if (!p) return undefined;
+    return p.profileImageUrl || p.logoUrl || p.imageUrl || p.avatarUrl || p.logo || undefined;
+}
+
 // Tasa de comisión de Alteha (%) sobre subastas adjudicadas (administrable en BD).
 export async function getCommissionRate(): Promise<number> {
     try {
