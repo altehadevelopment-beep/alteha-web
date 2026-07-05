@@ -108,7 +108,7 @@ export default function NewAuctionPage() {
         patient: { id: 0 },
         specialty: { id: 1 },
         currency: { id: 1 },
-        procedureType: { id: 1 },
+        procedureType: { id: 0 }, // 0 = sin seleccionar; se exige elegir una intervención real antes de publicar
         clinicBudget: 0,
         doctorBudget: 0,
         requiredSupplies: [],
@@ -384,6 +384,21 @@ export default function NewAuctionPage() {
     const handleAction = async (finalStatus: 'DRAFT' | 'PUBLISHED' | 'ACTIVE') => {
         setIsLoading(true);
         setError(null);
+
+        // La intervención es el corazón de la subasta: debe elegirse del catálogo real
+        // (el valor por defecto no existe en BD y provocaba un error de clave foránea).
+        if (!formData.procedureType?.id || Number(formData.procedureType.id) <= 0) {
+            setError('Selecciona el tipo de intervención: usa una plantilla o la búsqueda por especialidad en el paso 1.');
+            setIsLoading(false);
+            setStep(1);
+            return;
+        }
+        if (!formData.specialty?.id || Number(formData.specialty.id) <= 0) {
+            setError('Selecciona la especialidad de la intervención en el paso 1.');
+            setIsLoading(false);
+            setStep(1);
+            return;
+        }
 
         const finalPayload: AuctionPayload = { 
             ...formData, 
@@ -689,7 +704,16 @@ export default function NewAuctionPage() {
                                                             <div key={type.id} className="border-b last:border-0">
                                                                 <button
                                                                     type="button"
-                                                                    onClick={() => setSelectedProcedureTypeId(type.id)}
+                                                                    onClick={() => {
+                                                                        setSelectedProcedureTypeId(type.id);
+                                                                        // Sincroniza el payload real: sin esto la subasta viajaba con el id por defecto (FK error)
+                                                                        setFormData(prev => ({
+                                                                            ...prev,
+                                                                            procedureType: { id: Number(type.id) },
+                                                                            specialty: (type as any).specialty?.id ? { id: Number((type as any).specialty.id) } : prev.specialty,
+                                                                            title: prev.title || type.name,
+                                                                        }));
+                                                                    }}
                                                                     className={`w-full text-left px-8 py-5 hover:bg-alteha-violet/5 flex items-center justify-between transition-colors ${selectedProcedureTypeId === type.id ? 'bg-alteha-violet/10' : ''}`}
                                                                 >
                                                                     <div>
@@ -1369,8 +1393,17 @@ export default function NewAuctionPage() {
                                                                             setSelectedProcedureTypeId(type.id);
                                                                             setSearchProcedure(type.name || type.code || '');
                                                                             setShowAdvancedSearch(false);
-                                                                            setAdvSearchSpecialtyId(null);
                                                                             setShowProcedureResults(true);
+                                                                            // Sincroniza el payload real (intervención + su especialidad)
+                                                                            setFormData(prev => ({
+                                                                                ...prev,
+                                                                                procedureType: { id: Number(type.id) },
+                                                                                specialty: (type as any).specialty?.id
+                                                                                    ? { id: Number((type as any).specialty.id) }
+                                                                                    : (advSearchSpecialtyId ? { id: Number(advSearchSpecialtyId) } : prev.specialty),
+                                                                                title: prev.title || type.name,
+                                                                            }));
+                                                                            setAdvSearchSpecialtyId(null);
                                                                         }}
                                                                         className="text-left p-6 rounded-3xl border-2 border-slate-100 hover:border-alteha-violet hover:bg-violet-50/30 transition-all group"
                                                                     >
