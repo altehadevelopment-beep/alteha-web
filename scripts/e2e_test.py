@@ -92,6 +92,14 @@ def http(method, url, body=None, headers=None, form=None):
         return 0, str(e)
 
 
+def is_rejected(st, r):
+    """True si la operación fue rechazada (HTTP != 200 o código de error anidado)."""
+    if st != 200:
+        return True
+    inner = unwrap(r)
+    return isinstance(inner, dict) and inner.get('code') not in (None, '00')
+
+
 def unwrap(r):
     """Devuelve el objeto útil: r.data si existe, o r si ya es el objeto."""
     if isinstance(r, dict):
@@ -415,6 +423,64 @@ def main():
     check('I2', 'Listado de disputas propias', st == 200 and isinstance(lst, list), f'st={st}')
     st, r = http('GET', f'{FRONT}/api/reviews?revieweeId.equals=1591&size=10')
     check('I3', 'Consulta de reseñas responde', st == 200)
+
+    # ═══ K. CANCELACIONES Y RETIROS (matriz por rol y estado) ═══
+    section("K. Cancelaciones y retiros")
+    pay2 = dict(payload); pay2['title'] = 'E2E CANCELACIONES'
+    st, r = http('POST', f'{FRONT}/api/auctions/publish', headers={'X-Alteha-Token': tok_ins}, form={'auction': pay2})
+    a2 = (r.get('data') if isinstance(r, dict) and isinstance(r.get('data'), dict) else r) or {}
+    a2_no, a2_id = a2.get('auctionNumber'), a2.get('id')
+    st2 = a2.get('status')
+    for target in ('PUBLISHED', 'ACTIVE'):
+        if st2 == 'ACTIVE': break
+        _, rr = http('POST', f'{FRONT}/api/auctions/change-status',
+                     {'auctionNumber': a2_no, 'newStatus': target, 'reason': 'E2E'}, {'X-Alteha-Token': tok_ins})
+        st2 = (unwrap(rr) or {}).get('status') or st2
+    check('K1', 'Subasta de cancelaciones activa', st2 == 'ACTIVE' and bool(a2_no))
+
+    st, r = http('POST', f'{FRONT}/api/bids/advanced',
+                 {'auction': {'id': a2_id}, 'bidType': 'DOCTOR_ONLY', 'modality': 'SOLO_MEDICO',
+                  'bidAmount': 240, 'notes': 'E2E retiro', 'doctor': {'id': doc_id},
+                  'clinic': {'id': cli_id}, 'estimatedDurationDays': 1}, {'X-Alteha-Token': tok_doc})
+    k_bid = unwrap(r).get('id')
+    check('K2', 'Médico oferta con dupla (para retirarla)', bool(k_bid))
+
+    st, r = http('POST', f'{FRONT}/api/cancellations/bid/{k_bid}', {}, {'X-Alteha-Token': tok_doc})
+    check('K3', 'Retiro sin motivo es rechazado', is_rejected(st, r), str(r)[:120])
+
+    st, r = http('POST', f'{FRONT}/api/cancellations/bid/{k_bid}',
+                 {'reasonCode': 'ERROR_EN_MONTO'}, {'X-Alteha-Token': tok_doc})
+    check('K4', 'Retiro con motivo funciona', st == 200 and unwrap(r).get('bidStatus') == 'WITHDRAWN', str(r)[:150])
+
+    st, r = http('GET', f'{FRONT}/api/clinic-invitations/mine', headers={'X-Alteha-Token': tok_cli})
+    inv_k = next((i for i in (r if isinstance(r, list) else []) if i.get('auctionNumber') == a2_no), None)
+    check('K5', 'Dupla anulada al retirar la oferta', bool(inv_k) and inv_k.get('status') == 'REJECTED', str(inv_k)[:120])
+
+    st, r = http('POST', f'{FRONT}/api/bids/advanced',
+                 {'auction': {'id': a2_id}, 'bidType': 'BOTH', 'modality': 'PAQUETE_COMPLETO',
+                  'bidAmount': 400, 'notes': 'E2E paquete', 'clinic': {'id': cli_id},
+                  'doctor': {'id': doc_id}, 'estimatedDurationDays': 1}, {'X-Alteha-Token': tok_cli})
+    k_bid2 = unwrap(r).get('id')
+    st, r = http('POST', f'{FRONT}/api/cancellations/bid/{k_bid2}',
+                 {'reasonCode': 'ERROR_EN_MONTO'}, {'X-Alteha-Token': tok_doc})
+    check('K6', 'Nadie retira ofertas ajenas', is_rejected(st, r), str(r)[:120])
+
+    st, r = http('POST', f'{FRONT}/api/cancellations/auction/{a2_no}', {}, {'X-Alteha-Token': tok_ins})
+    check('K7', 'Cancelar con ofertas sin motivo es rechazado', is_rejected(st, r), str(r)[:120])
+
+    st, r = http('POST', f'{FRONT}/api/cancellations/auction/{a2_no}',
+                 {'reasonCode': 'PACIENTE_DESISTIO', 'reasonText': 'Prueba E2E'}, {'X-Alteha-Token': tok_ins})
+    check('K8', 'Seguro cancela con motivo (cascada + notificaciones)',
+          st == 200 and unwrap(r).get('status') == 'CANCELLED', str(r)[:150])
+
+    st, r = http('POST', f'{FRONT}/api/cancellations/auction/{a2_no}',
+                 {'reasonCode': 'OTRO', 'reasonText': 'repetida repetida'}, {'X-Alteha-Token': tok_ins})
+    check('K9', 'Cancelar una subasta ya cancelada es rechazado', is_rejected(st, r), str(r)[:120])
+
+    st, r = http('POST', f'{FRONT}/api/cancellations/auction/{auction_no}',
+                 {'reasonCode': 'OTRO', 'reasonText': 'intento indebido'}, {'X-Alteha-Token': tok_ins})
+    msg = str(unwrap(r).get('message', '') or (r or {}).get('message', ''))
+    check('K10', 'Adjudicada: solo vía Disputas (bloqueada)', is_rejected(st, r) and 'isputa' in msg, f'st={st} msg={msg[:120]}')
 
     # ═══ J. NOTIFICACIONES (fuentes) ═══
     section("J. Fuentes de notificaciones")

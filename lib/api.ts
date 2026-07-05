@@ -693,6 +693,36 @@ export async function getAuctionBidsSummary(auctionId: number | string): Promise
     }
 }
 
+// El seguro cancela su subasta según la matriz de estados (motivo obligatorio si hay ofertas).
+export async function cancelAuction(
+    auctionNumber: string,
+    payload: { reasonCode?: string; reasonText?: string }
+): Promise<any> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+    const response = await fetch(`/api/cancellations/auction/${auctionNumber}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Alteha-Token': token },
+        body: JSON.stringify(payload),
+    });
+    return response.json();
+}
+
+// El oferente retira su oferta (la dupla asociada se anula y se avisa al socio).
+export async function withdrawBid(
+    bidId: number | string,
+    payload: { reasonCode: string; reasonText?: string }
+): Promise<any> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+    const response = await fetch(`/api/cancellations/bid/${bidId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Alteha-Token': token },
+        body: JSON.stringify(payload),
+    });
+    return response.json();
+}
+
 // Insurer view: doctor+clinic "duplas" for an auction.
 export async function getAuctionDuplas(auctionId: number | string): Promise<any[]> {
     const token = getStoredToken();

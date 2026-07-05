@@ -46,6 +46,7 @@ import {
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import AuctionBidsList from '@/components/auctions/AuctionBidsList';
+import { CancelAuctionButton } from '@/components/auctions/CancellationActions';
 import DuplasSection from '@/components/auctions/DuplasSection';
 import AwardedBidSection from '@/components/payments/AwardedBidSection';
 
@@ -169,6 +170,19 @@ export default function AuctionDetailsPage() {
         loadData();
     }, [auctionNumber]);
 
+    // Conteo de ofertas para la regla de cancelación (motivo obligatorio si hay ofertas)
+    const [bidsCountForCancel, setBidsCountForCancel] = useState<number | null>(null);
+    useEffect(() => {
+        (async () => {
+            try {
+                const token = localStorage.getItem('id_token');
+                const res = await fetch(`/api/bids/count?auctionId=${(auction as any)?.id}`, { headers: { 'X-Alteha-Token': token || '' } });
+                const d = await res.json();
+                if (typeof d.count === 'number') setBidsCountForCancel(d.count);
+            } catch { /* usa 0 */ }
+        })();
+    }, [(auction as any)?.id]);
+
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = Array.from(e.target.files || []);
         if (files.length === 0) return;
@@ -260,6 +274,7 @@ export default function AuctionDetailsPage() {
     }
 
     const statusConfig = STATUS_CONFIG[auction.status] || STATUS_CONFIG['DRAFT'];
+    const cancelBidsCount = Number((auction as any).totalBids ?? (auction as any).bidCount ?? bidsCountForCancel ?? 0);
 
     return (
         <div className="max-w-6xl mx-auto font-outfit pb-20">
@@ -299,6 +314,12 @@ export default function AuctionDetailsPage() {
                                 <span className="text-sm font-black">Verificación en Proceso</span>
                             </div>
                         </div>
+                    )}
+                    {['DRAFT', 'PUBLISHED', 'ACTIVE', 'AWARDED'].includes(auction.status) && (
+                        <CancelAuctionButton
+                            auction={{ auctionNumber, status: auction.status }}
+                            bidsCount={cancelBidsCount}
+                        />
                     )}
                     {['DRAFT', 'PUBLISHED', 'ACTIVE'].includes(auction.status) && (
                         <Link href={`/dashboard/insurance/auctions/${auctionNumber}/edit`}>

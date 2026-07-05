@@ -14,6 +14,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { ChatWindow } from '@/components/chat/ChatWindow';
 import { useUnreadCount } from '@/hooks/useChat';
+import { WithdrawBidButton } from './CancellationActions';
 
 const money = (n: any) => {
     const v = Number(n);
@@ -72,6 +73,8 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
     const isProviderView = !pathname?.includes('/insurance/');
 
     const { userProfile } = useAuth();
+    const listPathname = usePathname();
+    const viewerIsClinic = listPathname?.includes('/clinic/') ?? false;
     const [bids, setBids] = useState<BidDetailed[]>([]);
     const [topOffers, setTopOffers] = useState<TopOffer[]>([]);
     const [duplaMap, setDuplaMap] = useState<Record<number, any>>({});
@@ -744,6 +747,27 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
                                             </p>
                                         )}
                                     </div>
+
+                                    {/* Retirar mi oferta (solo el dueño, con la subasta activa) */}
+                                    {(() => {
+                                        if (mode === 'insurance' || auctionStatus !== 'ACTIVE' || bid.status !== 'SUBMITTED') return null;
+                                        const isClinicBid = (bid as any).modality === 'SOLO_CLINICA' || bid.bidType === 'CLINIC_ONLY' || bid.bidType === 'BOTH';
+                                        const cId = typeof (bid as any).clinic === 'object' ? (bid as any).clinic?.id : (bid as any).clinicId;
+                                        const isMine = viewerIsClinic
+                                            ? (isClinicBid && String(cId) === String(userProfile?.id))
+                                            : (!isClinicBid && String(getBidDoctorId(bid)) === String(userProfile?.id));
+                                        if (!isMine) return null;
+                                        const isDupla = (bid as any).modality === 'SOLO_MEDICO' || (bid as any).modality === 'SOLO_CLINICA';
+                                        return (
+                                            <div className="flex-shrink-0 mr-2" onClick={(e) => e.stopPropagation()}>
+                                                <WithdrawBidButton
+                                                    bid={{ id: bid.id, status: bid.status, isWinning: (bid as any).isWinning }}
+                                                    auctionStatus={auctionStatus || ''}
+                                                    isDupla={isDupla}
+                                                />
+                                            </div>
+                                        );
+                                    })()}
 
                                     {/* Amount + expand */}
                                     <div className="text-right flex items-center gap-3 flex-shrink-0">
