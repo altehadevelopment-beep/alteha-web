@@ -22,6 +22,7 @@ import {
     Zap,
     Timer,
     Plus,
+    Package,
     MessageSquare
 } from 'lucide-react';
 import Link from 'next/link';
@@ -293,7 +294,31 @@ export default function DoctorAuctionDetailPage() {
 
                     {/* TOP SUMMARY ROW: Budget, Time & Patient */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                        {/* Budget — los honorarios médicos son el protagonista: es lo que el médico gana */}
+                        {/* Budget — para la casa de salud el protagonista son los insumos; para médico/clínica, los honorarios */}
+                        {actorRole === 'PHARMACY' ? (
+                            <div className="bg-slate-900 p-8 rounded-[2.5rem] text-white relative overflow-hidden shadow-xl shadow-slate-200">
+                                <div className="absolute top-0 right-0 w-24 h-24 bg-alteha-turquoise/10 rounded-full blur-2xl" />
+                                <p className="text-[9px] font-black text-alteha-turquoise uppercase tracking-[0.2em] mb-1 flex items-center gap-1.5">
+                                    <Package className="w-3 h-3" /> Insumos a Cotizar
+                                </p>
+                                <p className="text-[10px] text-slate-500 font-bold mb-4">Solo ofertas por estos materiales, no por la intervención</p>
+                                {(auction.requiredSupplies || []).length === 0 ? (
+                                    <p className="text-sm font-bold text-slate-400">Esta subasta no tiene insumos requeridos.</p>
+                                ) : (
+                                    <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                                        {(auction.requiredSupplies || []).map((sup: any, i: number) => (
+                                            <div key={i} className="flex items-center justify-between bg-alteha-turquoise/10 border border-alteha-turquoise/20 rounded-xl px-4 py-2.5">
+                                                <span className="text-sm font-black text-white">{sup.itemName}</span>
+                                                <span className="text-sm font-black text-alteha-turquoise shrink-0 ml-3">×{sup.quantity || 1}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                                <p className="text-[10px] text-amber-400/90 font-bold mt-4 flex items-center gap-1.5">
+                                    <Zap className="w-3 h-3" /> Los insumos se despachan ANTES de la intervención
+                                </p>
+                            </div>
+                        ) : (
                         <div className="bg-slate-900 p-8 rounded-[2.5rem] text-white relative overflow-hidden shadow-xl shadow-slate-200">
                             <div className="absolute top-0 right-0 w-24 h-24 bg-alteha-turquoise/10 rounded-full blur-2xl" />
                             <p className="text-[9px] font-black text-alteha-turquoise uppercase tracking-[0.2em] mb-1 flex items-center gap-1.5">
@@ -315,6 +340,7 @@ export default function DoctorAuctionDetailPage() {
                                 </div>
                             </div>
                         </div>
+                        )}
 
                         {/* Plazos */}
                         <div className="bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100 flex flex-col justify-between">
@@ -492,15 +518,20 @@ export default function DoctorAuctionDetailPage() {
                     </div>
 
                     {/* Action Button to Open Modal */}
-                    {(auction.status === 'ACTIVE' || auction.status === 'PUBLISHED') && (
-                        <div className="pt-10 flex justify-center">
+                    {(auction.status === 'ACTIVE' || auction.status === 'PUBLISHED') && (actorRole !== 'PHARMACY' || (auction.requiredSupplies || []).length > 0) && (
+                        <div className="pt-10 flex flex-col items-center gap-3">
                             <Button
                                 onClick={() => setIsBidModalOpen(true)}
                                 className="bg-alteha-violet text-white px-12 py-5 rounded-[2rem] font-black text-lg uppercase tracking-widest shadow-2xl shadow-violet-200 hover:scale-105 transition-all flex items-center gap-3 group"
                             >
                                 <Gavel className="w-6 h-6 group-hover:rotate-12 transition-transform" />
-                                Participar en esta Subasta
+                                {actorRole === 'PHARMACY' ? 'Participar por los Insumos' : 'Participar en esta Subasta'}
                             </Button>
+                            {actorRole === 'PHARMACY' && (
+                                <p className="text-xs text-slate-400 font-bold">
+                                    Selecciona los insumos que puedes suministrar y coloca tu precio por cada uno.
+                                </p>
+                            )}
                         </div>
                     )}
                 </div>
@@ -569,7 +600,7 @@ export default function DoctorAuctionDetailPage() {
             <Modal
                 isOpen={isBidModalOpen}
                 onClose={() => setIsBidModalOpen(false)}
-                title="Enviar Propuesta"
+                title={actorRole === 'PHARMACY' ? 'Oferta de Insumos' : 'Enviar Propuesta'}
                 maxWidth="max-w-4xl"
             >
                 <div className="p-0">

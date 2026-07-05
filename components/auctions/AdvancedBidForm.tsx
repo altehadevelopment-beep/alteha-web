@@ -148,28 +148,40 @@ export default function AdvancedBidForm({ auction, onSuccess, hideHeader = false
         return () => { active = false; };
     }, [auction?.id]);
 
-    // Items for Pharmacy / Supplies
-    const [bidItems, setBidItems] = useState<BidItem[]>(
+    // Items for Pharmacy / Supplies — cada insumo se puede incluir o excluir de la oferta
+    const [bidItems, setBidItems] = useState<(BidItem & { included: boolean })[]>(
         (auction.requiredSupplies || []).map(s => ({
             auctionSupply: { id: s.id! },
             itemName: s.itemName,
             quantity: s.quantity,
             unitPrice: s.referenceAmount || 0,
-            totalPrice: (s.quantity || 1) * (s.referenceAmount || 0)
+            totalPrice: (s.quantity || 1) * (s.referenceAmount || 0),
+            included: true,
         }))
     );
+
+    const pharmacyTotal = useMemo(
+        () => bidItems.filter(i => i.included).reduce((acc, item) => acc + item.totalPrice, 0),
+        [bidItems]
+    );
+    const includedCount = useMemo(() => bidItems.filter(i => i.included).length, [bidItems]);
+
+    // El monto de la oferta de farmacia siempre es la suma de los insumos incluidos
+    useEffect(() => {
+        if (role === 'PHARMACY') setBidAmount(pharmacyTotal.toString());
+    }, [role, pharmacyTotal]);
 
     const handleItemPriceChange = (index: number, price: number) => {
         const newItems = [...bidItems];
         newItems[index].unitPrice = price;
         newItems[index].totalPrice = price * newItems[index].quantity;
         setBidItems(newItems);
+    };
 
-        // Update total bid amount if pharmacy
-        if (role === 'PHARMACY' || role === 'PROVIDER') {
-            const total = newItems.reduce((acc, item) => acc + item.totalPrice, 0);
-            setBidAmount(total.toString());
-        }
+    const handleItemToggle = (index: number) => {
+        const newItems = [...bidItems];
+        newItems[index].included = !newItems[index].included;
+        setBidItems(newItems);
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -234,7 +246,21 @@ export default function AdvancedBidForm({ auction, onSuccess, hideHeader = false
                 payload.proposedStartDate = (auction as any).estimatedSurgeryDate || undefined;
                 payload.estimatedDurationDays = parseInt(estimatedDurationDays);
             } else {
-                payload.bidItems = bidItems.map(item => ({
+                const included = bidItems.filter(item => item.included);
+                if (included.length === 0) {
+                    setStatus('error');
+                    setMessage('Selecciona al menos un insumo para participar en la subasta');
+                    setIsLoading(false);
+                    return;
+                }
+                if (included.some(item => !item.unitPrice || item.unitPrice <= 0)) {
+                    setStatus('error');
+                    setMessage('Coloca un precio unitario mayor a cero en cada insumo seleccionado');
+                    setIsLoading(false);
+                    return;
+                }
+                payload.bidAmount = included.reduce((acc, item) => acc + item.totalPrice, 0);
+                payload.bidItems = included.map(item => ({
                     auctionSupply: item.auctionSupply,
                     quantity: item.quantity,
                     unitPrice: item.unitPrice,
@@ -483,7 +509,7 @@ export default function AdvancedBidForm({ auction, onSuccess, hideHeader = false
                 )}
 
                 {/* Amount and Dates */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className={`grid grid-cols-1 md:grid-cols-2 gap-6 ${role === 'PHARMACY' ? 'hidden' : ''}`}>
                     <div className="space-y-2">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">
                             Monto de la Oferta (USD)
@@ -645,34 +671,69 @@ export default function AdvancedBidForm({ auction, onSuccess, hideHeader = false
                 {/* Pharmacy Supplies Table */}
                 {role === 'PHARMACY' && (
                     <div className="space-y-4">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                            <Plus className="w-3.5 h-3.5" />
-                            Detalle de Suministros
-                        </p>
+                        <div>
+                            <p className="text-sm font-black text-slate-900">
+                                1. Selecciona los insumos por los que deseas participar
+                            </p>
+                            <p className="text-xs text-slate-400 font-medium mt-1">
+                                Marca cada insumo que puedes suministrar y coloca tu precio unitario. Puedes ofertar por todos o solo por algunos.
+                            </p>
+                        </div>
                         <div className="space-y-3">
                             {bidItems.map((item, idx) => (
-                                <div key={idx} className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                    <div className="flex-1">
-                                        <p className="font-black text-slate-900">{item.itemName}</p>
-                                        <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Cantidad: {item.quantity}</p>
-                                    </div>
+                                <div
+                                    key={idx}
+                                    className={`p-6 rounded-[2rem] border-2 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all ${item.included ? 'bg-white border-alteha-turquoise/40 shadow-sm' : 'bg-slate-50 border-slate-100 opacity-60'}`}
+                                >
+                                    <label className="flex items-center gap-4 flex-1 cursor-pointer select-none">
+                                        <input
+                                            type="checkbox"
+                                            checked={item.included}
+                                            onChange={() => handleItemToggle(idx)}
+                                            className="w-5 h-5 rounded-md accent-[#2ECFBF] cursor-pointer shrink-0"
+                                        />
+                                        <div>
+                                            <p className="font-black text-slate-900">{item.itemName}</p>
+                                            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">
+                                                Cantidad requerida: {item.quantity}
+                                            </p>
+                                        </div>
+                                    </label>
                                     <div className="flex items-center gap-4">
-                                        <div className="relative">
-                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-black">$</span>
-                                            <input
-                                                type="number"
-                                                value={item.unitPrice}
-                                                onChange={(e) => handleItemPriceChange(idx, parseFloat(e.target.value) || 0)}
-                                                className="w-32 pl-7 pr-3 py-2.5 bg-white border-2 border-slate-200 rounded-xl font-black text-slate-900 outline-none focus:border-alteha-turquoise"
-                                            />
+                                        <div className="space-y-1">
+                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Precio unitario</p>
+                                            <div className="relative">
+                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-black">$</span>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    step="0.01"
+                                                    value={item.unitPrice}
+                                                    disabled={!item.included}
+                                                    onChange={(e) => handleItemPriceChange(idx, parseFloat(e.target.value) || 0)}
+                                                    className="w-32 pl-7 pr-3 py-2.5 bg-white border-2 border-slate-200 rounded-xl font-black text-slate-900 outline-none focus:border-alteha-turquoise disabled:bg-slate-100 disabled:text-slate-300"
+                                                />
+                                            </div>
                                         </div>
                                         <div className="text-right min-w-[100px]">
                                             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Subtotal</p>
-                                            <p className="font-black text-slate-900">${item.totalPrice.toLocaleString()}</p>
+                                            <p className={`font-black ${item.included ? 'text-slate-900' : 'text-slate-300 line-through'}`}>
+                                                ${item.totalPrice.toLocaleString()}
+                                            </p>
                                         </div>
                                     </div>
                                 </div>
                             ))}
+                        </div>
+                        {/* Total de la propuesta */}
+                        <div className="bg-slate-900 rounded-[2rem] p-6 flex items-center justify-between text-white">
+                            <div>
+                                <p className="text-[10px] font-black text-alteha-turquoise uppercase tracking-widest">2. Total de tu oferta</p>
+                                <p className="text-xs text-slate-400 font-medium mt-1">
+                                    {includedCount} de {bidItems.length} insumo{bidItems.length !== 1 ? 's' : ''} seleccionado{includedCount !== 1 ? 's' : ''} · se calcula automáticamente
+                                </p>
+                            </div>
+                            <p className="text-3xl font-black text-alteha-turquoise">${pharmacyTotal.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</p>
                         </div>
                     </div>
                 )}
