@@ -80,6 +80,7 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
     const [expandedBid, setExpandedBid] = useState<number | null>(null);
     const [activeTab, setActiveTab] = useState<'all' | 'top'>('top');
     const [doctorProfiles, setDoctorProfiles] = useState<Record<number, any>>({});
+    const [clinicProfiles, setClinicProfiles] = useState<Record<number, any>>({});
     const [loadingProfiles, setLoadingProfiles] = useState<Record<number, boolean>>({});
     const [isAwarding, setIsAwarding] = useState<number | null>(null);
     const [awardModalOpen, setAwardModalOpen] = useState(false);
@@ -134,6 +135,17 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
         fetchDoctorProfile(doctorId);
     };
 
+    // Hidrata nombre/logo de la clínica oferente cuando la oferta solo trae su id
+    const fetchClinicProfile = async (clinicId: number) => {
+        if (clinicProfiles[clinicId]) return;
+        try {
+            const res = await fetch(`/api/clinics/${clinicId}`);
+            let data: any = await res.json();
+            if (data?.data) data = data.data;
+            if (data?.id) setClinicProfiles(prev => ({ ...prev, [clinicId]: data }));
+        } catch { /* se queda el nombre genérico */ }
+    };
+
     const fetchDoctorProfile = async (doctorId: number) => {
         if (doctorProfiles[doctorId] || loadingProfiles[doctorId]) return;
         
@@ -173,6 +185,10 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
 
             if (doctorId) {
                 fetchDoctorProfile(Number(doctorId));
+            }
+            const clinicId = typeof (bid as any).clinic === 'object' ? (bid as any).clinic?.id : (bid as any).clinicId;
+            if (clinicId) {
+                fetchClinicProfile(Number(clinicId));
             }
         }
     }, [expandedBid]);
@@ -520,7 +536,8 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
                                             // Oferta creada por una clínica (Solo Clínica o Paquete Completo de clínica)
                                             const isClinicBid = (bid as any).modality === 'SOLO_CLINICA' || bid.bidType === 'CLINIC_ONLY' || bid.bidType === 'BOTH';
                                             if (isClinicBid) {
-                                                const logo = bid.clinic?.logoUrl;
+                                                const cId = typeof (bid as any).clinic === 'object' ? (bid as any).clinic?.id : (bid as any).clinicId;
+                                                const logo = bid.clinic?.logoUrl || (cId ? clinicProfiles[cId]?.logoUrl : null) || duplaMap[bid.id]?.clinicLogoUrl;
                                                 return logo ? (
                                                     <img src={logo} className="w-full h-full object-contain bg-white" alt="Clínica" />
                                                 ) : (
@@ -553,7 +570,8 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
                                                 {(() => {
                                                     const isClinicBid = (bid as any).modality === 'SOLO_CLINICA' || bid.bidType === 'CLINIC_ONLY' || bid.bidType === 'BOTH';
                                                     if (isClinicBid) {
-                                                        return bid.clinic?.name || (bid as any).clinicName || 'Clínica';
+                                                        const cId = typeof (bid as any).clinic === 'object' ? (bid as any).clinic?.id : (bid as any).clinicId;
+                                                        return bid.clinic?.name || (cId ? clinicProfiles[cId]?.name : null) || duplaMap[bid.id]?.clinicName || (bid as any).clinicName || 'Clínica';
                                                     }
                                                     const dId = typeof bid.doctor === 'object' ? bid.doctor?.id : (typeof bid.doctor === 'number' ? bid.doctor : (bid as any).doctorId);
                                                     return bid.doctor?.fullName || 
@@ -639,11 +657,11 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
                                         {(bid as any).modality === 'SOLO_CLINICA' && (() => {
                                             const dupla = duplaMap[bid.id];
                                             const status = dupla?.status || 'PENDING';
-                                            const doctorName = dupla?.doctorName || bid.doctor?.fullName || 'el médico';
+                                            const doctorName = dupla?.doctorName || bid.doctor?.fullName || null;
                                             const m: Record<string, { cls: string; label: string }> = {
-                                                PENDING: { cls: 'bg-amber-50 text-amber-600 border-amber-100', label: `En espera de aprobación de ${doctorName}` },
-                                                ACCEPTED: { cls: 'bg-emerald-50 text-emerald-600 border-emerald-100', label: `${doctorName} aceptó · dupla confirmada` },
-                                                REJECTED: { cls: 'bg-red-50 text-red-500 border-red-100', label: `${doctorName} rechazó la invitación` },
+                                                PENDING: { cls: 'bg-amber-50 text-amber-600 border-amber-100', label: doctorName ? `En espera de aprobación de ${doctorName}` : 'En espera de aprobación del médico' },
+                                                ACCEPTED: { cls: 'bg-emerald-50 text-emerald-600 border-emerald-100', label: `${doctorName || 'El médico'} aceptó · dupla confirmada` },
+                                                REJECTED: { cls: 'bg-red-50 text-red-500 border-red-100', label: `${doctorName || 'El médico'} rechazó la invitación` },
                                             };
                                             const st = m[status] || m.PENDING;
                                             return (
