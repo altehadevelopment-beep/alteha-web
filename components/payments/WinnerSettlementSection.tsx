@@ -386,6 +386,7 @@ export const WinnerSettlementSection: React.FC<WinnerSettlementSectionProps> = (
                     </div>
                 )}
             </div>
+            )}
             </div>
         </div>
     );

@@ -35,6 +35,9 @@ export default function DoctorInvitationsPage() {
     const [loading, setLoading] = useState(true);
     const [busyId, setBusyId] = useState<number | null>(null);
     const [feeInputs, setFeeInputs] = useState<Record<number, string>>({});
+    // Método de cobro elegido para la liquidación de esta dupla (regla: se fija al aceptar)
+    const [myMethods, setMyMethods] = useState<any[]>([]);
+    const [methodSel, setMethodSel] = useState<Record<number, string>>({});
     const [error, setError] = useState('');
 
     const load = async () => {
@@ -46,9 +49,9 @@ export default function DoctorInvitationsPage() {
             setInvitations(Array.isArray(invs) ? invs : []);
             const raw: any = methods;
             const list = Array.isArray(raw) ? raw : (Array.isArray(raw?.data) ? raw.data : (raw?.data?.content ?? raw?.content ?? []));
-            const types = (list as any[])
-                .filter((m: any) => m.active !== false)
-                .map((m: any) => m.methodType);
+            const actives = (list as any[]).filter((m: any) => m.active !== false);
+            setMyMethods(actives);
+            const types = actives.map((m: any) => m.methodType);
             setDoctorMethods(types);
         } catch (e) {
             console.error('Error loading invitations', e);
@@ -64,6 +67,14 @@ export default function DoctorInvitationsPage() {
         if (!allowed.length) return { ok: true, missing: [] as string[] };
         const has = allowed.some((a) => doctorMethods.includes(a));
         return { ok: has, missing: allowed };
+    };
+
+    // Primer método compatible con los medios de pago de la subasta (o el primero activo)
+    const defaultMethodId = (inv: any): string => {
+        const allowed: string[] = inv.allowedPaymentMethods || [];
+        const compatible = allowed.length ? myMethods.filter((m) => allowed.includes(m.methodType)) : myMethods;
+        const pick = (compatible[0] || myMethods[0]);
+        return pick?.id != null ? String(pick.id) : '';
     };
 
     const pending = invitations.filter((i) => i.status === 'PENDING');
@@ -83,7 +94,8 @@ export default function DoctorInvitationsPage() {
         }
         setBusyId(inv.id);
         try {
-            const res = await respondDoctorDuplaInvitation(inv.id, { accepted: true, doctorFee: fee });
+            const chosen = methodSel[inv.id] || defaultMethodId(inv);
+            const res = await respondDoctorDuplaInvitation(inv.id, { accepted: true, doctorFee: fee, paymentMethodId: chosen ? Number(chosen) : undefined });
             if (res?.id || res?.data?.id || res?.status === 'ACCEPTED' || res?.code === '00') {
                 await load();
             } else {
@@ -230,6 +242,29 @@ export default function DoctorInvitationsPage() {
                                                         )}
                                                     </p>
                                                 )}
+                                            </div>
+                                        )}
+
+                                        {/* Método de cobro para la liquidación de tus honorarios */}
+                                        {compat.ok && myMethods.length > 0 && (
+                                            <div className="space-y-1.5">
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">
+                                                    Método de cobro para tu liquidación
+                                                </label>
+                                                <select
+                                                    value={methodSel[inv.id] ?? defaultMethodId(inv)}
+                                                    onChange={(e) => setMethodSel((p) => ({ ...p, [inv.id]: e.target.value }))}
+                                                    className="w-full bg-slate-50 border-2 border-transparent focus:border-alteha-turquoise rounded-xl px-4 py-3 text-sm font-bold text-slate-900 outline-none transition-all"
+                                                >
+                                                    {myMethods.map((m: any) => (
+                                                        <option key={m.id} value={String(m.id)}>
+                                                            {m.displayName || m.methodType}{(inv.allowedPaymentMethods || []).includes(m.methodType) ? '' : ' (no compatible con esta subasta)'}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                                <p className="text-[10px] text-slate-400 font-medium">
+                                                    Alteha liquidará tus honorarios a este método cuando se complete la subasta.
+                                                </p>
                                             </div>
                                         )}
 

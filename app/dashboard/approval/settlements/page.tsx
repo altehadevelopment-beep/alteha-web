@@ -76,7 +76,7 @@ export default function SettlementsPage() {
                 }
                 if (!active) return;
                 setWinningBid(wb || null);
-                if (wb && wb.modality === 'SOLO_MEDICO' && settlementAuction.id) {
+                if (wb && (wb.modality === 'SOLO_MEDICO' || wb.modality === 'SOLO_CLINICA') && settlementAuction.id) {
                     try {
                         const { getAuctionDuplas } = await import('@/lib/api');
                         const duplas = await getAuctionDuplas(settlementAuction.id);
@@ -100,9 +100,16 @@ export default function SettlementsPage() {
             if (role === 'CLINIC') return dupla?.clinicFee != null ? Number(dupla.clinicFee) : null; // parte de la clínica
             return null;
         }
-        // PAQUETE_COMPLETO: el médico cobra el total; la clínica no recibe liquidación directa
-        if (role === 'DOCTOR') return bidAmount;
-        if (role === 'CLINIC') return 0;
+        if (winningBid.modality === 'SOLO_CLINICA') {
+            // Dupla clínica→médico: la clínica cobra su oferta; el médico sus honorarios aceptados
+            if (role === 'CLINIC') return bidAmount;
+            if (role === 'DOCTOR') return dupla?.doctorFee != null ? Number(dupla.doctorFee) : (dupla?.honorarios != null ? Number(dupla.honorarios) : null);
+            return null;
+        }
+        // PAQUETE_COMPLETO: el dueño de la oferta cobra el total y le paga al otro por fuera
+        const clinicOwned = winningBid.bidType === 'BOTH' || winningBid.bidType === 'CLINIC_ONLY';
+        if (role === 'DOCTOR') return clinicOwned ? 0 : bidAmount;
+        if (role === 'CLINIC') return clinicOwned ? bidAmount : 0;
         return null;
     };
 
@@ -129,7 +136,12 @@ export default function SettlementsPage() {
                 if (!active) return;
                 const list = (methods || []).filter(m => m.active !== false);
                 setRecipientMethods(list);
-                const first = list[0] || null;
+                // Si este destinatario es el socio de la dupla y eligió método al aceptar, usarlo
+                const partnerRole = winningBid?.modality === 'SOLO_MEDICO' ? 'CLINIC' : (winningBid?.modality === 'SOLO_CLINICA' ? 'DOCTOR' : null);
+                const chosen = partnerRole === role && dupla?.settlementMethodId != null
+                    ? list.find((m: any) => String(m.id) === String(dupla.settlementMethodId))
+                    : null;
+                const first = chosen || list[0] || null;
                 setSelectedMethodId(first?.id ?? null);
                 setSettlementForm(p => ({ ...p, paymentMethodType: first?.methodType || '' }));
             })
@@ -494,7 +506,15 @@ export default function SettlementsPage() {
                                 {/* Desglose por modalidad (ancho completo) */}
                                 {winningBid && (
                                     <div className="bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 text-xs text-slate-500">
-                                        {winningBid.modality === 'SOLO_MEDICO' ? (
+                                        {winningBid.modality === 'SOLO_CLINICA' ? (
+                                            <>
+                                                <p className="font-black text-slate-600">Modalidad: Solo clínica (dupla con médico)</p>
+                                                <div className="flex flex-wrap gap-x-4 gap-y-0.5">
+                                                    <p><span className="font-black text-slate-600">Clínica:</span> ${Number(winningBid.bidAmount ?? 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })}</p>
+                                                    <p><span className="font-black text-slate-600">Médico:</span> {dupla?.doctorFee != null ? `$${Number(dupla.doctorFee).toLocaleString('es-VE', { minimumFractionDigits: 2 })}` : 'no disponible'}</p>
+                                                </div>
+                                            </>
+                                        ) : winningBid.modality === 'SOLO_MEDICO' ? (
                                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                                                 <p className="font-black text-slate-600">Modalidad: Solo médico (dupla con clínica)</p>
                                                 <div className="flex gap-6">
