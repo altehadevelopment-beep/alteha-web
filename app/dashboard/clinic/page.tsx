@@ -507,6 +507,11 @@ function RealAuctionItem({ auction }: { auction: any }) {
                         })()}
                         <div className="flex items-center gap-3 mt-1 flex-wrap">
                             <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600">{AUCTION_STATUS_ES[auction.status] || auction.status}</span>
+                            {auction.status === 'PUBLISHED' && (
+                                <span className="px-2 py-0.5 rounded-md bg-amber-50 border border-amber-200 text-amber-600 text-[9px] font-black uppercase tracking-widest" title="El seguro ya armó esta subasta; podrás ofertar cuando la active.">
+                                    Próximamente disponible
+                                </span>
+                            )}
                             <span className="w-1 h-1 rounded-full bg-slate-200" />
                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{auction.auctionNumber}</span>
                         </div>

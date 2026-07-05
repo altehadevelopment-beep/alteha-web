@@ -376,11 +376,16 @@ function AuctionCard({ auction, index, onChat, currentUserId }: { auction: Aucti
             {/* Action */}
             <div className="flex flex-col gap-2 w-full lg:w-auto">
                 <Link href={`${auctionsBase}/${auction.auctionNumber}`} className="flex-shrink-0">
-                    {(auction.status === 'ACTIVE' || auction.status === 'PUBLISHED') ? (
+                    {auction.status === 'ACTIVE' ? (
                         <Button className="w-full lg:w-40 h-14 rounded-[1.5rem] bg-alteha-violet text-white font-black flex items-center justify-center gap-2 shadow-lg shadow-violet-200 hover:scale-105 transition-all">
                             <Gavel className="w-5 h-5" />
                             Ofertar Ahora
                         </Button>
+                    ) : auction.status === 'PUBLISHED' ? (
+                        <div className="w-full lg:w-44 h-14 rounded-[1.5rem] bg-amber-50 border-2 border-amber-200 text-amber-600 font-black flex flex-col items-center justify-center leading-tight" title="El seguro ya armó esta subasta; podrás ofertar cuando la active.">
+                            <span className="flex items-center gap-1.5 text-xs uppercase tracking-widest"><Clock className="w-4 h-4" /> Próximamente</span>
+                            <span className="text-[9px] font-bold text-amber-500 uppercase tracking-widest">disponible para ofertar</span>
+                        </div>
                     ) : (
                         <Button className="w-full lg:w-14 h-14 rounded-[1.5rem] bg-slate-50 text-slate-400 hover:bg-alteha-violet hover:text-white flex items-center justify-center transition-all p-0 group">
                             <ChevronRight className="w-6 h-6 group-hover:translate-x-0.5 transition-transform" />

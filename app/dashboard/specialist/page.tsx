@@ -864,7 +864,7 @@ function StatCard({ label, value, icon: Icon, color, bg }: any) {
 }
 
 // Estados en los que la subasta todavía admite ofertas (mismo criterio que el resto de la app)
-const BIDDABLE_STATUSES = ['ACTIVE', 'PUBLISHED'];
+const BIDDABLE_STATUSES = ['ACTIVE']; // en PUBLISHED aún no se puede ofertar (el seguro debe activarla)
 
 // Etiqueta/color para subastas que ya NO son ofertables (adjudicadas o en fase de pago)
 const AUCTION_STATUS_BADGE: Record<string, { label: string; color: string; dot: string }> = {
@@ -1048,6 +1048,11 @@ function AuctionCard({ auction }: { auction: Auction }) {
                             <ArrowRight className="w-4 h-4" />
                         </button>
                     </Link>
+                ) : auction.status === 'PUBLISHED' ? (
+                    <div className="flex-1 lg:w-full py-3 rounded-2xl font-bold flex flex-col items-center justify-center bg-amber-50 border-2 border-amber-200 text-amber-600 leading-tight" title="El seguro ya armó esta subasta; podrás ofertar cuando la active.">
+                        <span className="flex items-center gap-1.5 text-xs uppercase tracking-widest"><Clock className="w-4 h-4" /> Próximamente</span>
+                        <span className="text-[9px] font-bold text-amber-500 uppercase tracking-widest">disponible para ofertar</span>
+                    </div>
                 ) : (
                     <div className={`flex-1 lg:w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-2 ${AUCTION_STATUS_BADGE[auction.status]?.color || 'bg-slate-100 text-slate-600'}`}>
                         <span className={`w-2 h-2 rounded-full ${AUCTION_STATUS_BADGE[auction.status]?.dot || 'bg-slate-400'}`} />
