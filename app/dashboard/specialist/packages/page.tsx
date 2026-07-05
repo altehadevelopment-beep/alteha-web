@@ -99,7 +99,7 @@ export default function PublishPackagePage() {
     useEffect(() => {
         if (userProfile && !userProfile.specialties?.length && catalogSpecialties.length === 0) {
             import('@/lib/api').then(({ getSpecialties }) =>
-                getSpecialties(0, 200)
+                getSpecialties(0, 200, true) // solo especialidades con intervenciones cargadas
                     .then((list: any) => setCatalogSpecialties(Array.isArray(list) ? list : (list?.content ?? [])))
                     .catch(() => {})
             );
@@ -607,7 +607,9 @@ export default function PublishPackagePage() {
                                                 </select>
                                                 <svg className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" /></svg>
                                             </div>
-                                            <p className="text-[11px] text-slate-400 mt-1.5">El paquete queda asociado a esta intervención: el seguro la redime por paciente.</p>
+                                            <p className="text-[11px] text-slate-400 mt-1.5">{!loadingProcedures && specialtyId && procedureTypes.length === 0
+                                                ? 'Esta especialidad no tiene intervenciones cargadas: elige otra especialidad.'
+                                                : 'El paquete queda asociado a esta intervención: el seguro la redime por paciente.'}</p>
                                         </div>
                                         )}
                                         {/* Imagen comercial del paquete */}
