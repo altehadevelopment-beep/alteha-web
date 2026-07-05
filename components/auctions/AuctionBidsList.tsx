@@ -75,6 +75,21 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
     const { userProfile } = useAuth();
     const listPathname = usePathname();
     const viewerIsClinic = listPathname?.includes('/clinic/') ?? false;
+    // Seguro que publicó la subasta (logo + nombre en el encabezado de la lista)
+    const [insurerHeader, setInsurerHeader] = useState<{ name?: string; logoUrl?: string } | null>(null);
+    useEffect(() => {
+        if (!insuranceId) return;
+        let active = true;
+        import('@/lib/api').then(({ getInsuranceCompanyById }) =>
+            getInsuranceCompanyById(Number(insuranceId))
+                .then((res: any) => {
+                    const info = res?.data ?? res;
+                    if (active && info) setInsurerHeader({ name: info.name || info.commercialName || info.legalName, logoUrl: info.logoUrl || info.logo });
+                })
+                .catch(() => {})
+        );
+        return () => { active = false; };
+    }, [insuranceId]);
     const [bids, setBids] = useState<BidDetailed[]>([]);
     const [topOffers, setTopOffers] = useState<TopOffer[]>([]);
     const [duplaMap, setDuplaMap] = useState<Record<number, any>>({});
@@ -365,7 +380,17 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
                         <Trophy className="w-5 h-5 text-alteha-violet" />
                     </div>
                     <div>
-                        <h3 className="text-xl font-black text-slate-900">{isProviderView ? 'Ofertas de la Subasta' : 'Ofertas Recibidas'}</h3>
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="text-xl font-black text-slate-900">{isProviderView ? 'Ofertas de la Subasta' : 'Ofertas Recibidas'}</h3>
+                            {isProviderView && (insurerHeader?.name || insuranceName) && (
+                                <span className="inline-flex items-center gap-1.5 bg-violet-50 border border-violet-100 px-2.5 py-1 rounded-xl" title="Seguro que publicó la subasta">
+                                    {insurerHeader?.logoUrl && (
+                                        <img src={insurerHeader.logoUrl} alt="" className="w-5 h-5 rounded-md object-contain bg-white" />
+                                    )}
+                                    <span className="text-[11px] font-black text-alteha-violet">{insurerHeader?.name || insuranceName}</span>
+                                </span>
+                            )}
+                        </div>
                         <p className="text-xs font-bold text-slate-400">
                             {totalBids} {totalBids === 1 ? 'oferta' : 'ofertas'} en esta subasta
                         </p>
