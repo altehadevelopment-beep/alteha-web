@@ -42,8 +42,10 @@ function printReceipt(p: any, actorName: string) {
         body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #0f172a; padding: 48px; }
         .box { max-width: 640px; margin: 0 auto; border: 2px solid #e2e8f0; border-radius: 24px; padding: 40px; }
         .head { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #2ECFBF; padding-bottom: 20px; margin-bottom: 28px; }
-        .brand { font-size: 28px; font-weight: 900; letter-spacing: 2px; }
-        .brand span { color: #2ECFBF; }
+        .brand { display: flex; align-items: center; gap: 12px; }
+        .brand img { height: 48px; width: auto; }
+        .brand .txt { font-size: 24px; font-weight: 900; letter-spacing: 2px; }
+        .brand .txt span { color: #2ECFBF; }
         .rec { text-align: right; font-size: 12px; color: #64748b; }
         .rec b { display: block; font-size: 15px; color: #0f172a; }
         .row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px dashed #e2e8f0; font-size: 14px; }
@@ -57,7 +59,7 @@ function printReceipt(p: any, actorName: string) {
     </style></head><body>
     <div class="box">
         <div class="head">
-            <div class="brand">AL<span>TEHA</span></div>
+            <div class="brand"><img src="${window.location.origin}/logoalteha.svg" alt="Alteha" onerror="this.style.display='none'"/><div class="txt">AL<span>TEHA</span></div></div>
             <div class="rec">Recibo de ${p.direction === 'RECIBIDO' ? 'cobro' : 'pago'}<b>${p.receiptNumber || p.id}</b>${p.date ? new Date(p.date).toLocaleString('es-VE') : ''}</div>
         </div>
         <div class="amount">
@@ -73,7 +75,14 @@ function printReceipt(p: any, actorName: string) {
         <div class="row"><div class="k">Estado</div><div class="v">${STATUS_LABEL[p.status]?.label || p.status || '—'}</div></div>
         <div class="foot">Documento generado por Alteha — Red Médica · ${new Date().toLocaleDateString('es-VE')}</div>
     </div>
-    <script>window.onload = () => { window.print(); };</script>
+    <script>
+        window.onload = () => {
+            const img = document.querySelector('.brand img');
+            const go = () => window.print();
+            if (img && !img.complete) { img.onload = go; img.onerror = go; setTimeout(go, 800); }
+            else { go(); }
+        };
+    </script>
     </body></html>`;
     const w = window.open('', '_blank', 'width=760,height=900');
     if (w) { w.document.write(html); w.document.close(); }
