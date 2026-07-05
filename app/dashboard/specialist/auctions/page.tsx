@@ -17,7 +17,7 @@ import {
     Stethoscope,
     Activity,
     MessageSquare
-} from 'lucide-react';
+, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import { getMyInvitations, type Auction } from '@/lib/api';
 import { usePathname } from 'next/navigation';
@@ -299,6 +299,23 @@ function AuctionCard({ auction, index, onChat, currentUserId }: { auction: Aucti
                 </div>
 
                 <h3 className="text-xl font-black text-slate-900">{auction.title}</h3>
+
+                {/* Compañía de seguros que lanzó la subasta */}
+                {(() => {
+                    const ic: any = (auction as any).insuranceCompany;
+                    const icName = ic?.name || ic?.commercialName || ic?.legalName;
+                    if (!icName) return null;
+                    return (
+                        <span className="inline-flex items-center gap-2 bg-violet-50/70 border border-violet-100 px-3 py-1.5 rounded-xl">
+                            {ic?.logoUrl ? (
+                                <img src={ic.logoUrl} alt={icName} className="w-5 h-5 rounded-md object-contain bg-white" />
+                            ) : (
+                                <ShieldCheck className="w-4 h-4 text-alteha-violet" />
+                            )}
+                            <span className="text-[11px] font-black text-alteha-violet">{icName}</span>
+                        </span>
+                    );
+                })()}
 
                 <div className="flex flex-wrap gap-5">
                     {auction.specialty?.name && (

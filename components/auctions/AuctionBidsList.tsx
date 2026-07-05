@@ -101,7 +101,29 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
         participantId: string;
         participantName: string;
         participantPhoto?: string;
+        participantRole?: 'INSURANCE' | 'DOCTOR' | 'CLINIC';
     } | null>(null);
+
+    // Nombre y logo reales del seguro para el chat (la oferta puede traer solo el id)
+    const openInsurerChat = async (iId: any, fallbackName?: string, fallbackPhoto?: string) => {
+        let name = fallbackName;
+        let photo = fallbackPhoto;
+        if (!name || !photo) {
+            try {
+                const { getInsuranceCompanyById } = await import('@/lib/api');
+                const res: any = await getInsuranceCompanyById(Number(iId));
+                const info = res?.data ?? res;
+                name = name || info?.name || info?.legalName;
+                photo = photo || info?.logoUrl || info?.logo;
+            } catch { /* usa lo disponible */ }
+        }
+        setActiveChat({
+            participantId: String(iId),
+            participantName: name || 'Compañía de Seguros',
+            participantPhoto: photo,
+            participantRole: 'INSURANCE',
+        });
+    };
 
     const handleAward = (bidId: number) => {
         setSelectedBidId(bidId);
@@ -271,11 +293,7 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
                                 participantPhoto: bidWithDoctor.doctor?.profileImageUrl || (bidWithDoctor as any).doctorPhoto || (bidWithDoctor.doctor as any)?.imageUrl
                             });
                         } else if (mode === 'doctor' && String(insuranceId) === pId) {
-                            setActiveChat({
-                                participantId: String(pId),
-                                participantName: insuranceName || 'Compañía de Seguros',
-                                participantPhoto: (bidsData[0] as any)?.auction?.insuranceCompany?.logoUrl || (bidsData[0] as any)?.insuranceCompany?.logoUrl
-                            });
+                            openInsurerChat(pId, insuranceName, (bidsData[0] as any)?.auction?.insuranceCompany?.logoUrl || (bidsData[0] as any)?.insuranceCompany?.logoUrl);
                         }
                     }
                 }
@@ -824,11 +842,7 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
                                                         const iId = insuranceId || (bid as any).auction?.insuranceCompany?.id || (bid as any).insuranceCompany?.id;
                                                         const iName = insuranceName || (bid as any).auction?.insuranceCompany?.name || (bid as any).auction?.insuranceCompany?.name || 'Compañía de Seguros';
                                                         if (iId) {
-                                                            setActiveChat({
-                                                                participantId: String(iId),
-                                                                participantName: iName,
-                                                                participantPhoto: (bid as any).auction?.insuranceCompany?.logoUrl || (bid as any).insuranceCompany?.logoUrl || (bid as any).insuranceCompany?.logo
-                                                            });
+                                                            openInsurerChat(iId, iName !== 'Compañía de Seguros' ? iName : undefined, (bid as any).auction?.insuranceCompany?.logoUrl || (bid as any).insuranceCompany?.logoUrl || (bid as any).insuranceCompany?.logo);
                                                         } else {
                                                             alert('No se pudo identificar a la compañía de seguros.');
                                                         }
@@ -1328,6 +1342,7 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
                 <div className="h-[600px] -m-6">
                     {activeChat && (
                         <ChatWindow 
+                            participantRole={activeChat.participantRole}
                             auctionId={String(auctionId)}
                             auctionNumber={auctionNumber}
                             participantId={activeChat.participantId}

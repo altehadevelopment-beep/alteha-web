@@ -108,6 +108,7 @@ export default function DoctorAuctionDetailPage() {
         participantId: string;
         participantName: string;
         participantPhoto?: string;
+        participantRole?: 'INSURANCE' | 'DOCTOR' | 'CLINIC';
     } | null>(null);
 
     useEffect(() => {
@@ -134,7 +135,8 @@ export default function DoctorAuctionDetailPage() {
                                 setActiveChat({
                                     participantId: String(pId),
                                     participantName: auctionData.insuranceCompany?.name || 'Compañía de Seguros',
-                                    participantPhoto: auctionData.insuranceCompany?.logoUrl || (auctionData.insuranceCompany as any)?.logo
+                                    participantPhoto: auctionData.insuranceCompany?.logoUrl || (auctionData.insuranceCompany as any)?.logo,
+                                    participantRole: 'INSURANCE',
                                 });
                             }
                         }
@@ -202,6 +204,26 @@ export default function DoctorAuctionDetailPage() {
                         <h1 className="text-2xl md:text-3xl font-black tracking-tight max-w-4xl uppercase leading-tight">
                             {auction.title}
                         </h1>
+
+                        {/* Compañía de seguros que lanzó la subasta */}
+                        {(() => {
+                            const ic: any = (auction as any).insuranceCompany;
+                            const icName = ic?.name || ic?.commercialName || ic?.legalName;
+                            if (!icName) return null;
+                            return (
+                                <div className="inline-flex items-center gap-3 bg-white/5 border border-white/10 px-4 py-2.5 rounded-2xl">
+                                    <div className="w-9 h-9 rounded-xl bg-white overflow-hidden flex items-center justify-center">
+                                        {ic?.logoUrl
+                                            ? <img src={ic.logoUrl} alt={icName} className="w-full h-full object-contain" />
+                                            : <ShieldCheck className="w-5 h-5 text-alteha-turquoise" />}
+                                    </div>
+                                    <div>
+                                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Lanzada por</p>
+                                        <p className="text-sm font-black text-white">{icName}</p>
+                                    </div>
+                                </div>
+                            );
+                        })()}
                         <div className="flex flex-wrap items-center gap-x-8 gap-y-4 pt-4 border-t border-white/10">
                             <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center border border-white/10">
@@ -244,11 +266,7 @@ export default function DoctorAuctionDetailPage() {
                                                     if (data) photo = data.logoUrl || data.profileImageUrl || (data as any).logo;
                                                 } catch { /* use initials fallback in ChatWindow */ }
                                             }
-                                            setActiveChat({
-                                                participantId: String(insuranceId),
-                                                participantName: insuranceName,
-                                                participantPhoto: photo
-                                            });
+                                            setActiveChat({ participantId: String(insuranceId), participantName: insuranceName, participantPhoto: photo, participantRole: 'INSURANCE' });
                                         } else {
                                             alert('No se pudo identificar a la compañía de seguros para iniciar el chat.');
                                         }
@@ -614,6 +632,7 @@ export default function DoctorAuctionDetailPage() {
                 <div className="h-[600px] -m-6">
                     {activeChat && (
                         <ChatWindow 
+                            participantRole={activeChat.participantRole}
                             auctionId={String(auction.id)}
                             auctionNumber={auction.auctionNumber}
                             participantId={activeChat.participantId}

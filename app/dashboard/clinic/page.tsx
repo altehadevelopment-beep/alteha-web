@@ -494,6 +494,17 @@ function RealAuctionItem({ auction }: { auction: any }) {
                     </div>
                     <div className="min-w-0">
                         <h4 className="font-bold text-slate-900 group-hover:text-emerald-600 transition-colors truncate">{auction.title}</h4>
+                        {(() => {
+                            const ic: any = auction.insuranceCompany;
+                            const icName = ic?.name || ic?.commercialName || ic?.legalName;
+                            if (!icName) return null;
+                            return (
+                                <span className="inline-flex items-center gap-1.5 mt-0.5">
+                                    {ic?.logoUrl ? <img src={ic.logoUrl} alt={icName} className="w-4 h-4 rounded object-contain bg-white border border-slate-100" /> : null}
+                                    <span className="text-[10px] font-black text-slate-500">{icName}</span>
+                                </span>
+                            );
+                        })()}
                         <div className="flex items-center gap-3 mt-1 flex-wrap">
                             <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600">{AUCTION_STATUS_ES[auction.status] || auction.status}</span>
                             <span className="w-1 h-1 rounded-full bg-slate-200" />

@@ -15,6 +15,8 @@ interface ChatWindowProps {
     participantId: string;
     participantName: string;
     participantPhoto?: string;
+    /** Rol del interlocutor: si es INSURANCE, el encabezado muestra y enlaza la info de la compañía. */
+    participantRole?: 'INSURANCE' | 'DOCTOR' | 'CLINIC';
     participantProfileUrl?: string; // when set, the detail modal shows a "Ver perfil completo" link
     currentUserId: string;
     currentUserName: string;
@@ -28,6 +30,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     participantId,
     participantName,
     participantPhoto,
+    participantRole,
     participantProfileUrl,
     currentUserId,
     currentUserName,
@@ -36,6 +39,16 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 }) => {
     const [inputText, setInputText] = useState('');
     const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+    // Información de la compañía de seguros (se carga al abrir su ficha)
+    const [insurerInfo, setInsurerInfo] = useState<any>(null);
+    useEffect(() => {
+        if (!isProfileModalOpen || participantRole !== 'INSURANCE' || insurerInfo || !participantId) return;
+        import('@/lib/api').then(({ getInsuranceCompanyById }) =>
+            getInsuranceCompanyById(Number(participantId))
+                .then((res: any) => setInsurerInfo(res?.data ?? res ?? null))
+                .catch(() => {})
+        );
+    }, [isProfileModalOpen, participantRole, participantId, insurerInfo]);
     const { messages, loading, sendMessage, markAsRead } = useChat(auctionId, currentUserId, participantId, auctionNumber);
     const scrollRef = useRef<HTMLDivElement>(null);
     const { userProfile } = useAuth();
@@ -120,7 +133,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     <div>
                         <h4 className="font-black text-slate-900 leading-tight group-hover:text-alteha-violet transition-colors">{participantName}</h4>
                         <div className="flex items-center gap-1.5">
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Ver perfil del profesional</span>
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{participantRole === 'INSURANCE' ? 'Ver información de la compañía' : 'Ver perfil del profesional'}</span>
                         </div>
                     </div>
                 </div>
@@ -239,8 +252,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     >
                         <div className="p-8 text-center space-y-6">
                             <div className="w-32 h-32 rounded-[2.5rem] overflow-hidden mx-auto shadow-2xl border-4 border-white">
-                                {participantPhoto ? (
-                                    <img src={participantPhoto} alt={participantName} className="w-full h-full object-cover" />
+                                {(participantPhoto || insurerInfo?.logoUrl) ? (
+                                    <img src={participantPhoto || insurerInfo?.logoUrl} alt={participantName} className="w-full h-full object-contain bg-white" />
                                 ) : (
                                     <div className="w-full h-full bg-slate-100 flex items-center justify-center">
                                         <User className="w-12 h-12 text-slate-300" />
@@ -248,9 +261,34 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                                 )}
                             </div>
                             <div>
-                                <h3 className="text-2xl font-black text-slate-900">{participantName}</h3>
-                                <p className="text-alteha-violet font-black text-xs uppercase tracking-widest mt-1">Participante de la Subasta</p>
+                                <h3 className="text-2xl font-black text-slate-900">{insurerInfo?.name || insurerInfo?.legalName || participantName}</h3>
+                                <p className="text-alteha-violet font-black text-xs uppercase tracking-widest mt-1">
+                                    {participantRole === 'INSURANCE' ? 'Compañía de Seguros' : 'Participante de la Subasta'}
+                                </p>
                             </div>
+
+                            {participantRole === 'INSURANCE' && insurerInfo && (
+                                <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 text-left space-y-3 text-sm">
+                                    {insurerInfo.legalName && (
+                                        <p><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Razón social</span><span className="font-bold text-slate-700">{insurerInfo.legalName}</span></p>
+                                    )}
+                                    {(insurerInfo.identificationNumber || insurerInfo.rif) && (
+                                        <p><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">RIF</span><span className="font-bold text-slate-700">{insurerInfo.identificationNumber || insurerInfo.rif}</span></p>
+                                    )}
+                                    {insurerInfo.email && (
+                                        <p><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Correo</span><span className="font-bold text-slate-700">{insurerInfo.email}</span></p>
+                                    )}
+                                    {insurerInfo.phone && (
+                                        <p><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Teléfono</span><span className="font-bold text-slate-700">{insurerInfo.phone}</span></p>
+                                    )}
+                                    {insurerInfo.website && (
+                                        <p><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Sitio web</span><a href={insurerInfo.website} target="_blank" rel="noreferrer" className="font-bold text-alteha-violet underline">{insurerInfo.website}</a></p>
+                                    )}
+                                    {insurerInfo.address && (
+                                        <p><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Dirección</span><span className="font-bold text-slate-700">{insurerInfo.address}</span></p>
+                                    )}
+                                </div>
+                            )}
                             <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 text-left space-y-4">
                                 <div className="flex items-center gap-4">
                                     <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-sm">

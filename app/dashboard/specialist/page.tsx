@@ -954,7 +954,18 @@ function AuctionCard({ auction }: { auction: Auction }) {
 
                 <div>
                     <h4 className="text-2xl font-black text-slate-800 tracking-tight mb-2">{auction.title}</h4>
-                    <p className="text-slate-500 text-sm line-clamp-2 leading-relaxed font-medium">
+
+                {(() => {
+                    const ic: any = (auction as any).insuranceCompany;
+                    const icName = ic?.name || ic?.commercialName || ic?.legalName;
+                    if (!icName) return null;
+                    return (
+                        <span className="inline-flex items-center gap-1.5 bg-violet-50 border border-violet-100 px-2.5 py-1 rounded-lg mt-1">
+                            {ic?.logoUrl ? <img src={ic.logoUrl} alt={icName} className="w-4 h-4 rounded object-contain bg-white" /> : null}
+                            <span className="text-[10px] font-black text-alteha-violet">{icName}</span>
+                        </span>
+                    );
+                })()}                    <p className="text-slate-500 text-sm line-clamp-2 leading-relaxed font-medium">
                         {auction.medicalHistory || auction.description}
                     </p>
                 </div>
