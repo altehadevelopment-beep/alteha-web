@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     ArrowLeft,
     Save,
@@ -19,11 +19,16 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthContext';
 import { Logo } from '@/components/ui/Logo';
+import { updatePharmacyProfile } from '@/lib/api';
+import LocationPicker from '@/components/maps/LocationPicker';
 import { toast } from 'sonner';
 
 export default function ProviderProfilePage() {
     const { userProfile, isLoadingProfile } = useAuth();
     const [loading, setLoading] = useState(false);
+    const [logoFile, setLogoFile] = useState<File | null>(null);
+    const [logoPreview, setLogoPreview] = useState<string | null>(null);
+    const logoInputRef = useRef<HTMLInputElement>(null);
     const [formData, setFormData] = useState({
         name: '',
         legalName: '',
@@ -52,22 +57,58 @@ export default function ProviderProfilePage() {
                 phone: userProfile.phone || '',
                 website: userProfile.website || '',
                 address: userProfile.address || '',
-                latitude: userProfile.latitude || 0,
-                longitude: userProfile.longitude || 0,
+                latitude: Number(userProfile.latitude) || 0,
+                longitude: Number(userProfile.longitude) || 0,
             });
         }
     }, [userProfile]);
 
+    const handleLogoSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (!file.type.startsWith('image/')) {
+            toast.error('El logo debe ser una imagen (PNG, JPG o SVG)');
+            return;
+        }
+        setLogoFile(file);
+        setLogoPreview(URL.createObjectURL(file));
+    };
+
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
-        setTimeout(() => {
+        try {
+            const payload: Record<string, any> = {
+                name: formData.name,
+                legalName: formData.legalName,
+                pharmacyLicenseNumber: formData.pharmacyLicenseNumber,
+                email: formData.email,
+                phone: formData.phone,
+                website: formData.website,
+            };
+            if (formData.address) {
+                payload.address = formData.address;
+                payload.latitude = formData.latitude || null;
+                payload.longitude = formData.longitude || null;
+            }
+            const res = await updatePharmacyProfile(payload, logoFile);
+            const code = res?.code ?? res?.data?.code;
+            if (code === '00' || res?.data?.id || res?.id) {
+                toast.success('Perfil del proveedor actualizado correctamente');
+                setLogoFile(null);
+                setTimeout(() => window.location.reload(), 900);
+            } else {
+                toast.error(res?.message || res?.data?.message || 'No se pudo actualizar el perfil');
+            }
+        } catch (err: any) {
+            toast.error('Error al guardar: ' + (err?.message || 'intenta de nuevo'));
+        } finally {
             setLoading(false);
-            toast.success('Perfil del proveedor actualizado correctamente');
-        }, 1500);
+        }
     };
 
     const displayProfile = userProfile || {};
+    const currentLogo = logoPreview || (typeof displayProfile.logoUrl === 'string' && displayProfile.logoUrl.startsWith('http') ? displayProfile.logoUrl : null);
 
     const pharmacyTypeLabel: Record<string, string> = {
         'RETAIL': 'Comercial / Detal',
@@ -99,16 +140,36 @@ export default function ProviderProfilePage() {
                 <section className="bg-white p-10 rounded-[3rem] shadow-xl shadow-slate-200/50 border border-slate-100">
                     <div className="flex flex-col md:flex-row items-center gap-10">
                         <div className="relative group">
-                            <div className="w-40 h-40 rounded-[2.5rem] overflow-hidden border-4 border-slate-50 shadow-inner bg-slate-50 flex items-center justify-center p-6">
-                                {displayProfile.logoUrl ? (
-                                    <img src={displayProfile.logoUrl} alt="Logo" className="w-full h-full object-contain" />
+                            <div
+                                className="w-40 h-40 rounded-[2.5rem] overflow-hidden border-4 border-slate-50 shadow-inner bg-slate-50 flex items-center justify-center p-6 cursor-pointer"
+                                onClick={() => logoInputRef.current?.click()}
+                                title="Cambiar logo"
+                            >
+                                {currentLogo ? (
+                                    <img src={currentLogo} alt="Logo" className="w-full h-full object-contain" />
                                 ) : (
                                     <Truck className="w-16 h-16 text-indigo-600 opacity-20" />
                                 )}
                             </div>
-                            <button type="button" className="absolute -bottom-2 -right-2 p-3 bg-indigo-600 text-white rounded-2xl shadow-lg group-hover:scale-110 transition-transform">
+                            <button
+                                type="button"
+                                onClick={() => logoInputRef.current?.click()}
+                                className="absolute -bottom-2 -right-2 p-3 bg-indigo-600 text-white rounded-2xl shadow-lg group-hover:scale-110 transition-transform"
+                            >
                                 <Upload className="w-5 h-5" />
                             </button>
+                            <input
+                                ref={logoInputRef}
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={handleLogoSelected}
+                            />
+                            {logoFile && (
+                                <p className="absolute -bottom-8 left-0 right-0 text-center text-[10px] font-black text-indigo-600 uppercase tracking-widest">
+                                    Nuevo logo listo
+                                </p>
+                            )}
                         </div>
 
                         <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
@@ -209,28 +270,23 @@ export default function ProviderProfilePage() {
                         onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                         icon={MapPin}
                     />
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <Input
-                            label="Latitud"
-                            value={formData.latitude.toString()}
-                            disabled
-                        />
-                        <Input
-                            label="Longitud"
-                            value={formData.longitude.toString()}
-                            disabled
-                        />
-                    </div>
+                    <LocationPicker
+                        latitude={formData.latitude || undefined}
+                        longitude={formData.longitude || undefined}
+                        withSearch
+                        onAddressFound={(address) => setFormData(prev => ({ ...prev, address }))}
+                        onChange={(lat, lng) => setFormData(prev => ({ ...prev, latitude: lat, longitude: lng }))}
+                    />
                 </section>
 
                 {/* Action Bar */}
                 <div className="flex items-center justify-end gap-4 bg-slate-900/5 p-6 rounded-[2.5rem] border border-slate-100">
                     <p className="text-sm text-slate-500 font-medium mr-auto pl-4 hidden md:block">
-                        Última actualización: <span className="font-bold text-slate-700">{displayProfile.createdAt ? new Date(displayProfile.createdAt).toLocaleDateString() : 'N/A'}</span>
+                        Última actualización: <span className="font-bold text-slate-700">{displayProfile.updatedAt ? new Date(displayProfile.updatedAt).toLocaleDateString() : (displayProfile.createdAt ? new Date(displayProfile.createdAt).toLocaleDateString() : 'N/A')}</span>
                     </p>
                     <Button
                         type="submit"
-                        disabled={loading}
+                        disabled={loading || isLoadingProfile}
                         className="flex items-center gap-2 px-10 py-6 bg-indigo-600 text-white rounded-2xl font-black shadow-xl shadow-indigo-600/20 hover:scale-105 transition-all"
                     >
                         {loading ? (

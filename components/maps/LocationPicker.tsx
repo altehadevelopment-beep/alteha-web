@@ -1,18 +1,24 @@
 "use client";
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import 'leaflet/dist/leaflet.css';
 
 /**
  * Selector de ubicación con mapa (Leaflet + OpenStreetMap):
  * clic en el mapa o arrastre del marcador para fijar latitud/longitud.
+ * Con `withSearch` incluye un buscador de direcciones (geocodificador Nominatim).
  */
-export default function LocationPicker({ latitude, longitude, onChange, heightClass = 'h-72' }: {
+export default function LocationPicker({ latitude, longitude, onChange, heightClass = 'h-72', withSearch = false, onAddressFound }: {
     latitude?: number | null;
     longitude?: number | null;
     onChange: (lat: number, lng: number) => void;
     heightClass?: string;
+    withSearch?: boolean;
+    onAddressFound?: (address: string) => void;
 }) {
+    const [query, setQuery] = useState('');
+    const [searching, setSearching] = useState(false);
+    const [results, setResults] = useState<any[]>([]);
     const mountRef = useRef<HTMLDivElement>(null);
     const mapRef = useRef<any>(null);
     const markerRef = useRef<any>(null);
@@ -74,8 +80,72 @@ export default function LocationPicker({ latitude, longitude, onChange, heightCl
         }
     }, [latitude, longitude]);
 
+    const runSearch = async () => {
+        const q = query.trim();
+        if (!q || searching) return;
+        setSearching(true);
+        setResults([]);
+        try {
+            const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=5&accept-language=es&q=${encodeURIComponent(q)}`);
+            const data = await res.json();
+            setResults(Array.isArray(data) ? data : []);
+        } catch {
+            setResults([]);
+        } finally {
+            setSearching(false);
+        }
+    };
+
+    const pickResult = (r: any) => {
+        const lat = Number(Number(r.lat).toFixed(6));
+        const lng = Number(Number(r.lon).toFixed(6));
+        if (mapRef.current && markerRef.current) {
+            markerRef.current.setLatLng([lat, lng]);
+            mapRef.current.setView([lat, lng], 16);
+        }
+        onChangeRef.current(lat, lng);
+        if (onAddressFound && r.display_name) onAddressFound(r.display_name);
+        setResults([]);
+        setQuery(r.display_name || query);
+    };
+
     return (
         <div className="space-y-2">
+            {withSearch && (
+                <div className="relative">
+                    <div className="flex gap-2">
+                        <input
+                            value={query}
+                            onChange={(e) => setQuery(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); runSearch(); } }}
+                            placeholder="Busca una dirección o lugar (ej. Av. Libertador, Caracas)"
+                            className="flex-1 px-5 py-3.5 rounded-2xl border-2 border-slate-100 bg-slate-50 text-sm font-semibold text-slate-800 focus:outline-none focus:border-alteha-turquoise/50 transition-colors"
+                        />
+                        <button
+                            type="button"
+                            onClick={runSearch}
+                            disabled={searching}
+                            className="px-6 py-3.5 rounded-2xl bg-slate-900 text-white text-sm font-black hover:scale-105 transition-all disabled:opacity-50"
+                        >
+                            {searching ? 'Buscando…' : 'Buscar'}
+                        </button>
+                    </div>
+                    {results.length > 0 && (
+                        <div className="absolute z-[500] left-0 right-0 mt-2 bg-white rounded-2xl border border-slate-100 shadow-xl overflow-hidden">
+                            {results.map((r: any) => (
+                                <button
+                                    key={r.place_id}
+                                    type="button"
+                                    onClick={() => pickResult(r)}
+                                    className="block w-full text-left px-5 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50 border-b border-slate-50 last:border-0"
+                                >
+                                    {r.display_name}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
             <div ref={mountRef} className={`${heightClass} w-full rounded-2xl overflow-hidden border-2 border-slate-100 z-0`} />
             <p className="text-[10px] font-bold text-slate-400">
                 Haz clic en el mapa o arrastra el marcador para fijar la ubicación exacta.

@@ -1,9 +1,8 @@
 "use client";
 
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
-    Plus,
     Bell,
     ChevronRight,
     TrendingUp,
@@ -15,13 +14,98 @@ import {
     Clock,
     FileText,
     CheckCircle,
-    Edit3
+    Edit3,
+    Inbox,
+    Package2
 } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
+import AuctionCountdown from '@/components/auctions/AuctionCountdown';
+
+const relTime = (d: string | undefined) => {
+    if (!d) return '';
+    const diff = Date.now() - new Date(d).getTime();
+    const m = Math.floor(diff / 60000);
+    if (m < 1) return 'Ahora';
+    if (m < 60) return `Hace ${m}m`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `Hace ${h}h`;
+    return `Hace ${Math.floor(h / 24)}d`;
+};
 
 export default function ProviderDashboard() {
     const { userProfile, isLoadingProfile } = useAuth();
+    const [openAuctions, setOpenAuctions] = useState<any[]>([]);
+    const [myBids, setMyBids] = useState<any[]>([]);
+    const [payments, setPayments] = useState<any[]>([]);
+    const [loadingData, setLoadingData] = useState(true);
+
+    useEffect(() => {
+        const token = localStorage.getItem('id_token');
+        const headers = { 'X-Alteha-Token': token || '' };
+        Promise.all([
+            fetch('/api/pharmacy-auctions/open', { headers }).then(r => r.json()).catch(() => []),
+            fetch('/api/pharmacy-auctions/my-bids', { headers }).then(r => r.json()).catch(() => []),
+            fetch('/api/payments/mine', { headers }).then(r => r.json()).catch(() => []),
+        ]).then(([a, b, p]) => {
+            setOpenAuctions(Array.isArray(a) ? a : []);
+            setMyBids(Array.isArray(b) ? b : []);
+            setPayments(Array.isArray(p) ? p : []);
+        }).finally(() => setLoadingData(false));
+    }, []);
+
+    const stats = useMemo(() => {
+        const active = openAuctions.filter(a => a.status === 'ACTIVE').length;
+        const upcoming = openAuctions.filter(a => a.status === 'PUBLISHED').length;
+        const submitted = myBids.filter(b => b.status === 'SUBMITTED').length;
+        const accepted = myBids.filter(b => b.status === 'ACCEPTED').length;
+        const now = new Date();
+        const received = payments.filter(p => p.direction === 'RECIBIDO' && p.status === 'PAID');
+        const monthSales = received
+            .filter(p => {
+                const d = p.date ? new Date(p.date) : null;
+                return d && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+            })
+            .reduce((s, p) => s + (Number(p.amount) || 0), 0);
+        const totalSales = received.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+        return { active, upcoming, submitted, accepted, monthSales, totalSales, receivedCount: received.length };
+    }, [openAuctions, myBids, payments]);
+
+    const activity = useMemo(() => {
+        const items: { icon: any; text: string; time: string; ts: number; color: string }[] = [];
+        myBids.forEach(b => {
+            const title = b.auction?.title || b.auction?.auctionNumber || 'Subasta';
+            if (b.createdAt) {
+                items.push({
+                    icon: Gavel,
+                    text: `Oferta enviada · ${title}`,
+                    time: relTime(b.createdAt),
+                    ts: new Date(b.createdAt).getTime(),
+                    color: 'bg-indigo-50 text-indigo-600',
+                });
+            }
+            if (b.status === 'ACCEPTED') {
+                const ts = new Date(b.updatedAt || b.createdAt || Date.now()).getTime();
+                items.push({
+                    icon: CheckCircle,
+                    text: `Oferta aceptada · ${title}`,
+                    time: relTime(b.updatedAt || b.createdAt),
+                    ts,
+                    color: 'bg-emerald-50 text-emerald-500',
+                });
+            }
+        });
+        payments.filter(p => p.direction === 'RECIBIDO' && p.status === 'PAID').forEach(p => {
+            items.push({
+                icon: DollarSign,
+                text: `Pago recibido por $${Number(p.amount || 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`,
+                time: relTime(p.date),
+                ts: p.date ? new Date(p.date).getTime() : 0,
+                color: 'bg-blue-50 text-blue-500',
+            });
+        });
+        return items.sort((a, b) => b.ts - a.ts).slice(0, 5);
+    }, [myBids, payments]);
 
     const displayProfile = userProfile || {
         name: 'Cargando...',
@@ -31,6 +115,8 @@ export default function ProviderDashboard() {
     };
 
     const providerName = displayProfile.name || displayProfile.commercialName || displayProfile.legalName || 'Proveedor';
+    const logoOk = typeof displayProfile.logoUrl === 'string' && displayProfile.logoUrl.startsWith('http');
+    const rating = Number(displayProfile.rating) > 0 ? Number(displayProfile.rating).toFixed(1) : '5.0';
 
     return (
         <div className="space-y-10 font-outfit pb-20">
@@ -38,7 +124,7 @@ export default function ProviderDashboard() {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-indigo-50/50 p-10 rounded-[3rem] border border-indigo-100/50">
                 <div className="flex items-center gap-6">
                     <div className="w-24 h-24 rounded-3xl overflow-hidden border-4 border-white shadow-xl bg-white p-3 flex items-center justify-center">
-                        {displayProfile.logoUrl ? (
+                        {logoOk ? (
                             <img src={displayProfile.logoUrl} alt="Logo" className="w-full h-full object-contain" />
                         ) : (
                             <Truck className="w-full h-full text-indigo-600 opacity-20" />
@@ -58,7 +144,7 @@ export default function ProviderDashboard() {
                             <span className="w-1 h-1 rounded-full bg-slate-300" />
                             <div className="flex items-center gap-1.5">
                                 <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                                <span className="font-bold text-slate-900">5.0</span>
+                                <span className="font-bold text-slate-900">{rating}</span>
                                 <span className="text-xs font-medium text-slate-400">(Socio Verificado)</span>
                             </div>
                         </div>
@@ -79,10 +165,10 @@ export default function ProviderDashboard() {
 
             {/* Quick Stats */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <StatCard label="Subastas Activas" value="24" icon={Gavel} trend="+8 nuevas hoy" color="text-indigo-600" />
-                <StatCard label="Ofertas Enviadas" value="18" icon={FileText} trend="5 pendientes" color="text-blue-600" />
-                <StatCard label="Ventas del Mes" value="$89k" icon={TrendingUp} trend="+32% vs anterior" color="text-emerald-600" />
-                <StatCard label="Productos Activos" value="142" icon={Package} trend="12 destacados" color="text-amber-600" />
+                <StatCard label="Subastas Activas" value={loadingData ? '…' : String(stats.active)} icon={Gavel} trend={`${stats.upcoming} próximamente`} color="text-indigo-600" />
+                <StatCard label="Ofertas Enviadas" value={loadingData ? '…' : String(myBids.length)} icon={FileText} trend={`${stats.submitted} en curso`} color="text-blue-600" />
+                <StatCard label="Ventas del Mes" value={loadingData ? '…' : `$${stats.monthSales.toLocaleString('es-VE', { maximumFractionDigits: 0 })}`} icon={TrendingUp} trend={`${stats.receivedCount} cobros`} color="text-emerald-600" />
+                <StatCard label="Ofertas Aceptadas" value={loadingData ? '…' : String(stats.accepted)} icon={Package} trend="insumos adjudicados" color="text-amber-600" />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
@@ -93,46 +179,50 @@ export default function ProviderDashboard() {
                         <Link href="/dashboard/provider/auctions" className="text-sm font-bold text-indigo-600 hover:underline">Ver todas</Link>
                     </div>
 
-                    <div className="space-y-4">
-                        <AuctionItem
-                            title="Prótesis de Rodilla - Hospital Central"
-                            category="Ortopédicos"
-                            budget="$3,500 - $4,200"
-                            timeLeft="6h 45m"
-                            urgent={true}
-                        />
-                        <AuctionItem
-                            title="Kit de Sutura Quirúrgica x100"
-                            category="Consumibles"
-                            budget="$800 - $1,200"
-                            timeLeft="1d 2h"
-                            urgent={false}
-                        />
-                        <AuctionItem
-                            title="Equipo de Imagenología Portátil"
-                            category="Equipos"
-                            budget="$12,000 - $15,000"
-                            timeLeft="3d 8h"
-                            urgent={false}
-                        />
-                    </div>
+                    {loadingData ? (
+                        <div className="bg-white rounded-[2.5rem] border border-slate-100 p-12 text-center text-slate-400 font-bold">Cargando subastas…</div>
+                    ) : openAuctions.length === 0 ? (
+                        <div className="bg-white rounded-[2.5rem] border border-slate-100 p-12 text-center space-y-2">
+                            <Inbox className="w-10 h-10 text-slate-300 mx-auto" />
+                            <p className="font-black text-slate-700">No hay subastas con insumos por ahora</p>
+                            <p className="text-sm text-slate-400">Cuando un seguro publique una subasta con insumos requeridos, aparecerá aquí.</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            {openAuctions.slice(0, 4).map((a) => (
+                                <AuctionItem key={a.id} auction={a} />
+                            ))}
+                        </div>
+                    )}
                 </div>
 
                 {/* Recent Activity & Stats */}
                 <div className="space-y-6">
                     <h3 className="text-2xl font-black text-slate-900 px-2">Actividad Reciente</h3>
                     <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100 divide-y divide-slate-50">
-                        <ActivityItem icon={CheckCircle} text="Oferta aceptada - Subasta #892" time="Hace 15m" color="bg-emerald-50 text-emerald-500" />
-                        <ActivityItem icon={DollarSign} text="Pago recibido por $2,450" time="Hace 1h" color="bg-blue-50 text-blue-500" />
-                        <ActivityItem icon={Gavel} text="Nueva subasta en tu categoría" time="Hace 2h" color="bg-indigo-50 text-indigo-600" />
-                        <ActivityItem icon={Clock} text="Oferta superada en Subasta #887" time="Hace 4h" color="bg-amber-50 text-amber-500" />
+                        {loadingData ? (
+                            <p className="text-sm text-slate-400 font-bold text-center py-4">Cargando…</p>
+                        ) : activity.length === 0 ? (
+                            <div className="text-center py-6 space-y-2">
+                                <Clock className="w-8 h-8 text-slate-200 mx-auto" />
+                                <p className="text-sm font-bold text-slate-400">Sin actividad todavía</p>
+                            </div>
+                        ) : (
+                            activity.map((it, i) => (
+                                <ActivityItem key={i} icon={it.icon} text={it.text} time={it.time} color={it.color} />
+                            ))
+                        )}
                     </div>
 
                     <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 p-6 rounded-[2rem] text-white text-center">
                         <TrendingUp className="w-10 h-10 mx-auto mb-3 opacity-80" />
                         <p className="font-black text-2xl">Ventas del Mes</p>
-                        <p className="text-4xl font-black mt-2">$89,320</p>
-                        <p className="text-xs uppercase tracking-widest mt-2 opacity-70">+32% vs mes anterior</p>
+                        <p className="text-4xl font-black mt-2">
+                            {loadingData ? '…' : `$${stats.monthSales.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`}
+                        </p>
+                        <p className="text-xs uppercase tracking-widest mt-2 opacity-70">
+                            {loadingData ? '' : `$${stats.totalSales.toLocaleString('es-VE', { minimumFractionDigits: 2 })} histórico`}
+                        </p>
                     </div>
                 </div>
             </div>
@@ -157,38 +247,50 @@ function StatCard({ label, value, icon: Icon, trend, color }: any) {
     );
 }
 
-function AuctionItem({ title, category, budget, timeLeft, urgent }: any) {
+function AuctionItem({ auction }: { auction: any }) {
+    const supplies = auction.requiredSupplies || [];
+    const active = auction.status === 'ACTIVE';
+    const ic: any = auction.insuranceCompany;
+    const icName = ic?.name || ic?.commercialName || ic?.legalName;
     return (
-        <div className="group flex items-center justify-between p-6 bg-white rounded-[2.5rem] border border-slate-100 hover:border-indigo-200 hover:shadow-xl hover:shadow-indigo-500/5 transition-all duration-300">
-            <div className="flex items-center gap-6">
-                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform ${urgent ? 'bg-red-50 text-red-500' : 'bg-indigo-50/50 text-indigo-600'}`}>
-                    <Package className="w-8 h-8" />
+        <Link href={`/dashboard/provider/auctions/${auction.auctionNumber}`} className="block">
+            <div className="group flex items-center justify-between p-6 bg-white rounded-[2.5rem] border border-slate-100 hover:border-indigo-200 hover:shadow-xl hover:shadow-indigo-500/5 transition-all duration-300 cursor-pointer">
+                <div className="flex items-center gap-6 min-w-0">
+                    <div className={`w-16 h-16 shrink-0 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform ${active ? 'bg-indigo-50/50 text-indigo-600' : 'bg-amber-50 text-amber-500'}`}>
+                        <Package2 className="w-8 h-8" />
+                    </div>
+                    <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                            <h4 className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors truncate">{auction.title}</h4>
+                            {!active && <span className="px-2 py-0.5 bg-amber-100 text-amber-600 text-[10px] font-black uppercase rounded-full shrink-0">Próximamente</span>}
+                        </div>
+                        <div className="flex items-center gap-3 mt-1 flex-wrap">
+                            <span className="text-xs font-black text-indigo-600 uppercase tracking-widest">{supplies.length} insumo{supplies.length !== 1 ? 's' : ''}</span>
+                            {icName && (
+                                <>
+                                    <span className="w-1 h-1 rounded-full bg-slate-200" />
+                                    <span className="text-xs font-medium text-slate-400 truncate">{icName}</span>
+                                </>
+                            )}
+                        </div>
+                    </div>
                 </div>
-                <div>
-                    <div className="flex items-center gap-2">
-                        <h4 className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">{title}</h4>
-                        {urgent && <span className="px-2 py-0.5 bg-red-100 text-red-600 text-[10px] font-black uppercase rounded-full">Urgente</span>}
-                    </div>
-                    <div className="flex items-center gap-3 mt-1">
-                        <span className="text-xs font-black text-indigo-600 uppercase tracking-widest">{category}</span>
-                        <span className="w-1 h-1 rounded-full bg-slate-200" />
-                        <span className="text-xs font-medium text-slate-400">Presupuesto: {budget}</span>
-                    </div>
+                <div className="flex items-center gap-8 shrink-0">
+                    {auction.endDate && (
+                        <div className="text-right">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Tiempo Restante</p>
+                            <div className="text-sm font-bold text-slate-600"><AuctionCountdown endDate={auction.endDate} /></div>
+                        </div>
+                    )}
+                    {active && (
+                        <span className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold text-sm group-hover:scale-105 transition-all">
+                            Ofertar
+                        </span>
+                    )}
+                    <ChevronRight className="w-6 h-6 text-slate-200 group-hover:text-indigo-600 group-hover:translate-x-1 transition-all" />
                 </div>
             </div>
-            <div className="flex items-center gap-8">
-                <div className="text-right">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Tiempo Restante</p>
-                    <p className={`text-sm font-bold ${urgent ? 'text-red-500' : 'text-slate-600'}`}>{timeLeft}</p>
-                </div>
-                <Link href="/dashboard/provider/auctions">
-                    <button className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:scale-105 transition-all">
-                        Ofertar
-                    </button>
-                </Link>
-                <ChevronRight className="w-6 h-6 text-slate-200 group-hover:text-indigo-600 group-hover:translate-x-1 transition-all" />
-            </div>
-        </div>
+        </Link>
     );
 }
 
@@ -198,8 +300,8 @@ function ActivityItem({ icon: Icon, text, time, color }: any) {
             <div className={`p-3 rounded-xl ${color}`}>
                 <Icon className="w-4 h-4" />
             </div>
-            <div className="flex-1">
-                <p className="text-sm font-bold text-slate-800">{text}</p>
+            <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-slate-800 truncate">{text}</p>
                 <p className="text-xs text-slate-400 font-medium">{time}</p>
             </div>
         </div>

@@ -771,6 +771,21 @@ export async function updateClinicProfile(clinic: Record<string, any>, logo?: Fi
     return response.json();
 }
 
+// Actualiza el perfil de la farmacia autenticada (datos + logo opcional).
+export async function updatePharmacyProfile(pharmacy: Record<string, any>, logo?: File | null): Promise<any> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+    const formData = new FormData();
+    formData.append('pharmacy', new Blob([JSON.stringify(pharmacy)], { type: 'application/json' }));
+    if (logo) formData.append('logo', logo);
+    const response = await fetch('/api/pharmacies/profile', {
+        method: 'PUT',
+        headers: { 'X-Alteha-Token': token },
+        body: formData,
+    });
+    return response.json();
+}
+
 // Get Doctors
 export async function getDoctors(page: number = 0, size: number = 50): Promise<ActorProfile[]> {
     const response = await fetch(`/api/doctors?page=${page}&size=${size}`);
