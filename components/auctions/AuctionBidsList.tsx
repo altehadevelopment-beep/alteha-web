@@ -141,6 +141,49 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
         }
     };
 
+    // Chat con el DUEÑO de la oferta: médico (nombre/foto) o clínica (nombre/logo),
+    // hidratando el perfil si la oferta solo trae el id.
+    const openDoctorChat = async (bid: any) => {
+        const isClinicBid = (bid as any).modality === 'SOLO_CLINICA' || bid.bidType === 'CLINIC_ONLY' || bid.bidType === 'BOTH';
+        if (isClinicBid) {
+            const cId = typeof (bid as any).clinic === 'object' ? (bid as any).clinic?.id : (bid as any).clinicId;
+            if (!cId) { alert('No se pudo encontrar la clínica para iniciar el chat.'); return; }
+            let cName = bid.clinic?.name || clinicProfiles[cId]?.name;
+            let cPhoto = bid.clinic?.logoUrl || clinicProfiles[cId]?.logoUrl;
+            if (!cName || !cPhoto) {
+                try {
+                    const token = localStorage.getItem('id_token');
+                    const res = await fetch(`/api/clinics/${cId}`, { headers: { 'X-Alteha-Token': token || '' } });
+                    let info: any = await res.json();
+                    if (info?.data) info = info.data;
+                    if (info?.id) {
+                        setClinicProfiles(prev => ({ ...prev, [cId]: info }));
+                        cName = cName || info.name;
+                        cPhoto = cPhoto || info.logoUrl;
+                    }
+                } catch { /* usa lo disponible */ }
+            }
+            setActiveChat({ participantId: String(cId), participantName: cName || 'Clínica', participantPhoto: cPhoto, participantRole: 'CLINIC' });
+            return;
+        }
+        const dId = typeof bid.doctor === 'object' ? bid.doctor?.id : (typeof bid.doctor === 'number' ? bid.doctor : (bid as any).doctorId);
+        if (!dId) { alert('No se pudo encontrar el ID del médico para iniciar el chat.'); return; }
+        let name = bid.doctor?.fullName || (bid.doctor?.firstName ? `${bid.doctor.firstName} ${bid.doctor.lastName}` : null) || doctorProfiles[dId]?.fullName || (bid as any).doctorName;
+        let photo = bid.doctor?.profileImageUrl || doctorProfiles[dId]?.profileImageUrl;
+        if (!name || !photo) {
+            try {
+                const res: any = await getDoctorById(Number(dId));
+                const info = res?.data ?? res;
+                if (info?.id) {
+                    setDoctorProfiles(prev => ({ ...prev, [dId]: info }));
+                    name = name || info.fullName || (info.firstName ? `${info.firstName} ${info.lastName}` : null);
+                    photo = photo || info.profileImageUrl;
+                }
+            } catch { /* usa lo disponible */ }
+        }
+        setActiveChat({ participantId: String(dId), participantName: name || 'Médico', participantPhoto: photo, participantRole: 'DOCTOR' });
+    };
+
     const openInsurerChat = async (iId: any, fallbackName?: string, fallbackPhoto?: string) => {
         let name = fallbackName;
         let photo = fallbackPhoto;
@@ -323,11 +366,7 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
                         // Find if it's a doctor in the bids
                         const bidWithDoctor = bidsData.find(b => String(b.doctor?.id) === pId);
                         if (bidWithDoctor) {
-                            setActiveChat({
-                                participantId: String(pId),
-                                participantName: bidWithDoctor.doctor?.fullName || 'Médico',
-                                participantPhoto: bidWithDoctor.doctor?.profileImageUrl || (bidWithDoctor as any).doctorPhoto || (bidWithDoctor.doctor as any)?.imageUrl
-                            });
+                            openDoctorChat(bidWithDoctor);
                         } else if (mode === 'doctor' && String(insuranceId) === pId) {
                             openInsurerChat(pId, insuranceName, (bidsData[0] as any)?.auction?.insuranceCompany?.logoUrl || (bidsData[0] as any)?.insuranceCompany?.logoUrl);
                         }
@@ -871,19 +910,7 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     if (mode === 'insurance') {
-                                                        const dId = bid.doctor?.id || (typeof bid.doctor === 'number' ? bid.doctor : null) || (bid as any).doctorId || (bid as any).doctor?.id;
-                                                        const dName = bid.doctor?.fullName || (bid.doctor?.firstName ? `${bid.doctor.firstName} ${bid.doctor.lastName}` : (bid as any).doctorName || 'Médico');
-                                                        
-                                                        if (!dId) {
-                                                            alert('No se pudo encontrar el ID del médico para iniciar el chat.');
-                                                            return;
-                                                        }
-
-                                                        setActiveChat({
-                                                            participantId: String(dId),
-                                                            participantName: dName,
-                                                            participantPhoto: bid.doctor?.profileImageUrl || (bid as any).doctorPhoto || (bid.doctor as any)?.imageUrl
-                                                        });
+                                                        openDoctorChat(bid);
                                                     } else if (mode === 'doctor') {
                                                         const iId = insuranceId || (bid as any).auction?.insuranceCompany?.id || (bid as any).insuranceCompany?.id;
                                                         const iName = insuranceName || (bid as any).auction?.insuranceCompany?.name || (bid as any).auction?.insuranceCompany?.name || 'Compañía de Seguros';
@@ -1089,12 +1116,7 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
                                                         <Button
                                                             onClick={() => {
                                                                 if (mode === 'insurance') {
-                                                                    const dId = typeof bid.doctor === 'object' ? bid.doctor?.id : (typeof bid.doctor === 'number' ? bid.doctor : (bid as any).doctorId);
-                                                                    const dName = (bid.doctor as any)?.fullName || ((bid.doctor as any)?.firstName ? `${(bid.doctor as any).firstName} ${(bid.doctor as any).lastName}` : 'Médico');
-                                                                    setActiveChat({
-                                                                        participantId: String(dId),
-                                                                        participantName: dName
-                                                                    });
+                                                                    openDoctorChat(bid);
                                                                 } else {
                                                                     // Chat con la compañía de seguros (nombre y logo hidratados)
                                                                     const iId = insuranceId || (bid as any).auction?.insuranceCompany?.id || (bid as any).insuranceCompany?.id;
@@ -1108,7 +1130,9 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
                                                             className="flex-1 bg-slate-100 text-slate-600 py-3 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-slate-200 transition-all border border-slate-200"
                                                         >
                                                             <MessageSquare className="w-4 h-4" />
-                                                            {mode === 'insurance' ? 'Chat con Médico' : 'Chat con Seguro'}
+                                                            {mode === 'insurance'
+                                                                ? (((bid as any).modality === 'SOLO_CLINICA' || bid.bidType === 'CLINIC_ONLY' || bid.bidType === 'BOTH') ? 'Chat con la Clínica' : 'Chat con Médico')
+                                                                : 'Chat con Seguro'}
                                                         </Button>
 
                                                         {/* Dupla: médico y clínica de la misma oferta pueden chatear entre sí */}
