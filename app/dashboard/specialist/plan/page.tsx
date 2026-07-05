@@ -191,7 +191,14 @@ function UsageBar({ icon: Icon, label, used, max, freeNote }: any) {
 function PaymentModal({ plan, bcvRate, onClose, onPaid }: {
     plan: SubscriptionPlanInfo; bcvRate?: number; onClose: () => void; onPaid: () => void;
 }) {
-    const [method, setMethod] = useState<'BS_C2P' | 'BINANCE'>('BS_C2P');
+    const [method, setMethod] = useState<'BS_C2P' | 'BINANCE' | 'STRIPE_CARD'>('BS_C2P');
+    // Configuración pública de pasarelas (comercio Binance de Alteha + Stripe test), administrable en BD
+    const [gateways, setGateways] = useState<any>(null);
+    useEffect(() => {
+        const token = localStorage.getItem('id_token');
+        fetch('/api/subscriptions/payment-gateways', { headers: { 'X-Alteha-Token': token || '' } })
+            .then(r => r.json()).then(setGateways).catch(() => {});
+    }, []);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [info, setInfo] = useState<string | null>(null);
@@ -245,9 +252,9 @@ function PaymentModal({ plan, bcvRate, onClose, onPaid }: {
         finally { setBusy(false); }
     };
 
-    const canPay = method === 'BS_C2P'
+    const canPay = method === 'STRIPE_CARD' ? true : (method === 'BS_C2P'
         ? hasBsMethod && c2pToken.trim().length >= 4
-        : binanceRef.trim().length >= 4;
+        : binanceRef.trim().length >= 4);
 
     return (
         <div className="fixed inset-0 z-[120] bg-slate-950/80 backdrop-blur-sm overflow-y-auto" onClick={() => !busy && onClose()}>
@@ -268,6 +275,7 @@ function PaymentModal({ plan, bcvRate, onClose, onPaid }: {
                         {([
                             { id: 'BS_C2P', label: 'Débito Bs', Icon: Smartphone },
                             { id: 'BINANCE', label: 'Binance', Icon: Landmark },
+                            { id: 'STRIPE_CARD', label: 'Tarjeta', Icon: CreditCard },
                         ] as const).map(m => (
                             <button key={m.id} onClick={() => { setMethod(m.id); setError(null); setInfo(null); }}
                                 className={`p-3 rounded-2xl border-2 text-center transition-all ${method === m.id ? 'border-alteha-turquoise bg-alteha-turquoise/5' : 'border-slate-100'}`}>
@@ -317,11 +325,39 @@ function PaymentModal({ plan, bcvRate, onClose, onPaid }: {
 
                     {method === 'BINANCE' && (
                         <div className="bg-slate-50 rounded-2xl p-5 space-y-3">
+                            {/* Datos del comercio Binance de Alteha (administrables en payment_gateway_setting) */}
+                            <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-1.5">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Paga a este comercio</p>
+                                <p className="text-sm font-black text-slate-900">{gateways?.binance?.merchantName || 'ALTEHA MEDICAL, C.A.'}</p>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs font-bold text-slate-500">Binance Pay ID:</span>
+                                    <code className="text-sm font-black text-alteha-turquoise bg-alteha-turquoise/10 px-2 py-0.5 rounded-lg">{gateways?.binance?.merchantId || '—'}</code>
+                                    <button type="button" onClick={() => { try { navigator.clipboard.writeText(gateways?.binance?.merchantId || ''); } catch { /* ignore */ } }}
+                                        className="text-[10px] font-black text-slate-400 hover:text-alteha-turquoise underline underline-offset-2">Copiar</button>
+                                </div>
+                                {gateways?.binance?.mode === 'test' && (
+                                    <p className="text-[10px] font-bold text-amber-600 bg-amber-50 rounded-lg px-2 py-1 inline-block">Comercio simulado (modo prueba)</p>
+                                )}
+                            </div>
                             <p className="text-xs text-slate-600 font-medium">
-                                Paga <strong>${plan.priceUsd.toFixed(2)}</strong> vía <strong>Binance Pay</strong> al comercio Alteha y pega aquí el ID/referencia de la orden.
+                                Paga <strong>${plan.priceUsd.toFixed(2)}</strong> vía <strong>Binance Pay</strong>. {gateways?.binance?.instructions || 'Envía el monto exacto y pega aquí el Order ID del comprobante.'}
                             </p>
                             <input placeholder="Referencia / Order ID de Binance" value={binanceRef} onChange={e => setBinanceRef(e.target.value)}
                                 className="w-full h-11 px-4 rounded-xl bg-white border border-slate-200 text-sm font-bold outline-none" />
+                        </div>
+                    )}
+
+                    {method === 'STRIPE_CARD' && (
+                        <div className="bg-slate-50 rounded-2xl p-5 space-y-3">
+                            <p className="text-xs text-slate-600 font-medium">
+                                Pago con tarjeta procesado por <strong>Stripe</strong> bajo estándar PCI: tus datos de tarjeta nunca pasan por Alteha.
+                            </p>
+                            <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-1">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Modo prueba activo</p>
+                                <p className="text-sm font-bold text-slate-700">Se cobrará <strong>${plan.priceUsd.toFixed(2)}</strong> a la tarjeta de prueba de Stripe:</p>
+                                <code className="text-sm font-black text-slate-900 tracking-widest">4242 4242 4242 4242</code>
+                                <p className="text-[10px] text-slate-400 font-medium">{gateways?.stripe?.instructions || 'Las claves de Stripe son administrables desde el backend.'}</p>
+                            </div>
                         </div>
                     )}
 
