@@ -44,6 +44,7 @@ const specialistItems = [
     // ── Dinero: cómo cobra y qué plan tiene ──
     { section: 'Finanzas' },
     { title: 'Métodos de Cobro', icon: CreditCard, href: '/dashboard/specialist/payments' },
+    { title: 'Mis Pagos', icon: Banknote, href: '/dashboard/specialist/my-payments' },
     { title: 'Mi Plan', icon: Crown, href: '/dashboard/specialist/plan' },
     // ── Relación con la red ──
     { section: 'Gestión' },
@@ -71,6 +72,7 @@ const clinicItems = [
     { title: 'Paquetes', icon: Package, href: '/dashboard/clinic/packages' },
     { section: 'Finanzas' },
     { title: 'Métodos de Cobro', icon: CreditCard, href: '/dashboard/clinic/payments' },
+    { title: 'Mis Pagos', icon: Banknote, href: '/dashboard/clinic/my-payments' },
     { title: 'Mi Plan', icon: Crown, href: '/dashboard/clinic/plan' },
     { section: 'Gestión' },
     { title: 'Conversaciones', icon: MessageSquare, href: '/dashboard/clinic/conversations' },
@@ -84,6 +86,7 @@ const insuranceItems = [
     { title: 'Mis Subastas', icon: Gavel, href: '/dashboard/insurance/auctions' },
     { title: 'Paquetes Médicos', icon: Package, href: '/dashboard/insurance/packages' },
     { title: 'Métodos de Pago', icon: CreditCard, href: '/dashboard/insurance/payments' },
+    { title: 'Mis Pagos', icon: Banknote, href: '/dashboard/insurance/my-payments' },
     { title: 'Conversaciones', icon: MessageSquare, href: '/dashboard/insurance/conversations' },
     { title: 'Directorio Médico', icon: Users, href: '/dashboard/insurance/directory' },
 ];
