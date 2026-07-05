@@ -111,17 +111,6 @@ export function DashboardSidebar() {
     const { logout } = useAuth();
     const [isOpen, setIsOpen] = React.useState(false);
     const [expandedMenu, setExpandedMenu] = React.useState<string | null>(null);
-    // Plan de suscripción siempre visible (médicos y clínicas)
-    const [myPlan, setMyPlan] = React.useState<{ name: string; code: string; expired: boolean } | null>(null);
-    const hasPlan = pathname?.startsWith('/dashboard/specialist') || pathname?.startsWith('/dashboard/clinic');
-    React.useEffect(() => {
-        if (!hasPlan) return;
-        import('@/lib/api').then(({ getMySubscription }) =>
-            getMySubscription()
-                .then((s: any) => setMyPlan({ name: s?.effectivePlan?.name || '', code: s?.effectivePlan?.code || '', expired: !!s?.expired }))
-                .catch(() => {})
-        );
-    }, [pathname]);
 
     const isClinic = pathname.includes('/dashboard/clinic');
     const isInsurance = pathname.includes('/dashboard/insurance');
@@ -253,15 +242,6 @@ export function DashboardSidebar() {
                         })}
                     </nav>
 
-                    {myPlan && hasPlan && (
-                        <Link href={pathname?.startsWith('/dashboard/clinic') ? '/dashboard/clinic/plan' : '/dashboard/specialist/plan'}
-                            className={cn("flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-black transition-all mb-1",
-                                myPlan.expired ? "bg-red-50 text-red-500 hover:bg-red-100" : "bg-amber-50 text-amber-600 hover:bg-amber-100")}>
-                            <Crown className="w-4 h-4" />
-                            <span className="truncate">Plan: {myPlan.name}</span>
-                            {myPlan.expired && <span className="ml-auto text-[9px] uppercase tracking-widest">Vencido</span>}
-                        </Link>
-                    )}
                     <div className="pt-6 border-t border-slate-50 space-y-2">
                         {/* Configuración oculta para médico y clínica (gestionan todo desde Editar Perfil y Mi Plan) */}
                         {!pathname?.startsWith('/dashboard/specialist') && !pathname?.startsWith('/dashboard/clinic') && (
