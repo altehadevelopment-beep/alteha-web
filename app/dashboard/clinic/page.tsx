@@ -165,6 +165,30 @@ export default function ClinicDashboard() {
         return items.sort((a, b) => b.date.getTime() - a.date.getTime()).slice(0, 5);
     }, [allInvitations, reviews]);
 
+    // Cambiar el logo haciendo clic en la foto del encabezado
+    const logoInputRef = React.useRef<HTMLInputElement>(null);
+    const [logoPreview, setLogoPreview] = React.useState<string | null>(null);
+    const [uploadingLogo, setUploadingLogo] = React.useState(false);
+    const handleLogoSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !file.type.startsWith('image/')) return;
+        setUploadingLogo(true);
+        try {
+            const { updateClinicProfile } = await import('@/lib/api');
+            const res = await updateClinicProfile({
+                name: (userProfile as any)?.name || (userProfile as any)?.commercialName || '',
+                legalName: (userProfile as any)?.legalName || '',
+                email: (userProfile as any)?.email || '',
+                phone: (userProfile as any)?.phone || '',
+                website: (userProfile as any)?.website || '',
+            }, file);
+            if (res?.code === '00') setLogoPreview(URL.createObjectURL(file));
+        } catch { /* silencioso: el perfil tiene su propio flujo con toasts */ } finally {
+            setUploadingLogo(false);
+            if (logoInputRef.current) logoInputRef.current.value = '';
+        }
+    };
+
     const displayProfile = userProfile || {
         name: 'Cargando...',
         legalName: 'Cargando...',
@@ -209,13 +233,24 @@ export default function ClinicDashboard() {
             {/* Header section with profile summary */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-emerald-50/50 p-10 rounded-[3rem] border border-emerald-100/50">
                 <div className="flex items-center gap-6">
-                    <div className="w-24 h-24 rounded-3xl overflow-hidden border-4 border-white shadow-xl bg-white p-2 flex items-center justify-center">
-                        {displayProfile.logoUrl ? (
-                            <img src={displayProfile.logoUrl} alt="Logo" className="w-full h-full object-contain" />
+                    <button
+                        type="button"
+                        onClick={() => logoInputRef.current?.click()}
+                        title="Cambiar logo"
+                        className="relative w-24 h-24 rounded-3xl overflow-hidden border-4 border-white shadow-xl bg-white p-2 flex items-center justify-center group cursor-pointer"
+                    >
+                        {logoPreview || displayProfile.logoUrl ? (
+                            <img src={logoPreview || displayProfile.logoUrl} alt="Logo" className="w-full h-full object-contain" />
                         ) : (
                             <Building2 className="w-full h-full text-emerald-600 opacity-20" />
                         )}
-                    </div>
+                        <span className="absolute inset-0 bg-slate-900/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            {uploadingLogo
+                                ? <Loader2 className="w-6 h-6 text-white animate-spin" />
+                                : <Edit3 className="w-6 h-6 text-white" />}
+                        </span>
+                    </button>
+                    <input ref={logoInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoSelected} />
                     <div>
                         <div className="flex items-center gap-3">
                             <h2 className="text-3xl font-black text-slate-900 tracking-tight">
@@ -244,9 +279,18 @@ export default function ClinicDashboard() {
                     </div>
                 </div>
                 <div className="flex items-center gap-3">
-                    <button className="p-4 bg-white rounded-2xl shadow-sm border border-slate-100 text-slate-400 hover:text-emerald-600 transition-all">
+                    <Link
+                        href="/dashboard/clinic/invitations"
+                        title="Invitaciones"
+                        className="relative p-4 bg-white rounded-2xl shadow-sm border border-slate-100 text-slate-400 hover:text-emerald-600 transition-all"
+                    >
                         <Bell className="w-6 h-6" />
-                    </button>
+                        {pendingInvitations.length > 0 && (
+                            <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white text-[10px] font-black flex items-center justify-center animate-pulse">
+                                {pendingInvitations.length}
+                            </span>
+                        )}
+                    </Link>
                     <Link href="/dashboard/clinic/profile">
                         <button className="flex items-center gap-3 px-8 py-4 bg-slate-900 text-white rounded-2xl font-black hover:scale-105 transition-all shadow-xl shadow-slate-900/20">
                             <Edit3 className="w-5 h-5 text-emerald-400" />

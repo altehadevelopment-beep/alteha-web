@@ -28,6 +28,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { getAuctionDetailsAsDoctor, getInsuranceCompanyById, type Auction } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { ChatWindow } from '@/components/chat/ChatWindow';
@@ -97,6 +98,11 @@ export default function DoctorAuctionDetailPage() {
     const [isBidModalOpen, setIsBidModalOpen] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const { userProfile } = useAuth();
+    const pathname = usePathname();
+    // Página compartida: la clínica ve y envía su oferta con el mismo módulo del médico
+    const isClinicView = pathname?.includes('/clinic') ?? false;
+    const actorRole = isClinicView ? 'CLINIC' : 'DOCTOR';
+    const auctionsBase = isClinicView ? '/dashboard/clinic/auctions' : '/dashboard/specialist/auctions';
     const [activeChat, setActiveChat] = useState<{
         participantId: string;
         participantName: string;
@@ -107,7 +113,7 @@ export default function DoctorAuctionDetailPage() {
         const load = async () => {
             setIsLoading(true);
             try {
-                const res = await getAuctionDetailsAsDoctor(auctionNumber);
+                const res = await getAuctionDetailsAsDoctor(auctionNumber, actorRole);
                 let auctionData = null;
                 if (res.code === '00' && res.data) {
                     auctionData = res.data;
@@ -159,7 +165,7 @@ export default function DoctorAuctionDetailPage() {
                 <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
                 <h2 className="text-2xl font-black text-slate-900 mb-2">Error al cargar</h2>
                 <p className="text-slate-500 mb-6">{error || 'Subasta no encontrada'}</p>
-                <Link href="/dashboard/specialist/auctions">
+                <Link href={auctionsBase}>
                     <Button className="bg-slate-900 text-white px-8 py-3 rounded-2xl font-black">
                         Volver a Subastas
                     </Button>
@@ -173,7 +179,7 @@ export default function DoctorAuctionDetailPage() {
 
     return (
         <div className="max-w-6xl mx-auto font-outfit pb-20">
-            <Link href="/dashboard/specialist/auctions" className="flex items-center gap-2 text-slate-400 hover:text-alteha-violet transition-colors mb-8 font-bold group w-fit">
+            <Link href={auctionsBase} className="flex items-center gap-2 text-slate-400 hover:text-alteha-violet transition-colors mb-8 font-bold group w-fit">
                 <ChevronLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
                 Volver a Convocatorias
             </Link>
@@ -259,7 +265,7 @@ export default function DoctorAuctionDetailPage() {
                             const isWinner = userProfile?.id && Number(awardedDoctorId) === Number(userProfile.id);
                             
                             if (isWinner) {
-                                return <WinnerSettlementSection auction={auction} role="DOCTOR" />;
+                                return <WinnerSettlementSection auction={auction} role={actorRole} />;
                             }
                             return null;
                         })()
