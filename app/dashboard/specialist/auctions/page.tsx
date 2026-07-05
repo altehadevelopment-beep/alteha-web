@@ -258,6 +258,9 @@ export default function DoctorAuctionsPage() {
 }
 
 function AuctionCard({ auction, index, onChat, currentUserId }: { auction: Auction; index: number; onChat: () => void; currentUserId: string }) {
+    // La tarjeta también se usa en la vista de clínica: base de enlaces según la ruta
+    const cardPathname = usePathname();
+    const auctionsBase = cardPathname?.includes('/clinic') ? '/dashboard/clinic/auctions' : '/dashboard/specialist/auctions';
     const status = STATUS_CONFIG[auction.status] || STATUS_CONFIG['PUBLISHED'];
     const urgency = URGENCY_CONFIG[auction.urgencyLevel] || URGENCY_CONFIG['LOW'];
     const StatusIcon = status.icon;
