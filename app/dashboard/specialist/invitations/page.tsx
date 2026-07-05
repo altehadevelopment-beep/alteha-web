@@ -44,7 +44,9 @@ export default function DoctorInvitationsPage() {
                 getPaymentMethods('DOCTOR').catch(() => []),
             ]);
             setInvitations(Array.isArray(invs) ? invs : []);
-            const types = (Array.isArray(methods) ? methods : [])
+            const raw: any = methods;
+            const list = Array.isArray(raw) ? raw : (Array.isArray(raw?.data) ? raw.data : (raw?.data?.content ?? raw?.content ?? []));
+            const types = (list as any[])
                 .filter((m: any) => m.active !== false)
                 .map((m: any) => m.methodType);
             setDoctorMethods(types);
