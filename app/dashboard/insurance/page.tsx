@@ -37,6 +37,7 @@ export default function InsuranceDashboard() {
     const [recentAuctions, setRecentAuctions] = useState<Auction[]>([]);
     const [isLoadingAuctions, setIsLoadingAuctions] = useState(true);
     const [auctionBidCounts, setAuctionBidCounts] = useState<Record<number, number>>({});
+    const [auctionBidSummaries, setAuctionBidSummaries] = useState<Record<string, any>>({});
     const [medicalPackages, setMedicalPackages] = useState<MedicalPackage[]>([]);
     const [isLoadingPackages, setIsLoadingPackages] = useState(true);
     const [selectedPackage, setSelectedPackage] = useState<MedicalPackage | null>(null);
@@ -107,6 +108,12 @@ export default function InsuranceDashboard() {
                         const countData = await countRes.json();
                         if (typeof countData.count === 'number') {
                             setAuctionBidCounts(prev => ({ ...prev, [auction.id]: countData.count }));
+                        }
+                        // Desglose de duplas: completas vs en espera de clínica/médico
+                        const { getAuctionBidsSummary } = await import('@/lib/api');
+                        const summary = await getAuctionBidsSummary(auction.id);
+                        if (summary) {
+                            setAuctionBidSummaries(prev => ({ ...prev, [auction.id]: summary }));
                         }
                     } catch (err) {
                         console.error(`Error fetching count for auction ${auction.id}:`, err);
@@ -352,6 +359,7 @@ export default function InsuranceDashboard() {
                                             title={auction.title}
                                             status={auction.status}
                                             bids={auctionBidCounts[auction.id] !== undefined ? auctionBidCounts[auction.id] : ((auction as any).totalBids || (auction as any).bidCount || 0)}
+                                            bidsSummary={auctionBidSummaries[auction.id]}
                                             bestBid={auction.currentLowestBid ? `$${auction.currentLowestBid.toLocaleString()}` : 'N/A'}
                                             timeLeft={new Date(auction.endDate).toLocaleDateString()}
                                             savings="-"
@@ -760,7 +768,7 @@ function StatCard({ label, value, icon: Icon, trend, color }: any) {
     );
 }
 
-function AuctionItem({ id, title, status, bids, bestBid, timeLeft, savings }: any) {
+function AuctionItem({ id, title, status, bids, bestBid, timeLeft, savings, bidsSummary }: any) {
     const isAwarded = status === 'AWARDED';
     return (
         <div className={`group flex items-center justify-between p-6 rounded-[2.5rem] border transition-all duration-300 ${isAwarded 
@@ -795,6 +803,31 @@ function AuctionItem({ id, title, status, bids, bestBid, timeLeft, savings }: an
                             <ChevronRight className="w-3 h-3" />
                         </Link>
                     </div>
+                    {/* Desglose: ofertas listas vs duplas en espera de la clínica o del médico */}
+                    {bidsSummary && Number(bidsSummary.totalBids) > 0 && (
+                        <div className="flex items-center gap-2 mt-2 flex-wrap">
+                            {Number(bidsSummary.complete) > 0 && (
+                                <span className="px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-600 text-[10px] font-black uppercase tracking-tight">
+                                    {bidsSummary.complete} completa{Number(bidsSummary.complete) !== 1 ? 's' : ''}
+                                </span>
+                            )}
+                            {Number(bidsSummary.waitingClinic) > 0 && (
+                                <span className="px-2 py-0.5 rounded-lg bg-amber-50 text-amber-600 text-[10px] font-black uppercase tracking-tight">
+                                    {bidsSummary.waitingClinic} espera{Number(bidsSummary.waitingClinic) !== 1 ? 'n' : ''} clínica
+                                </span>
+                            )}
+                            {Number(bidsSummary.waitingDoctor) > 0 && (
+                                <span className="px-2 py-0.5 rounded-lg bg-blue-50 text-blue-600 text-[10px] font-black uppercase tracking-tight">
+                                    {bidsSummary.waitingDoctor} espera{Number(bidsSummary.waitingDoctor) !== 1 ? 'n' : ''} médico
+                                </span>
+                            )}
+                            {Number(bidsSummary.rejected) > 0 && (
+                                <span className="px-2 py-0.5 rounded-lg bg-red-50 text-red-400 text-[10px] font-black uppercase tracking-tight">
+                                    {bidsSummary.rejected} dupla{Number(bidsSummary.rejected) !== 1 ? 's' : ''} rechazada{Number(bidsSummary.rejected) !== 1 ? 's' : ''}
+                                </span>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
             <div className="flex items-center gap-10">

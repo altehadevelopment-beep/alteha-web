@@ -653,6 +653,46 @@ export async function respondClinicInvitation(
     return response.json();
 }
 
+// ===== Doctor invitations (clinic SOLO_CLINICA flow — espejo) =====
+// Bandeja de invitaciones de clínicas para el médico autenticado.
+export async function getDoctorDuplaInvitations(): Promise<any[]> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+    const response = await fetch('/api/doctor-invitations/mine', { headers: { 'X-Alteha-Token': token } });
+    const data = await response.json();
+    return Array.isArray(data) ? data : (data?.content ?? data?.data ?? []);
+}
+
+// El médico acepta (con honorarios, pueden ser menores al presupuesto médico) o rechaza.
+export async function respondDoctorDuplaInvitation(
+    id: number | string,
+    payload: { accepted: boolean; doctorFee?: number; rejectionReason?: string }
+): Promise<any> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+    const response = await fetch(`/api/doctor-invitations/${id}/respond`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Alteha-Token': token },
+        body: JSON.stringify(payload),
+    });
+    return response.json();
+}
+
+// Desglose de ofertas de una subasta para el seguro: completas vs en espera de dupla.
+export async function getAuctionBidsSummary(auctionId: number | string): Promise<{
+    totalBids: number; complete: number; waitingClinic: number; waitingDoctor: number; rejected: number;
+} | null> {
+    try {
+        const token = getStoredToken();
+        if (!token) return null;
+        const response = await fetch(`/api/clinic-invitations/auction/${auctionId}/bids-summary`, { headers: { 'X-Alteha-Token': token } });
+        if (!response.ok) return null;
+        return await response.json();
+    } catch {
+        return null;
+    }
+}
+
 // Insurer view: doctor+clinic "duplas" for an auction.
 export async function getAuctionDuplas(auctionId: number | string): Promise<any[]> {
     const token = getStoredToken();

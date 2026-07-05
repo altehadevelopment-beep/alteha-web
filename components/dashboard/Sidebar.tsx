@@ -38,6 +38,7 @@ const specialistItems = [
     { section: 'Principal' },
     { title: 'Dashboard', icon: LayoutDashboard, href: '/dashboard/specialist' },
     { title: 'Subastas', icon: Gavel, href: '/dashboard/specialist/auctions' },
+    { title: 'Invitaciones', icon: Bell, href: '/dashboard/specialist/invitations' },
     { title: 'Paquetes', icon: Package, href: '/dashboard/specialist/packages' },
     { title: 'Histórico de Subastas', icon: History, href: '/dashboard/specialist/history' },
     // ── Dinero: cómo cobra y qué plan tiene ──

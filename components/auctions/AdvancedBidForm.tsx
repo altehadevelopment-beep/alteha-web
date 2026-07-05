@@ -68,6 +68,7 @@ export default function AdvancedBidForm({ auction, onSuccess, hideHeader = false
     const [notes, setNotes] = useState('');
     const [selectedClinicId, setSelectedClinicId] = useState<string>('');
     const [selectedDoctorId, setSelectedDoctorId] = useState<string>('');
+    const [allDoctors, setAllDoctors] = useState<any[]>([]);
 
     const priceGuidance = useMemo(() => {
         const amount = parseFloat(bidAmount);
@@ -89,8 +90,8 @@ export default function AdvancedBidForm({ auction, onSuccess, hideHeader = false
 
     const explanations: Record<string, string> = {
         'DOCTOR_ONLY': 'En esta modalidad, tú solo ofertas por tus honorarios médicos profesionales. La aseguradora deberá buscar una clínica por separado o el paciente ya tiene una seleccionada.',
-        'CLINIC_ONLY': 'La clínica oferta únicamente por los gastos hospitalarios, quirófano e insumos. Los honorarios del médico se manejan de forma independiente.',
-        'BOTH': 'Esta es una oferta integral que incluye tanto tus honorarios como los gastos de la clínica. Debes seleccionar la clínica con la que estás coordinando esta propuesta.',
+        'CLINIC_ONLY': 'Ofertas solo tus gastos hospitalarios (quirófano e insumos). El médico que elijas recibirá una invitación; si la acepta y define sus honorarios —puede bajarlos respecto al presupuesto médico—, se arma la dupla clínica + médico visible para el seguro.',
+        'BOTH': 'Ofertas el paquete completo (gastos de clínica + honorarios médicos) y te responsabilizas de pagarle al médico. El médico no recibe invitación y tu oferta llega directa a la aseguradora.',
         'PHARMACY': 'Oferta para el suministro de medicamentos e insumos médicos requeridos para el procedimiento.'
     };
 
@@ -100,6 +101,25 @@ export default function AdvancedBidForm({ auction, onSuccess, hideHeader = false
         else if (role === 'CLINIC') setBidType('CLINIC_ONLY');
         else if (role === 'PHARMACY') setBidType('PHARMACY');
     }, [role]);
+
+    // Directorio de médicos como respaldo cuando la clínica no tiene médicos preferidos cargados.
+    useEffect(() => {
+        if (role !== 'CLINIC' || userProfile?.preferredDoctors?.length) return;
+        let active = true;
+        import('@/lib/api').then(({ getDoctors }) =>
+            getDoctors(0, 100)
+                .then((res: any) => {
+                    if (!active) return;
+                    const list = Array.isArray(res) ? res : (res?.content ?? res?.data ?? []);
+                    setAllDoctors(list.map((d: any) => ({
+                        id: d.id,
+                        fullName: d.fullName || [d.firstName, d.lastName].filter(Boolean).join(' ') || d.name,
+                    })));
+                })
+                .catch(() => {})
+        );
+        return () => { active = false; };
+    }, [role, userProfile]);
 
     // Current best offers, for the transparency panel (best honorarios-only and best full-package).
     useEffect(() => {
@@ -187,6 +207,10 @@ export default function AdvancedBidForm({ auction, onSuccess, hideHeader = false
             }
 
             if (role === 'CLINIC') {
+                // Espejo del flujo del médico: CLINIC_ONLY = Solo Clínica (invita al médico,
+                // que define sus honorarios al aceptar); BOTH = Paquete Completo (la clínica
+                // asume todo y le paga al médico ella misma).
+                payload.modality = bidType === 'CLINIC_ONLY' ? 'SOLO_CLINICA' : 'PAQUETE_COMPLETO';
                 if (userProfile?.id) {
                     payload.clinic = { id: userProfile.id };
                     payload.clinicId = userProfile.id;
@@ -389,8 +413,8 @@ export default function AdvancedBidForm({ auction, onSuccess, hideHeader = false
                             <>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     {[
-                                        { id: 'CLINIC_ONLY', label: 'Solo Clínica', icon: Clock, desc: 'Gastos hospitalarios' },
-                                        { id: 'BOTH', label: 'Paquete Completo', icon: CheckCircle2, desc: 'Clínica + Médico' }
+                                        { id: 'CLINIC_ONLY', label: 'Solo Clínica', icon: Clock, desc: 'Tus gastos hospitalarios · invitas al médico' },
+                                        { id: 'BOTH', label: 'Paquete Completo', icon: CheckCircle2, desc: 'Paquete total · tú le pagas al médico' }
                                     ].map((type) => (
                                         <button
                                             key={type.id}
@@ -428,7 +452,7 @@ export default function AdvancedBidForm({ auction, onSuccess, hideHeader = false
                                         className="space-y-3 pt-2"
                                     >
                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-1">
-                                            Selecciona el Médico Asociado
+                                            {bidType === 'CLINIC_ONLY' ? 'Médico a invitar' : 'Médico asociado (tú le pagas)'}
                                         </label>
                                         <div className="relative group">
                                             <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 pointer-events-none transition-colors" />
@@ -439,7 +463,7 @@ export default function AdvancedBidForm({ auction, onSuccess, hideHeader = false
                                                 className="w-full pl-4 pr-12 py-4 bg-slate-50 border-2 border-transparent focus:border-alteha-violet focus:bg-white rounded-2xl font-black text-slate-900 transition-all outline-none appearance-none cursor-pointer"
                                             >
                                                 <option value="">-- Selecciona un médico --</option>
-                                                {(userProfile?.preferredDoctors || []).map((doctor: any) => (
+                                                {((userProfile?.preferredDoctors?.length ? userProfile.preferredDoctors : allDoctors) || []).map((doctor: any) => (
                                                     <option key={doctor.id} value={doctor.id}>
                                                         {doctor.fullName || doctor.name}
                                                     </option>
@@ -447,7 +471,9 @@ export default function AdvancedBidForm({ auction, onSuccess, hideHeader = false
                                             </select>
                                         </div>
                                         <p className="text-[10px] text-amber-600 font-bold italic ml-1">
-                                            * Es obligatorio indicar el médico que realizará el procedimiento para este tipo de oferta.
+                                            {bidType === 'CLINIC_ONLY'
+                                                ? '* Se le enviará una invitación a este médico para que confirme y defina sus honorarios (puede bajarlos, reduciendo el total de la oferta).'
+                                                : '* Es obligatorio indicar el médico que realizará el procedimiento para este tipo de oferta.'}
                                         </p>
                                     </motion.div>
                                 )}
