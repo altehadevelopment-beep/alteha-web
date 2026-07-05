@@ -15,6 +15,7 @@ import {
     Loader2
 } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { getMyAuctions, getAuctionDetails, getAuctionBidsCount, type Auction } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import AuctionCountdown from '@/components/auctions/AuctionCountdown';
@@ -198,6 +199,7 @@ function FilterButton({ active, onClick, label }: { active: boolean, onClick: ()
 function AuctionCard({ auction, index }: { auction: Auction, index: number }) {
     const config = STATUS_CONFIG[auction.status] || STATUS_CONFIG['DRAFT'];
     const StatusIcon = config.icon;
+    const router = useRouter();
 
     return (
         <motion.div
@@ -205,7 +207,8 @@ function AuctionCard({ auction, index }: { auction: Auction, index: number }) {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.05 }}
             whileHover={{ scale: 1.01 }}
-            className={`p-8 rounded-[2.5rem] shadow-xl border transition-all flex flex-col md:flex-row items-center gap-8 group ${['AWARDED', 'PAYMENT_REPORTED', 'PAYMENT_VALIDATION', 'PAID', 'COMPLETED'].includes(auction.status)
+            onClick={() => router.push(`/dashboard/insurance/auctions/${auction.auctionNumber}`)}
+            className={`p-8 rounded-[2.5rem] shadow-xl border transition-all flex flex-col md:flex-row items-center gap-8 group cursor-pointer ${['AWARDED', 'PAYMENT_REPORTED', 'PAYMENT_VALIDATION', 'PAID', 'COMPLETED'].includes(auction.status)
                 ? 'bg-gradient-to-br from-white to-violet-50 border-alteha-violet shadow-violet-100'
                 : 'bg-white border-slate-50 shadow-slate-100'
                 }`}
@@ -249,14 +252,12 @@ function AuctionCard({ auction, index }: { auction: Auction, index: number }) {
                 </div>
             </div>
 
-            <Link href={`/dashboard/insurance/auctions/${auction.auctionNumber}`}>
-                <Button className={`w-14 h-14 rounded-[1.5rem] flex items-center justify-center transition-all p-0 ${['AWARDED', 'PAYMENT_REPORTED', 'PAYMENT_VALIDATION', 'PAID', 'COMPLETED'].includes(auction.status)
-                    ? 'bg-alteha-violet text-white shadow-lg shadow-violet-200'
-                    : 'bg-slate-100 text-slate-400 hover:bg-alteha-violet hover:text-white'
-                    }`}>
-                    <ChevronRight className="w-6 h-6" />
-                </Button>
-            </Link>
+            <Button className={`w-14 h-14 rounded-[1.5rem] flex items-center justify-center transition-all p-0 ${['AWARDED', 'PAYMENT_REPORTED', 'PAYMENT_VALIDATION', 'PAID', 'COMPLETED'].includes(auction.status)
+                ? 'bg-alteha-violet text-white shadow-lg shadow-violet-200'
+                : 'bg-slate-100 text-slate-400 hover:bg-alteha-violet hover:text-white'
+                }`}>
+                <ChevronRight className="w-6 h-6" />
+            </Button>
         </motion.div>
     );
 }
