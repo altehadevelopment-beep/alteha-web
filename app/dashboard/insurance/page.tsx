@@ -360,7 +360,6 @@ export default function InsuranceDashboard() {
                                             status={auction.status}
                                             bids={auctionBidCounts[auction.id] !== undefined ? auctionBidCounts[auction.id] : ((auction as any).totalBids || (auction as any).bidCount || 0)}
                                             bidsSummary={auctionBidSummaries[auction.id]}
-                                            bestBid={auction.currentLowestBid ? `$${auction.currentLowestBid.toLocaleString()}` : 'N/A'}
                                             timeLeft={new Date(auction.endDate).toLocaleDateString()}
                                             savings="-"
                                         />
@@ -768,7 +767,7 @@ function StatCard({ label, value, icon: Icon, trend, color }: any) {
     );
 }
 
-function AuctionItem({ id, title, status, bids, bestBid, timeLeft, savings, bidsSummary }: any) {
+function AuctionItem({ id, title, status, bids, timeLeft, savings, bidsSummary }: any) {
     const isAwarded = status === 'AWARDED';
     return (
         <div className={`group flex items-center justify-between p-6 rounded-[2.5rem] border transition-all duration-300 ${isAwarded 
@@ -831,10 +830,6 @@ function AuctionItem({ id, title, status, bids, bestBid, timeLeft, savings, bids
                 </div>
             </div>
             <div className="flex items-center gap-10">
-                <div className="text-right">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Mejor Puja</p>
-                    <p className="text-xl font-black text-slate-900">{bestBid}</p>
-                </div>
                 <div className="text-right">
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Fecha Límite</p>
                     <p className="text-sm font-bold text-slate-600">{timeLeft}</p>

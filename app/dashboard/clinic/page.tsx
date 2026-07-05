@@ -513,36 +513,6 @@ function RealAuctionItem({ auction }: { auction: any }) {
     );
 }
 
-function AuctionItem({ title, status, bids, bestBid, timeLeft }: any) {
-    return (
-        <div className="group flex items-center justify-between p-6 bg-white rounded-[2.5rem] border border-slate-100 hover:border-emerald-200 hover:shadow-xl hover:shadow-emerald-500/5 transition-all duration-300">
-            <div className="flex items-center gap-6">
-                <div className="w-16 h-16 rounded-2xl bg-emerald-50/50 flex items-center justify-center text-emerald-600 group-hover:scale-110 transition-transform">
-                    <Gavel className="w-8 h-8" />
-                </div>
-                <div>
-                    <h4 className="font-bold text-slate-900 group-hover:text-emerald-700 transition-colors">{title}</h4>
-                    <div className="flex items-center gap-3 mt-1">
-                        <span className="text-xs font-black text-emerald-500 uppercase tracking-widest">{status}</span>
-                        <span className="w-1 h-1 rounded-full bg-slate-200" />
-                        <span className="text-xs font-medium text-slate-400">{bids} ofertas</span>
-                    </div>
-                </div>
-            </div>
-            <div className="flex items-center gap-10">
-                <div className="text-right">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Mejor Puja</p>
-                    <p className="text-xl font-black text-slate-900">{bestBid}</p>
-                </div>
-                <div className="text-right">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Tiempo</p>
-                    <p className="text-sm font-bold text-red-500">{timeLeft}</p>
-                </div>
-                <ChevronRight className="w-6 h-6 text-slate-200 group-hover:text-emerald-500 group-hover:translate-x-1 transition-all" />
-            </div>
-        </div>
-    );
-}
 
 function ActivityItem({ icon: Icon, text, time, color }: any) {
     return (
