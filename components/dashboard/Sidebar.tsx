@@ -263,8 +263,8 @@ export function DashboardSidebar() {
                         </Link>
                     )}
                     <div className="pt-6 border-t border-slate-50 space-y-2">
-                        {/* Configuración oculta para el médico (gestiona todo desde Editar Perfil y Mi Plan) */}
-                        {!pathname?.startsWith('/dashboard/specialist') && (
+                        {/* Configuración oculta para médico y clínica (gestionan todo desde Editar Perfil y Mi Plan) */}
+                        {!pathname?.startsWith('/dashboard/specialist') && !pathname?.startsWith('/dashboard/clinic') && (
                             <Link
                                 href={settingsHref}
                                 className="flex items-center gap-3 px-4 py-3.5 rounded-2xl font-semibold text-slate-400 hover:bg-slate-50 hover:text-slate-600 transition-all"
