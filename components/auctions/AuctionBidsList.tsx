@@ -1123,22 +1123,31 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
                                                         )}
                                                         
                                                         {mode === 'insurance' && (() => {
-                                                            const isSolo = (bid as any).modality === 'SOLO_MEDICO';
-                                                            const clinicStatus = duplaMap[bid.id]?.status;
-                                                            const blocked = isSolo && clinicStatus !== 'ACCEPTED';
+                                                            // Una dupla (en cualquier dirección) no es adjudicable hasta que el socio acepte
+                                                            const modality = (bid as any).modality;
+                                                            const isDuplaBid = modality === 'SOLO_MEDICO' || modality === 'SOLO_CLINICA';
+                                                            const dupla = duplaMap[bid.id];
+                                                            const duplaStatus = dupla?.status;
+                                                            const blocked = isDuplaBid && duplaStatus !== 'ACCEPTED';
+                                                            const partnerName = modality === 'SOLO_MEDICO'
+                                                                ? (dupla?.clinicName || 'la clínica')
+                                                                : (dupla?.doctorName || 'el médico');
                                                             return (
                                                                 <Button
-                                                                    onClick={() => handleAward(bid.id)}
-                                                                    disabled={isAwarding !== null || blocked}
-                                                                    title={blocked ? 'No se puede adjudicar hasta que la clínica acepte la invitación del médico.' : undefined}
-                                                                    className="flex-[2] bg-alteha-violet text-white py-3 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-violet-100 hover:scale-[1.02] transition-all disabled:opacity-50 disabled:hover:scale-100 disabled:cursor-not-allowed"
+                                                                    onClick={() => {
+                                                                        if (blocked) { alert(`Esta oferta está a la espera de: ${partnerName}. Podrás adjudicarla cuando acepte su participación en la dupla.`); return; }
+                                                                        handleAward(bid.id);
+                                                                    }}
+                                                                    disabled={isAwarding !== null || duplaStatus === 'REJECTED'}
+                                                                    title={blocked ? `A la espera de: ${partnerName}` : undefined}
+                                                                    className={`flex-[2] py-3 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:hover:scale-100 disabled:cursor-not-allowed ${blocked ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-alteha-violet text-white shadow-lg shadow-violet-100 hover:scale-[1.02]'}`}
                                                                 >
                                                                     {isAwarding === bid.id ? (
                                                                         <Loader2 className="w-4 h-4 animate-spin" />
                                                                     ) : blocked ? (
                                                                         <>
                                                                             <Clock className="w-4 h-4" />
-                                                                            {clinicStatus === 'REJECTED' ? 'Clínica rechazó' : 'Esperando a la clínica'}
+                                                                            {duplaStatus === 'REJECTED' ? `${partnerName} rechazó` : `A la espera de: ${partnerName}`}
                                                                         </>
                                                                     ) : (
                                                                         <>

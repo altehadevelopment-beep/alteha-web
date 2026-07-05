@@ -429,19 +429,46 @@ export default function DoctorAuctionDetailPage() {
                             
                             <div className="space-y-6">
                                 {auction.medicalReportUrl && (
-                                    <div className="bg-blue-50 p-8 rounded-[2.5rem] border border-blue-100 flex items-center justify-between">
+                                    <div
+                                        onClick={() => window.open(auction.medicalReportUrl, '_blank', 'noopener')}
+                                        title="Abrir el informe médico en una pestaña nueva"
+                                        className="bg-blue-50 p-8 rounded-[2.5rem] border border-blue-100 flex items-center justify-between cursor-pointer hover:bg-blue-100/70 hover:shadow-lg transition-all"
+                                    >
                                         <div className="flex items-center gap-5">
                                             <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-sm">
                                                 <FileText className="w-7 h-7 text-blue-500" />
                                             </div>
                                             <div>
                                                 <p className="text-base font-black text-slate-900 leading-none">Informe Médico</p>
-                                                <p className="text-xs font-bold text-slate-400 mt-2">Archivo PDF Adjunto</p>
+                                                <p className="text-xs font-bold text-slate-400 mt-2">Archivo PDF Adjunto · clic para abrir</p>
                                             </div>
                                         </div>
                                         <div className="flex gap-3">
-                                            <a href={auction.medicalReportUrl} target="_blank" rel="noreferrer" className="p-3 bg-white rounded-xl text-blue-500 shadow-sm hover:scale-110 transition-transform"><Activity className="w-5 h-5" /></a>
-                                            <a href={auction.medicalReportUrl} download className="p-3 bg-blue-500 rounded-xl text-white shadow-md hover:scale-110 transition-transform"><Download className="w-5 h-5" /></a>
+                                            <button
+                                                type="button"
+                                                title="Descargar informe"
+                                                onClick={async (e) => {
+                                                    e.stopPropagation();
+                                                    // Descarga real aunque el archivo esté en otro dominio (S3/CloudFront)
+                                                    try {
+                                                        const res = await fetch(auction.medicalReportUrl!);
+                                                        const blob = await res.blob();
+                                                        const url = URL.createObjectURL(blob);
+                                                        const a = document.createElement('a');
+                                                        a.href = url;
+                                                        a.download = `informe-medico-${auction.auctionNumber}.pdf`;
+                                                        document.body.appendChild(a);
+                                                        a.click();
+                                                        a.remove();
+                                                        URL.revokeObjectURL(url);
+                                                    } catch {
+                                                        window.open(auction.medicalReportUrl, '_blank', 'noopener');
+                                                    }
+                                                }}
+                                                className="p-3 bg-blue-500 rounded-xl text-white shadow-md hover:scale-110 transition-transform"
+                                            >
+                                                <Download className="w-5 h-5" />
+                                            </button>
                                         </div>
                                     </div>
                                 )}

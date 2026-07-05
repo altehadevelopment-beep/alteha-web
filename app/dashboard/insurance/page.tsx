@@ -23,6 +23,7 @@ import {
     Mail
 , MessageSquare } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { getMyAuctions, getAllMedicalPackages, getStoredToken, type Auction, type MedicalPackage } from '@/lib/api';
 import { useState, useEffect, useRef } from 'react';
@@ -816,8 +817,9 @@ function StatCard({ label, value, icon: Icon, trend, color }: any) {
 
 function AuctionItem({ id, title, status, bids, timeLeft, savings, bidsSummary }: any) {
     const isAwarded = status === 'AWARDED';
+    const router = useRouter();
     return (
-        <div className={`group flex items-center justify-between p-6 rounded-[2.5rem] border transition-all duration-300 ${isAwarded 
+        <div onClick={() => router.push(`/dashboard/insurance/auctions/${id}`)} className={`group cursor-pointer flex items-center justify-between p-6 rounded-[2.5rem] border transition-all duration-300 ${isAwarded 
             ? 'bg-violet-50/50 border-alteha-violet shadow-lg shadow-violet-500/5' 
             : 'bg-white border-slate-100 hover:border-violet-200 hover:shadow-xl hover:shadow-violet-500/5'
         }`}>
@@ -881,9 +883,7 @@ function AuctionItem({ id, title, status, bids, timeLeft, savings, bidsSummary }
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Fecha Límite</p>
                     <p className="text-sm font-bold text-slate-600">{timeLeft}</p>
                 </div>
-                <Link href={`/dashboard/insurance/auctions/${id}`}>
-                    <ChevronRight className={`w-6 h-6 transition-all ${isAwarded ? 'text-alteha-violet translate-x-1' : 'text-slate-200 group-hover:text-alteha-violet group-hover:translate-x-1'}`} />
-                </Link>
+                <ChevronRight className={`w-6 h-6 transition-all ${isAwarded ? 'text-alteha-violet translate-x-1' : 'text-slate-200 group-hover:text-alteha-violet group-hover:translate-x-1'}`} />
             </div>
         </div>
     );
