@@ -40,6 +40,25 @@ export default function ClinicDashboard() {
         );
     }, []);
 
+    // Subastas reales de la clínica (mismas fuentes que el home del médico)
+    const [auctions, setAuctions] = React.useState<any[]>([]);
+    const [isLoadingAuctions, setIsLoadingAuctions] = React.useState(true);
+    React.useEffect(() => {
+        import('@/lib/api').then(({ getMyInvitations }) =>
+            getMyInvitations('CLINIC', 0, 20)
+                .then((result: any) => {
+                    let list: any[] = [];
+                    if (result?.code === '00' && result.data) list = result.data;
+                    else if (Array.isArray(result)) list = result;
+                    else if (result?.content) list = result.content;
+                    // Las SETTLED (ya cobradas) no van al dashboard
+                    setAuctions(list.filter((a: any) => a.status !== 'SETTLED'));
+                })
+                .catch(() => {})
+                .finally(() => setIsLoadingAuctions(false))
+        );
+    }, []);
+
     // Invitaciones de médicos pendientes de respuesta: aviso destacado en el dashboard
     const [pendingInvitations, setPendingInvitations] = React.useState<any[]>([]);
     React.useEffect(() => {
@@ -143,7 +162,7 @@ export default function ClinicDashboard() {
 
             {/* Quick Stats */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <StatCard label="Subastas Activas" value="12" icon={Gavel} trend="+3 este mes" color="text-emerald-600" />
+                <StatCard label="Subastas Activas" value={isLoadingAuctions ? '…' : String(auctions.filter((a) => ['PUBLISHED', 'ACTIVE', 'AWARDED', 'PAYMENT_VALIDATION', 'PAID'].includes(a.status)).length)} icon={Gavel} trend={`${auctions.length} en total`} color="text-emerald-600" />
                 <StatCard label="Ahorro Generado" value="$42.5k" icon={TrendingUp} trend="15% vs mes anterior" color="text-blue-600" />
                 <StatCard label="Paquetes Propios" value="8" icon={Package} trend="2 nuevos" color="text-alteha-violet" />
                 <StatCard label="Especialistas en Red" value="45" icon={Users} trend="+5 hoy" color="text-amber-600" />
@@ -157,29 +176,23 @@ export default function ClinicDashboard() {
                         <Link href="/dashboard/clinic/auctions" className="text-sm font-bold text-emerald-600 hover:underline">Ver todas</Link>
                     </div>
 
-                    <div className="space-y-4">
-                        <AuctionItem
-                            title="Reemplazo de Cadera - Lote 5"
-                            status="En Puja"
-                            bids={8}
-                            bestBid="$3,200"
-                            timeLeft="2h 15m"
-                        />
-                        <AuctionItem
-                            title="Insumos Quirúrgicos Mensuales"
-                            status="Esperando Ofertas"
-                            bids={2}
-                            bestBid="$12,500"
-                            timeLeft="1d 4h"
-                        />
-                        <AuctionItem
-                            title="Servicio de Imagenología"
-                            status="Finalizando"
-                            bids={15}
-                            bestBid="$850"
-                            timeLeft="45m"
-                        />
-                    </div>
+                    {isLoadingAuctions ? (
+                        <div className="bg-white rounded-[2.5rem] border border-slate-100 p-12 text-center text-slate-400 font-bold">
+                            Cargando subastas…
+                        </div>
+                    ) : auctions.length === 0 ? (
+                        <div className="bg-white rounded-[2.5rem] border border-slate-100 p-12 text-center space-y-2">
+                            <Gavel className="w-10 h-10 text-slate-200 mx-auto" />
+                            <p className="font-black text-slate-700">No tienes subastas disponibles</p>
+                            <p className="text-sm text-slate-400">Cuando un seguro publique una subasta para tu red, aparecerá aquí.</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            {auctions.slice(0, 3).map((a: any) => (
+                                <RealAuctionItem key={a.id} auction={a} />
+                            ))}
+                        </div>
+                    )}
                 </div>
 
                 {/* Notifications / Activity */}
@@ -219,6 +232,49 @@ function StatCard({ label, value, icon: Icon, trend, color }: any) {
             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{label}</p>
             <h4 className="text-3xl font-black text-slate-900 mt-1">{value}</h4>
         </motion.div>
+    );
+}
+
+const AUCTION_STATUS_ES: Record<string, string> = {
+    PUBLISHED: 'Publicada',
+    ACTIVE: 'En puja',
+    AWARDED: 'Adjudicada',
+    PAYMENT_REPORTED: 'Pago reportado',
+    PAYMENT_VALIDATION: 'Validando pago',
+    PAID: 'Pagada',
+    COMPLETED: 'Completada',
+    PENDING_SETTLEMENT: 'Liquidando fondos',
+    CLOSED: 'Cerrada',
+    CANCELLED: 'Cancelada',
+};
+
+function RealAuctionItem({ auction }: { auction: any }) {
+    const deadline = auction.biddingDeadline || auction.estimatedSurgeryDate;
+    return (
+        <Link href={`/dashboard/clinic/auctions/${auction.auctionNumber}`} className="block">
+            <div className="group flex items-center justify-between p-6 bg-white rounded-[2.5rem] border border-slate-100 hover:border-emerald-200 hover:shadow-xl hover:shadow-emerald-500/5 transition-all duration-300 gap-4">
+                <div className="flex items-center gap-6 min-w-0">
+                    <div className="w-14 h-14 shrink-0 rounded-2xl bg-emerald-50 text-emerald-500 flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <Gavel className="w-7 h-7" />
+                    </div>
+                    <div className="min-w-0">
+                        <h4 className="font-bold text-slate-900 group-hover:text-emerald-600 transition-colors truncate">{auction.title}</h4>
+                        <div className="flex items-center gap-3 mt-1 flex-wrap">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600">{AUCTION_STATUS_ES[auction.status] || auction.status}</span>
+                            <span className="w-1 h-1 rounded-full bg-slate-200" />
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{auction.auctionNumber}</span>
+                        </div>
+                    </div>
+                </div>
+                <div className="flex items-center gap-8 shrink-0">
+                    <div className="text-right hidden sm:block">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Fecha límite</p>
+                        <p className="text-sm font-bold text-slate-600">{deadline ? new Date(deadline).toLocaleDateString('es-VE') : '—'}</p>
+                    </div>
+                    <ChevronRight className="w-6 h-6 text-slate-200 group-hover:text-emerald-500 group-hover:translate-x-1 transition-all" />
+                </div>
+            </div>
+        </Link>
     );
 }
 

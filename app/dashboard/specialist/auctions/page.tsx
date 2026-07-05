@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { getMyInvitations, type Auction } from '@/lib/api';
+import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
@@ -79,6 +80,11 @@ const URGENCY_CONFIG: Record<string, { label: string; color: string }> = {
 };
 
 export default function DoctorAuctionsPage() {
+    const pathname = usePathname();
+    // Página compartida: médico y clínica ven sus subastas con el mismo módulo
+    const isClinicView = pathname?.includes('/clinic') ?? false;
+    const invitationRole = isClinicView ? 'CLINIC' : 'DOCTOR';
+    const auctionsBase = isClinicView ? '/dashboard/clinic/auctions' : '/dashboard/specialist/auctions';
     const [auctions, setAuctions] = useState<Auction[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -97,7 +103,7 @@ export default function DoctorAuctionsPage() {
         setIsLoading(true);
         setError(null);
         try {
-            const result = await getMyInvitations('DOCTOR', 0, 50);
+            const result = await getMyInvitations(invitationRole, 0, 50);
 
             if (result.code === '00' && result.data) {
                 setAuctions(result.data);
@@ -349,7 +355,7 @@ function AuctionCard({ auction, index, onChat, currentUserId }: { auction: Aucti
 
             {/* Action */}
             <div className="flex flex-col gap-2 w-full lg:w-auto">
-                <Link href={`/dashboard/specialist/auctions/${auction.auctionNumber}`} className="flex-shrink-0">
+                <Link href={`${auctionsBase}/${auction.auctionNumber}`} className="flex-shrink-0">
                     {(auction.status === 'ACTIVE' || auction.status === 'PUBLISHED') ? (
                         <Button className="w-full lg:w-40 h-14 rounded-[1.5rem] bg-alteha-violet text-white font-black flex items-center justify-center gap-2 shadow-lg shadow-violet-200 hover:scale-105 transition-all">
                             <Gavel className="w-5 h-5" />

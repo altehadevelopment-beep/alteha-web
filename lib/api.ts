@@ -702,6 +702,21 @@ export async function getAuctionDuplas(auctionId: number | string): Promise<any[
     return Array.isArray(data) ? data : (data?.content ?? data?.data ?? []);
 }
 
+// Actualiza el perfil de la clínica autenticada (datos + logo opcional).
+export async function updateClinicProfile(clinic: Record<string, any>, logo?: File | null): Promise<any> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+    const formData = new FormData();
+    formData.append('clinic', new Blob([JSON.stringify(clinic)], { type: 'application/json' }));
+    if (logo) formData.append('logo', logo);
+    const response = await fetch('/api/clinics/profile', {
+        method: 'PUT',
+        headers: { 'X-Alteha-Token': token },
+        body: formData,
+    });
+    return response.json();
+}
+
 // Get Doctors
 export async function getDoctors(page: number = 0, size: number = 50): Promise<ActorProfile[]> {
     const response = await fetch(`/api/doctors?page=${page}&size=${size}`);

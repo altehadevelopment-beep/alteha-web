@@ -1,2 +1,3 @@
-import ComingSoonPage from '@/components/dashboard/ComingSoon';
-export default function AuctionsPage() { return <ComingSoonPage title="Subastas de la Clínica" />; }
+// Subastas de la clínica: reutiliza el módulo completo del médico.
+// El rol (CLINIC) y los enlaces se resuelven por la ruta.
+export { default } from '../../specialist/auctions/page';

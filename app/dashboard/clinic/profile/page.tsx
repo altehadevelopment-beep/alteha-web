@@ -20,11 +20,51 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthContext';
 import { Logo } from '@/components/ui/Logo';
+import { updateClinicProfile } from '@/lib/api';
 import { toast } from 'sonner';
 
 export default function ClinicProfilePage() {
     const { userProfile, isLoadingProfile } = useAuth();
     const [loading, setLoading] = useState(false);
+    const [uploadingLogo, setUploadingLogo] = useState(false);
+    const logoInputRef = React.useRef<HTMLInputElement>(null);
+    const [logoPreview, setLogoPreview] = useState<string | null>(null);
+
+    // Solo los campos que acepta el backend (ClinicUpdateDTO)
+    const updatableFields = () => ({
+        name: formData.name,
+        legalName: formData.legalName,
+        email: formData.email,
+        phone: formData.phone,
+        website: formData.website,
+        address: formData.address,
+        latitude: formData.latitude || null,
+        longitude: formData.longitude || null,
+    });
+
+    const handleLogoSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (!file.type.startsWith('image/')) {
+            toast.error('El logo debe ser una imagen (PNG, JPG…)');
+            return;
+        }
+        setUploadingLogo(true);
+        try {
+            const res = await updateClinicProfile(updatableFields(), file);
+            if (res?.code === '00') {
+                setLogoPreview(URL.createObjectURL(file));
+                toast.success('Logo actualizado correctamente');
+            } else {
+                toast.error(res?.message || 'No se pudo subir el logo');
+            }
+        } catch {
+            toast.error('Error de conexión al subir el logo');
+        } finally {
+            setUploadingLogo(false);
+            if (logoInputRef.current) logoInputRef.current.value = '';
+        }
+    };
     const [formData, setFormData] = useState({
         name: '',
         legalName: '',
@@ -60,10 +100,18 @@ export default function ClinicProfilePage() {
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
-        setTimeout(() => {
+        try {
+            const res = await updateClinicProfile(updatableFields());
+            if (res?.code === '00') {
+                toast.success('Perfil de la clínica actualizado correctamente');
+            } else {
+                toast.error(res?.message || 'No se pudo actualizar el perfil');
+            }
+        } catch {
+            toast.error('Error de conexión al actualizar el perfil');
+        } finally {
             setLoading(false);
-            toast.success('Perfil de la clínica actualizado correctamente');
-        }, 1500);
+        }
     };
 
     const displayProfile = userProfile || {};
@@ -94,14 +142,27 @@ export default function ClinicProfilePage() {
                     <div className="flex flex-col md:flex-row items-center gap-10">
                         <div className="relative group">
                             <div className="w-40 h-40 rounded-[2.5rem] overflow-hidden border-4 border-slate-50 shadow-inner bg-slate-50 flex items-center justify-center p-6">
-                                {displayProfile.logoUrl ? (
-                                    <img src={displayProfile.logoUrl} alt="Logo" className="w-full h-full object-contain" />
+                                {logoPreview || displayProfile.logoUrl ? (
+                                    <img src={logoPreview || displayProfile.logoUrl} alt="Logo" className="w-full h-full object-contain" />
                                 ) : (
                                     <Building2 className="w-16 h-16 text-emerald-600 opacity-20" />
                                 )}
                             </div>
-                            <button type="button" className="absolute -bottom-2 -right-2 p-3 bg-emerald-500 text-white rounded-2xl shadow-lg group-hover:scale-110 transition-transform">
-                                <Upload className="w-5 h-5" />
+                            <input
+                                ref={logoInputRef}
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={handleLogoSelected}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => logoInputRef.current?.click()}
+                                disabled={uploadingLogo}
+                                title="Subir logo de la clínica"
+                                className="absolute -bottom-2 -right-2 p-3 bg-emerald-500 text-white rounded-2xl shadow-lg group-hover:scale-110 transition-transform disabled:opacity-60"
+                            >
+                                {uploadingLogo ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
                             </button>
                         </div>
 
