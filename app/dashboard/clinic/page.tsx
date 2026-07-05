@@ -40,6 +40,16 @@ export default function ClinicDashboard() {
         );
     }, []);
 
+    // Invitaciones de médicos pendientes de respuesta: aviso destacado en el dashboard
+    const [pendingInvitations, setPendingInvitations] = React.useState<any[]>([]);
+    React.useEffect(() => {
+        import('@/lib/api').then(({ getClinicInvitations }) =>
+            getClinicInvitations()
+                .then((list: any[]) => setPendingInvitations((list || []).filter((i) => i.status === 'PENDING')))
+                .catch(() => {})
+        );
+    }, []);
+
     const displayProfile = userProfile || {
         name: 'Cargando...',
         legalName: 'Cargando...',
@@ -51,6 +61,36 @@ export default function ClinicDashboard() {
 
     return (
         <div className="space-y-10 font-outfit pb-20">
+            {/* Invitaciones pendientes: el médico espera tu respuesta para armar la dupla */}
+            {pendingInvitations.length > 0 && (
+                <Link href="/dashboard/clinic/invitations" className="block">
+                    <div className="flex items-center justify-between gap-4 bg-amber-50 border-2 border-amber-200 p-6 rounded-[2rem] hover:bg-amber-100/70 transition-colors">
+                        <div className="flex items-center gap-4">
+                            <div className="relative">
+                                <div className="w-12 h-12 rounded-2xl bg-amber-500 text-white flex items-center justify-center">
+                                    <Bell className="w-6 h-6" />
+                                </div>
+                                <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white text-[10px] font-black flex items-center justify-center animate-pulse">
+                                    {pendingInvitations.length}
+                                </span>
+                            </div>
+                            <div>
+                                <p className="font-black text-amber-800">
+                                    Tienes {pendingInvitations.length} invitaci{pendingInvitations.length === 1 ? 'ón' : 'ones'} de médico{pendingInvitations.length === 1 ? '' : 's'} sin responder
+                                </p>
+                                <p className="text-sm text-amber-700 font-medium">
+                                    {pendingInvitations[0]?.doctorName ? `${pendingInvitations[0].doctorName} te invitó a "${pendingInvitations[0].auctionTitle}"` : 'Un médico te invitó a una subasta'}
+                                    {pendingInvitations.length > 1 ? ' y más…' : ''} Acepta y define tus honorarios para armar la dupla.
+                                </p>
+                            </div>
+                        </div>
+                        <span className="shrink-0 inline-flex items-center gap-1 bg-amber-500 text-white text-xs font-black px-4 py-2.5 rounded-xl">
+                            Responder ahora <ChevronRight className="w-4 h-4" />
+                        </span>
+                    </div>
+                </Link>
+            )}
+
             {/* Header section with profile summary */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-emerald-50/50 p-10 rounded-[3rem] border border-emerald-100/50">
                 <div className="flex items-center gap-6">
