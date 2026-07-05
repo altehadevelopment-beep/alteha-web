@@ -93,12 +93,27 @@ export default function PublishPackagePage() {
         return () => { active = false; };
     }, [specialtyId]);
 
-    // Preseleccionar la primera especialidad del médico
+    // Especialidades disponibles: las del perfil, o el catálogo completo como respaldo
+    // (los perfiles de clínica no siempre tienen especialidades cargadas)
+    const [catalogSpecialties, setCatalogSpecialties] = useState<any[]>([]);
     useEffect(() => {
-        const first = userProfile?.specialties?.[0]?.id;
+        if (userProfile && !userProfile.specialties?.length && catalogSpecialties.length === 0) {
+            import('@/lib/api').then(({ getSpecialties }) =>
+                getSpecialties(0, 200)
+                    .then((list: any) => setCatalogSpecialties(Array.isArray(list) ? list : (list?.content ?? [])))
+                    .catch(() => {})
+            );
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [userProfile]);
+    const specialtyOptions = userProfile?.specialties?.length ? userProfile.specialties : catalogSpecialties;
+
+    // Preseleccionar la primera especialidad disponible
+    useEffect(() => {
+        const first = specialtyOptions?.[0]?.id;
         if (first && !specialtyId) setSpecialtyId(Number(first));
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [userProfile?.specialties]);
+    }, [specialtyOptions]);
 
     const loadRedemptions = async () => {
         try {
@@ -567,7 +582,7 @@ export default function PublishPackagePage() {
                                                     className="w-full min-h-[60px] pt-5 pb-1.5 px-4 rounded-2xl bg-white border border-slate-200 text-sm font-bold text-slate-800 outline-none focus:border-alteha-turquoise transition-colors appearance-none"
                                                 >
                                                     <option value="">Selecciona...</option>
-                                                    {(userProfile?.specialties || []).map((s: any) => (
+                                                    {(specialtyOptions || []).map((s: any) => (
                                                         <option key={s.id} value={s.id}>{s.name}</option>
                                                     ))}
                                                 </select>

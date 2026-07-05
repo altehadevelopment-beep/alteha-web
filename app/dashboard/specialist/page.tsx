@@ -672,14 +672,12 @@ export default function SpecialistDashboard() {
                 </div>
 
                 <div className="flex items-center gap-4">
-                    <button className="p-4 bg-white rounded-2xl shadow-sm border border-slate-100 text-slate-400 hover:text-alteha-turquoise hover:shadow-md transition-all relative">
+                    <Link href="/dashboard/specialist/notifications" title="Notificaciones" className="p-4 bg-white rounded-2xl shadow-sm border border-slate-100 text-slate-400 hover:text-alteha-turquoise hover:shadow-md transition-all relative">
                         <Bell className="w-5 h-5" />
-                        <span className="absolute top-3 right-3 w-2.5 h-2.5 bg-red-500 border-2 border-white rounded-full" />
-                    </button>
-                    <button className="p-4 bg-white rounded-2xl shadow-sm border border-slate-100 text-slate-400 hover:text-alteha-violet hover:shadow-md transition-all relative">
+                    </Link>
+                    <Link href="/dashboard/specialist/conversations" title="Conversaciones" className="p-4 bg-white rounded-2xl shadow-sm border border-slate-100 text-slate-400 hover:text-alteha-violet hover:shadow-md transition-all relative">
                         <MessageSquare className="w-5 h-5" />
-                        <span className="absolute top-3 right-3 w-2.5 h-2.5 bg-blue-500 border-2 border-white rounded-full" />
-                    </button>
+                    </Link>
                     <Link href="/dashboard/specialist/profile" className="flex items-center gap-2 px-6 py-4 bg-slate-900 text-white rounded-2xl font-bold shadow-lg shadow-slate-200 hover:bg-slate-800 transition-all">
                         <Edit3 className="w-4 h-4" />
                         <span>Editar Perfil</span>

@@ -280,8 +280,8 @@ export default function ClinicDashboard() {
                 </div>
                 <div className="flex items-center gap-3">
                     <Link
-                        href="/dashboard/clinic/invitations"
-                        title="Invitaciones"
+                        href="/dashboard/clinic/notifications"
+                        title="Notificaciones"
                         className="relative p-4 bg-white rounded-2xl shadow-sm border border-slate-100 text-slate-400 hover:text-emerald-600 transition-all"
                     >
                         <Bell className="w-6 h-6" />
@@ -297,58 +297,6 @@ export default function ClinicDashboard() {
                             Editar Perfil
                         </button>
                     </Link>
-                </div>
-            </div>
-
-            {/* Quick Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <StatCard label="Subastas Activas" value={isLoadingAuctions ? '…' : String(auctions.filter((a) => ['PUBLISHED', 'ACTIVE', 'AWARDED', 'PAYMENT_VALIDATION', 'PAID'].includes(a.status)).length)} icon={Gavel} trend={`${auctions.length} en total`} color="text-emerald-600" />
-                <StatCard label="Ganancias del Mes" value={isLoadingAuctions ? '…' : `$${monthEarnings.toLocaleString('en-US', { maximumFractionDigits: 0 })}`} icon={TrendingUp} trend="Subastas liquidadas" color="text-blue-600" />
-                <StatCard label="Paquetes Propios" value={packagesCount == null ? '…' : String(packagesCount)} icon={Package} trend="Publicados" color="text-alteha-violet" />
-                <StatCard label="Reseñas Recibidas" value={!reviewsLoaded ? '…' : String(reviews.length)} icon={Star} trend={reviewsAvg != null ? `${reviewsAvg.toFixed(1)} ★ promedio` : 'Sin reseñas aún'} color="text-amber-600" />
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-                {/* Active Auctions List */}
-                <div className="lg:col-span-2 space-y-6">
-                    <div className="flex items-center justify-between px-2">
-                        <h3 className="text-2xl font-black text-slate-900">Subastas en Progreso</h3>
-                        <Link href="/dashboard/clinic/auctions" className="text-sm font-bold text-emerald-600 hover:underline">Ver todas</Link>
-                    </div>
-
-                    {isLoadingAuctions ? (
-                        <div className="bg-white rounded-[2.5rem] border border-slate-100 p-12 text-center text-slate-400 font-bold">
-                            Cargando subastas…
-                        </div>
-                    ) : auctions.length === 0 ? (
-                        <div className="bg-white rounded-[2.5rem] border border-slate-100 p-12 text-center space-y-2">
-                            <Gavel className="w-10 h-10 text-slate-200 mx-auto" />
-                            <p className="font-black text-slate-700">No tienes subastas disponibles</p>
-                            <p className="text-sm text-slate-400">Cuando un seguro publique una subasta para tu red, aparecerá aquí.</p>
-                        </div>
-                    ) : (
-                        <div className="space-y-4">
-                            {auctions.slice(0, 3).map((a: any) => (
-                                <RealAuctionItem key={a.id} auction={a} />
-                            ))}
-                        </div>
-                    )}
-                </div>
-
-                {/* Notifications / Activity */}
-                <div className="space-y-6">
-                    <h3 className="text-2xl font-black text-slate-900 px-2">Actividad Reciente</h3>
-                    <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100 divide-y divide-slate-50">
-                        {activity.length === 0 ? (
-                            <p className="text-sm text-slate-400 font-medium py-6 text-center">
-                                Sin actividad todavía. Aquí verás invitaciones, duplas y reseñas a medida que participes.
-                            </p>
-                        ) : (
-                            activity.map((item, i) => (
-                                <ActivityItem key={i} icon={item.icon} text={item.text} time={timeAgo(item.date)} color={item.color} />
-                            ))
-                        )}
-                    </div>
                 </div>
             </div>
 
@@ -429,6 +377,58 @@ export default function ClinicDashboard() {
                     </div>
                 )}
             </section>
+
+            {/* Quick Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <StatCard label="Subastas Activas" value={isLoadingAuctions ? '…' : String(auctions.filter((a) => ['PUBLISHED', 'ACTIVE', 'AWARDED', 'PAYMENT_VALIDATION', 'PAID'].includes(a.status)).length)} icon={Gavel} trend={`${auctions.length} en total`} color="text-emerald-600" />
+                <StatCard label="Ganancias del Mes" value={isLoadingAuctions ? '…' : `$${monthEarnings.toLocaleString('en-US', { maximumFractionDigits: 0 })}`} icon={TrendingUp} trend="Subastas liquidadas" color="text-blue-600" />
+                <StatCard label="Paquetes Propios" value={packagesCount == null ? '…' : String(packagesCount)} icon={Package} trend="Publicados" color="text-alteha-violet" />
+                <StatCard label="Reseñas Recibidas" value={!reviewsLoaded ? '…' : String(reviews.length)} icon={Star} trend={reviewsAvg != null ? `${reviewsAvg.toFixed(1)} ★ promedio` : 'Sin reseñas aún'} color="text-amber-600" />
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+                {/* Active Auctions List */}
+                <div className="lg:col-span-2 space-y-6">
+                    <div className="flex items-center justify-between px-2">
+                        <h3 className="text-2xl font-black text-slate-900">Subastas en Progreso</h3>
+                        <Link href="/dashboard/clinic/auctions" className="text-sm font-bold text-emerald-600 hover:underline">Ver todas</Link>
+                    </div>
+
+                    {isLoadingAuctions ? (
+                        <div className="bg-white rounded-[2.5rem] border border-slate-100 p-12 text-center text-slate-400 font-bold">
+                            Cargando subastas…
+                        </div>
+                    ) : auctions.length === 0 ? (
+                        <div className="bg-white rounded-[2.5rem] border border-slate-100 p-12 text-center space-y-2">
+                            <Gavel className="w-10 h-10 text-slate-200 mx-auto" />
+                            <p className="font-black text-slate-700">No tienes subastas disponibles</p>
+                            <p className="text-sm text-slate-400">Cuando un seguro publique una subasta para tu red, aparecerá aquí.</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            {auctions.slice(0, 3).map((a: any) => (
+                                <RealAuctionItem key={a.id} auction={a} />
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                {/* Notifications / Activity */}
+                <div className="space-y-6">
+                    <h3 className="text-2xl font-black text-slate-900 px-2">Actividad Reciente</h3>
+                    <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100 divide-y divide-slate-50">
+                        {activity.length === 0 ? (
+                            <p className="text-sm text-slate-400 font-medium py-6 text-center">
+                                Sin actividad todavía. Aquí verás invitaciones, duplas y reseñas a medida que participes.
+                            </p>
+                        ) : (
+                            activity.map((item, i) => (
+                                <ActivityItem key={i} icon={item.icon} text={item.text} time={timeAgo(item.date)} color={item.color} />
+                            ))
+                        )}
+                    </div>
+                </div>
+            </div>
 
             {/* Plan vencido: alerta intrusiva hasta que renueve (o posponga en esta sesión) */}
             {expiredPlanName && (
