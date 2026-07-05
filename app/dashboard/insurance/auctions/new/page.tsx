@@ -93,7 +93,7 @@ export default function NewAuctionPage() {
         termsAndConditionsAccepted: true,
         showPrice: true,
         durationHours: 240,
-        autoExtendMinutes: 60,
+        autoExtendMinutes: 60, // fijo: la subasta se auto-extiende 60 min si faltan ofertas al cierre (campo oculto de la UI)
         minBidsRequired: 10,
         estimatedSurgeryDate: new Date(Date.now() + 20 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         patient: { id: 0 },
@@ -1118,18 +1118,6 @@ export default function NewAuctionPage() {
                                                         description="Cantidad mínima de propuestas necesarias para que la subasta sea válida."
                                                     />
                                                     */}
-                                                    <FormInput 
-                                                        label="Auto-extensión (Minutos)" 
-                                                        type="number" 
-                                                        value={formData.autoExtendMinutes} 
-                                                        onChange={(v: string) => {
-                                                            const val = parseInt(v) || 0;
-                                                            // Prevent exceeding backend limit of 60 minutes
-                                                            setFormData({ ...formData, autoExtendMinutes: Math.min(val, 60) });
-                                                        }} 
-                                                        icon={Zap}
-                                                        description="La subasta se extenderá por este tiempo si no hay suficientes ofertas al cierre (Máximo 60 minutos)."
-                                                    />
                                                 </div>
                                             </div>
 

@@ -17,10 +17,28 @@ import {
     Edit3
 } from 'lucide-react';
 import Link from 'next/link';
+import { Crown } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { PlanExpiredModal } from '@/components/plan/UpgradeModal';
 
 export default function ClinicDashboard() {
     const { userProfile, isLoadingProfile } = useAuth();
+
+    // Plan de suscripción de la clínica: badge en el encabezado + alerta intrusiva si venció
+    const [expiredPlanName, setExpiredPlanName] = React.useState<string | null>(null);
+    const [planBadge, setPlanBadge] = React.useState<{ name: string; expired: boolean } | null>(null);
+    React.useEffect(() => {
+        import('@/lib/api').then(({ getMySubscription }) =>
+            getMySubscription()
+                .then((s: any) => {
+                    setPlanBadge({ name: s?.effectivePlan?.name || '', expired: !!s?.expired });
+                    let snoozed = false;
+                    try { snoozed = !!sessionStorage.getItem('alteha_plan_expired_snooze'); } catch { /* ignore */ }
+                    if (!snoozed && s?.expired && s?.contractedPlan?.priceUsd > 0) setExpiredPlanName(s.contractedPlan.name);
+                })
+                .catch(() => {})
+        );
+    }, []);
 
     const displayProfile = userProfile || {
         name: 'Cargando...',
@@ -51,6 +69,13 @@ export default function ClinicDashboard() {
                             <div className={`px-3 py-1 text-white text-[10px] font-black uppercase tracking-widest rounded-full ${displayProfile.status === 'ACTIVE' ? 'bg-emerald-500' : 'bg-amber-500'}`}>
                                 {displayProfile.status}
                             </div>
+                            {planBadge && (
+                                <Link href="/dashboard/clinic/plan"
+                                    className={`flex items-center gap-1.5 px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-full transition-colors ${planBadge.expired ? 'bg-red-50 text-red-500 hover:bg-red-100' : 'bg-amber-50 text-amber-600 hover:bg-amber-100'}`}>
+                                    <Crown className="w-3 h-3" />
+                                    {planBadge.name}{planBadge.expired ? ' · Vencido' : ''}
+                                </Link>
+                            )}
                         </div>
                         <div className="flex items-center gap-3 mt-1 text-slate-500 font-medium">
                             <span className="text-emerald-600">Centro Hospitalario</span>
@@ -128,6 +153,14 @@ export default function ClinicDashboard() {
                     </div>
                 </div>
             </div>
+
+            {/* Plan vencido: alerta intrusiva hasta que renueve (o posponga en esta sesión) */}
+            {expiredPlanName && (
+                <PlanExpiredModal
+                    planName={expiredPlanName}
+                    onClose={() => { try { sessionStorage.setItem('alteha_plan_expired_snooze', '1'); } catch { /* ignore */ } setExpiredPlanName(null); }}
+                />
+            )}
         </div>
     );
 }

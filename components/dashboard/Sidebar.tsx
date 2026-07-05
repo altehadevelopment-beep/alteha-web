@@ -60,13 +60,20 @@ const specialistItems = [
     },
 ];
 
+// Homologado funcionalmente con el médico, con las particularidades de clínica
+// (las invitaciones de médicos a duplas siguen siempre visibles).
 const clinicItems = [
+    { section: 'Principal' },
     { title: 'Dashboard', icon: LayoutDashboard, href: '/dashboard/clinic' },
     { title: 'Subastas', icon: Gavel, href: '/dashboard/clinic/auctions' },
-    { title: 'Mis Paquetes', icon: Package, href: '/dashboard/clinic/packages' },
-    { title: 'Pagos', icon: CreditCard, href: '/dashboard/clinic/payments' },
-    { title: 'Conversaciones', icon: MessageSquare, href: '/dashboard/clinic/conversations' },
     { title: 'Invitaciones', icon: Bell, href: '/dashboard/clinic/invitations' },
+    { title: 'Paquetes', icon: Package, href: '/dashboard/clinic/packages' },
+    { section: 'Finanzas' },
+    { title: 'Métodos de Cobro', icon: CreditCard, href: '/dashboard/clinic/payments' },
+    { title: 'Mi Plan', icon: Crown, href: '/dashboard/clinic/plan' },
+    { section: 'Gestión' },
+    { title: 'Conversaciones', icon: MessageSquare, href: '/dashboard/clinic/conversations' },
+    { title: 'Disputas', icon: AlertCircle, href: '/dashboard/clinic/disputes' },
     { title: 'Puntuación', icon: Star, href: '/dashboard/clinic/score' },
 ];
 
@@ -103,10 +110,11 @@ export function DashboardSidebar() {
     const { logout } = useAuth();
     const [isOpen, setIsOpen] = React.useState(false);
     const [expandedMenu, setExpandedMenu] = React.useState<string | null>(null);
-    // Plan de suscripción siempre visible (solo médicos)
+    // Plan de suscripción siempre visible (médicos y clínicas)
     const [myPlan, setMyPlan] = React.useState<{ name: string; code: string; expired: boolean } | null>(null);
+    const hasPlan = pathname?.startsWith('/dashboard/specialist') || pathname?.startsWith('/dashboard/clinic');
     React.useEffect(() => {
-        if (!pathname?.startsWith('/dashboard/specialist')) return;
+        if (!hasPlan) return;
         import('@/lib/api').then(({ getMySubscription }) =>
             getMySubscription()
                 .then((s: any) => setMyPlan({ name: s?.effectivePlan?.name || '', code: s?.effectivePlan?.code || '', expired: !!s?.expired }))
@@ -244,8 +252,8 @@ export function DashboardSidebar() {
                         })}
                     </nav>
 
-                    {myPlan && pathname?.startsWith('/dashboard/specialist') && (
-                        <Link href="/dashboard/specialist/plan"
+                    {myPlan && hasPlan && (
+                        <Link href={pathname?.startsWith('/dashboard/clinic') ? '/dashboard/clinic/plan' : '/dashboard/specialist/plan'}
                             className={cn("flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-black transition-all mb-1",
                                 myPlan.expired ? "bg-red-50 text-red-500 hover:bg-red-100" : "bg-amber-50 text-amber-600 hover:bg-amber-100")}>
                             <Crown className="w-4 h-4" />

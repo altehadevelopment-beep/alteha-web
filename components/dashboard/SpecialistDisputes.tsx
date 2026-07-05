@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import {
     AlertCircle, Plus, X, Loader2, CheckCircle2, Clock, Scale,
     FileText, Upload, ExternalLink, ShieldCheck, Building2, HeartHandshake,
@@ -43,6 +44,8 @@ const STATUS_BADGE: Record<string, { label: string; color: string; dot: string }
 const DISPUTABLE_STATUSES = ['AWARDED', 'PAYMENT_REPORTED', 'PAYMENT_VALIDATION', 'PAID', 'COMPLETED', 'PENDING_SETTLEMENT', 'SETTLED', 'CLOSED'];
 
 export default function SpecialistDisputes() {
+    const pathname = usePathname();
+    const invitationRole = pathname?.includes('/clinic/') ? 'CLINIC' : 'DOCTOR';
     const [disputes, setDisputes] = useState<AuctionDispute[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [detail, setDetail] = useState<AuctionDispute | null>(null);
@@ -68,7 +71,7 @@ export default function SpecialistDisputes() {
         if (!isCreating || myAuctions.length > 0) return;
         (async () => {
             try {
-                const result: any = await getMyInvitations('DOCTOR', 0, 100);
+                const result: any = await getMyInvitations(invitationRole, 0, 100);
                 let list: any[] = [];
                 if (result.code === '00' && result.data) list = result.data;
                 else if (Array.isArray(result)) list = result;

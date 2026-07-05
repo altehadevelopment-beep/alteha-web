@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from 'next/navigation';
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -66,6 +67,10 @@ const ChatButtonWithBadge: React.FC<{
 };
 
 export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatus, mode = 'insurance', insuranceId, insuranceName, onActionSuccess }: AuctionBidsListProps) {
+    // El seguro "recibe" ofertas; médicos/clínicas/farmacias ven las ofertas con las que compiten
+    const pathname = usePathname();
+    const isProviderView = !pathname?.includes('/insurance/');
+
     const { userProfile } = useAuth();
     const [bids, setBids] = useState<BidDetailed[]>([]);
     const [topOffers, setTopOffers] = useState<TopOffer[]>([]);
@@ -302,7 +307,7 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
                         <Trophy className="w-5 h-5 text-alteha-violet" />
                     </div>
                     <div>
-                        <h3 className="text-xl font-black text-slate-900">Ofertas Recibidas</h3>
+                        <h3 className="text-xl font-black text-slate-900">{isProviderView ? 'Ofertas de la Subasta' : 'Ofertas Recibidas'}</h3>
                         <p className="text-xs font-bold text-slate-400">
                             {totalBids} {totalBids === 1 ? 'oferta' : 'ofertas'} en esta subasta
                         </p>

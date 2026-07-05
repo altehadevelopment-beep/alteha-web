@@ -885,7 +885,36 @@ const AUCTION_STATUS_BADGE: Record<string, { label: string; color: string; dot: 
 
 function AuctionCard({ auction }: { auction: Auction }) {
     const router = useRouter();
+    const { userProfile } = useAuth();
     const [offerCount, setOfferCount] = useState<number | null>(null);
+    // Mi oferta en esta subasta (si ya envié una) + estado de la dupla con la clínica
+    const [myBid, setMyBid] = useState<{ amount: number; modality?: string; duplaStatus?: string; clinicName?: string } | null>(null);
+
+    useEffect(() => {
+        if (!userProfile?.id) return;
+        let active = true;
+        (async () => {
+            try {
+                const { getAuctionBids, getAuctionDuplas } = await import('@/lib/api');
+                const res: any = await getAuctionBids(auction.id);
+                const list: any[] = Array.isArray(res) ? res : (res?.data ?? res?.content ?? []);
+                const mine = list.find((b: any) => b.doctor?.id && Number(b.doctor.id) === Number(userProfile.id));
+                if (!mine || !active) return;
+                let duplaStatus: string | undefined;
+                let clinicName: string | undefined;
+                if (mine.modality === 'SOLO_MEDICO') {
+                    try {
+                        const duplas = await getAuctionDuplas(auction.id);
+                        const d = (duplas || []).find((x: any) => String(x.bidId) === String(mine.id));
+                        duplaStatus = d?.status || 'PENDING';
+                        clinicName = d?.clinicName || mine.clinic?.name || 'la clínica';
+                    } catch { duplaStatus = 'PENDING'; clinicName = mine.clinic?.name || 'la clínica'; }
+                }
+                if (active) setMyBid({ amount: Number(mine.bidAmount) || 0, modality: mine.modality, duplaStatus, clinicName });
+            } catch { /* sin datos de oferta propia */ }
+        })();
+        return () => { active = false; };
+    }, [auction.id, userProfile?.id]);
 
     useEffect(() => {
         let active = true;
@@ -963,6 +992,30 @@ function AuctionCard({ auction }: { auction: Auction }) {
                         Ver ofertas <ArrowRight className="w-3 h-3" />
                     </Link>
                 </div>
+
+                {/* Estado de MI participación en esta subasta */}
+                {myBid && (
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-[10px] font-black uppercase tracking-widest">
+                            <CheckCircle2 className="w-3 h-3" /> Tu oferta enviada · ${myBid.amount.toLocaleString()}
+                        </span>
+                        {myBid.modality === 'SOLO_MEDICO' && myBid.duplaStatus === 'PENDING' && (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-600 rounded-full text-[10px] font-black uppercase tracking-widest">
+                                <Clock className="w-3 h-3" /> En espera de {myBid.clinicName}
+                            </span>
+                        )}
+                        {myBid.modality === 'SOLO_MEDICO' && myBid.duplaStatus === 'ACCEPTED' && (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-[10px] font-black uppercase tracking-widest">
+                                <CheckCircle2 className="w-3 h-3" /> {myBid.clinicName} aceptó · dupla lista
+                            </span>
+                        )}
+                        {myBid.modality === 'SOLO_MEDICO' && myBid.duplaStatus === 'REJECTED' && (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-red-50 text-red-500 rounded-full text-[10px] font-black uppercase tracking-widest">
+                                {myBid.clinicName} rechazó · invita otra clínica
+                            </span>
+                        )}
+                    </div>
+                )}
             </div>
 
             <div className="flex flex-row lg:flex-col items-center gap-3 min-w-[200px]">
@@ -972,7 +1025,14 @@ function AuctionCard({ auction }: { auction: Auction }) {
                         Ver Detalle
                     </button>
                 </Link>
-                {BIDDABLE_STATUSES.includes(auction.status) ? (
+                {myBid && BIDDABLE_STATUSES.includes(auction.status) ? (
+                    <Link onClick={(e) => e.stopPropagation()} href={`/dashboard/specialist/auctions/${auction.auctionNumber}`} className="flex-1 lg:w-full">
+                        <button className="w-full py-4 bg-white border-2 border-emerald-200 text-emerald-600 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-emerald-50 transition-all">
+                            <CheckCircle2 className="w-4 h-4" />
+                            Oferta enviada
+                        </button>
+                    </Link>
+                ) : BIDDABLE_STATUSES.includes(auction.status) ? (
                     <Link onClick={(e) => e.stopPropagation()} href={`/dashboard/specialist/auctions/${auction.auctionNumber}`} className="flex-1 lg:w-full">
                         <button className="w-full py-4 bg-alteha-turquoise text-slate-900 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-alteha-turquoise/20 hover:scale-[1.02] transition-all">
                             Ofertar

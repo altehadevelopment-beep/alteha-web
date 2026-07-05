@@ -32,11 +32,15 @@ import {
     type MedicalPackage, type MedicalPackageItem, type PackageRedemptionItem
 } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePathname } from 'next/navigation';
 import { PACKAGE_CATEGORIES, getPackageCategory } from '@/components/packages/categories';
 import { UpgradeModal } from '@/components/plan/UpgradeModal';
 
 export default function PublishPackagePage() {
     const { userProfile } = useAuth();
+    const pathname = usePathname();
+    // La página se comparte con clínicas: enlaces de regreso según el rol
+    const dashboardBase = pathname?.includes('/clinic') ? '/dashboard/clinic' : '/dashboard/specialist';
     const [isCreating, setIsCreating] = useState(false);
     const [step, setStep] = useState(1);
     const [isLoading, setIsLoading] = useState(false);
@@ -271,7 +275,7 @@ export default function PublishPackagePage() {
                 {upgradeMsg && <UpgradeModal message={upgradeMsg} onClose={() => setUpgradeMsg(null)} />}
                 <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                     <div>
-                        <Link href="/dashboard/specialist" className="inline-flex items-center gap-2 text-slate-500 hover:text-alteha-turquoise transition-colors mb-4 font-medium">
+                        <Link href={dashboardBase} className="inline-flex items-center gap-2 text-slate-500 hover:text-alteha-turquoise transition-colors mb-4 font-medium">
                             <ArrowLeft className="w-5 h-5" />
                             <span>Dashboard</span>
                         </Link>

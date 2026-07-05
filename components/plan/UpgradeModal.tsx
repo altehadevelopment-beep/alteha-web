@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { Lock, X, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 
@@ -10,6 +11,8 @@ import { Button } from '@/components/ui/Button';
  * (el backend responde con mensaje "PLAN_LIMIT: ..."). Lo obliga a pasar por Mi Plan.
  */
 export function UpgradeModal({ message, onClose }: { message: string; onClose: () => void }) {
+    const pathname = usePathname();
+    const planHref = pathname?.includes('/clinic/') ? '/dashboard/clinic/plan' : '/dashboard/specialist/plan';
     const clean = message.replace(/^PLAN_LIMIT:\s*/i, '');
     return (
         <div className="fixed inset-0 z-[120] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
@@ -24,7 +27,7 @@ export function UpgradeModal({ message, onClose }: { message: string; onClose: (
                     <p className="text-slate-300 text-sm font-medium">{clean}</p>
                 </div>
                 <div className="space-y-2.5 relative z-10">
-                    <Link href="/dashboard/specialist/plan" className="block">
+                    <Link href={planHref} className="block">
                         <Button className="w-full bg-alteha-turquoise text-slate-900 border-none py-3.5 font-black">
                             <span className="flex items-center gap-2 justify-center"><Sparkles className="w-4 h-4" /> Ver planes y mejorar</span>
                         </Button>
@@ -40,6 +43,8 @@ export function UpgradeModal({ message, onClose }: { message: string; onClose: (
 
 /** Modal intrusivo cuando el plan pago venció: exige actualizar el pago. */
 export function PlanExpiredModal({ planName, onClose }: { planName: string; onClose: () => void }) {
+    const pathname = usePathname();
+    const planHref = pathname?.includes('/clinic/') ? '/dashboard/clinic/plan' : '/dashboard/specialist/plan';
     return (
         <div className="fixed inset-0 z-[120] bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-slate-900 text-white rounded-[2rem] shadow-2xl w-full max-w-md p-8 space-y-5 relative overflow-hidden">
@@ -56,7 +61,7 @@ export function PlanExpiredModal({ planName, onClose }: { planName: string; onCl
                     </p>
                 </div>
                 <div className="space-y-2.5 relative z-10">
-                    <Link href="/dashboard/specialist/plan" className="block">
+                    <Link href={planHref} className="block">
                         <Button className="w-full bg-red-500 hover:bg-red-600 text-white border-none py-3.5 font-black">
                             Actualizar pago del plan
                         </Button>
