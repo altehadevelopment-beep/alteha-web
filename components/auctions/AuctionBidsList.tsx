@@ -139,7 +139,8 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
     const fetchClinicProfile = async (clinicId: number) => {
         if (clinicProfiles[clinicId]) return;
         try {
-            const res = await fetch(`/api/clinics/${clinicId}`);
+            const token = localStorage.getItem('id_token');
+            const res = await fetch(`/api/clinics/${clinicId}`, { headers: { 'X-Alteha-Token': token || '' } });
             let data: any = await res.json();
             if (data?.data) data = data.data;
             if (data?.id) setClinicProfiles(prev => ({ ...prev, [clinicId]: data }));
