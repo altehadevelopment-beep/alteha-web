@@ -384,7 +384,7 @@ export default function AdvancedBidForm({ auction, onSuccess, hideHeader = false
                                     className="space-y-3 pt-2"
                                 >
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-1">
-                                        {modality === 'SOLO_MEDICO' ? 'Clínica a invitar' : 'Clínica (sede del procedimiento)'}
+                                        {modality === 'SOLO_MEDICO' ? 'Clínica anfitriona de la intervención' : 'Clínica (sede del procedimiento)'}
                                     </label>
                                     <div className="relative group">
                                         <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 pointer-events-none transition-colors" />
