@@ -21,7 +21,7 @@ import {
     MapPin,
     Phone,
     Mail
-} from 'lucide-react';
+, MessageSquare } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { getMyAuctions, getAllMedicalPackages, getStoredToken, type Auction, type MedicalPackage } from '@/lib/api';
@@ -38,6 +38,25 @@ export default function InsuranceDashboard() {
     const [isLoadingAuctions, setIsLoadingAuctions] = useState(true);
     const [auctionBidCounts, setAuctionBidCounts] = useState<Record<number, number>>({});
     const [auctionBidSummaries, setAuctionBidSummaries] = useState<Record<string, any>>({});
+    // Conversaciones con mensajes por leer/responder (el último mensaje no es del seguro)
+    const [pendingChats, setPendingChats] = useState<{ count: number; lastFrom?: string } | null>(null);
+    useEffect(() => {
+        if (!userProfile?.id) return;
+        let active = true;
+        (async () => {
+            try {
+                const { collection, query, where, getDocs } = await import('firebase/firestore');
+                const { db } = await import('@/lib/firebase-db');
+                const myId = String(userProfile.id);
+                const snap = await getDocs(query(collection(db, 'chats'), where('participants', 'array-contains', myId)));
+                const pending = snap.docs
+                    .map(d => d.data() as any)
+                    .filter(c => c.lastSenderId && String(c.lastSenderId) !== myId);
+                if (active) setPendingChats({ count: pending.length, lastFrom: pending[0]?.lastSenderName });
+            } catch { /* sin alerta */ }
+        })();
+        return () => { active = false; };
+    }, [userProfile?.id]);
     const [medicalPackages, setMedicalPackages] = useState<MedicalPackage[]>([]);
     const [isLoadingPackages, setIsLoadingPackages] = useState(true);
     const [selectedPackage, setSelectedPackage] = useState<MedicalPackage | null>(null);
@@ -236,6 +255,34 @@ export default function InsuranceDashboard() {
 
     return (
         <div className="space-y-10 font-outfit pb-20">
+            {/* Mensajes por leer/responder: alerta destacada */}
+            {pendingChats && pendingChats.count > 0 && (
+                <Link href="/dashboard/insurance/conversations" className="block">
+                    <div className="flex items-center justify-between gap-4 bg-blue-50 border-2 border-blue-200 p-5 rounded-[2rem] hover:bg-blue-100/70 transition-colors">
+                        <div className="flex items-center gap-4">
+                            <div className="relative">
+                                <div className="w-11 h-11 rounded-2xl bg-blue-500 text-white flex items-center justify-center">
+                                    <MessageSquare className="w-5 h-5" />
+                                </div>
+                                <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white text-[10px] font-black flex items-center justify-center animate-pulse">
+                                    {pendingChats.count}
+                                </span>
+                            </div>
+                            <div>
+                                <p className="font-black text-blue-800">
+                                    Tienes {pendingChats.count} conversaci{pendingChats.count === 1 ? 'ón' : 'ones'} por leer y responder
+                                </p>
+                                <p className="text-sm text-blue-700 font-medium">
+                                    {pendingChats.lastFrom ? `Último mensaje de ${pendingChats.lastFrom}. ` : ''}Los oferentes esperan tu respuesta.
+                                </p>
+                            </div>
+                        </div>
+                        <span className="shrink-0 inline-flex items-center gap-1 bg-blue-500 text-white text-xs font-black px-4 py-2.5 rounded-xl">
+                            Responder <ChevronRight className="w-4 h-4" />
+                        </span>
+                    </div>
+                </Link>
+            )}
             {/* Header section with company summary */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-violet-50/50 p-10 rounded-[3rem] border border-violet-100/50">
                 <div className="flex items-center gap-6">

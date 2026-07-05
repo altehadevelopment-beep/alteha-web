@@ -21,6 +21,8 @@ import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthContext';
 import { Logo } from '@/components/ui/Logo';
 import { updateClinicProfile } from '@/lib/api';
+import dynamic from 'next/dynamic';
+const LocationPicker = dynamic(() => import('@/components/maps/LocationPicker'), { ssr: false });
 import { toast } from 'sonner';
 
 export default function ClinicProfilePage() {
@@ -266,18 +268,12 @@ export default function ClinicProfilePage() {
                         onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                         icon={MapPin}
                     />
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <Input
-                            label="Latitud"
-                            value={formData.latitude.toString()}
-                            disabled
-                        />
-                        <Input
-                            label="Longitud"
-                            value={formData.longitude.toString()}
-                            disabled
-                        />
-                    </div>
+                    {/* Ubicación en el mapa: clic o arrastre para fijar las coordenadas */}
+                    <LocationPicker
+                        latitude={formData.latitude || null}
+                        longitude={formData.longitude || null}
+                        onChange={(lat, lng) => setFormData({ ...formData, latitude: lat, longitude: lng })}
+                    />
                 </section>
 
                 {/* Action Bar */}
