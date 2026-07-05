@@ -1467,12 +1467,14 @@ export async function changeAuctionStatus(
 
 export async function awardAuction(
     auctionNumber: string,
-    bidId: number
+    bidId: number,
+    pharmacyBidId?: number | null
 ): Promise<ApiResponse<Auction>> {
     const token = getStoredToken();
     if (!token) throw new Error('No token found');
 
-    const response = await fetch(`/api/auctions/${auctionNumber}/award/${bidId}`, {
+    const qs = pharmacyBidId ? `?pharmacyBidId=${pharmacyBidId}` : '';
+    const response = await fetch(`/api/auctions/${auctionNumber}/award/${bidId}${qs}`, {
         method: 'POST',
         headers: {
             'X-Alteha-Token': token

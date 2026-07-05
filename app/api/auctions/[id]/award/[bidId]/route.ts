@@ -23,7 +23,8 @@ export async function POST(
         const adminToken = await getAppToken();
 
         // New endpoint pattern: /api/auctions/{auctionNumber}/award/{bidId}
-        const url = `${API_BASE}/auctions/${auctionNumber}/award/${bidId}`;
+        const pharmacyBidId = request.nextUrl.searchParams.get('pharmacyBidId');
+        const url = `${API_BASE}/auctions/${auctionNumber}/award/${bidId}${pharmacyBidId ? `?pharmacyBidId=${pharmacyBidId}` : ''}`;
         
         console.log(`[API Proxy] Adjudicando subasta ${auctionNumber} con oferta ${bidId}`);
         console.log(`[API Proxy] URL final: ${url}`);

@@ -99,10 +99,11 @@ export default function DoctorAuctionDetailPage() {
     const [error, setError] = useState<string | null>(null);
     const { userProfile } = useAuth();
     const pathname = usePathname();
-    // Página compartida: la clínica ve y envía su oferta con el mismo módulo del médico
+    // Página compartida: clínica y casa de salud usan el mismo módulo del médico
     const isClinicView = pathname?.includes('/clinic') ?? false;
-    const actorRole = isClinicView ? 'CLINIC' : 'DOCTOR';
-    const auctionsBase = isClinicView ? '/dashboard/clinic/auctions' : '/dashboard/specialist/auctions';
+    const isProviderView = pathname?.includes('/provider') ?? false;
+    const actorRole = isProviderView ? 'PHARMACY' : (isClinicView ? 'CLINIC' : 'DOCTOR');
+    const auctionsBase = isProviderView ? '/dashboard/provider/auctions' : (isClinicView ? '/dashboard/clinic/auctions' : '/dashboard/specialist/auctions');
     const [showPatient, setShowPatient] = useState(false);
     const [activeChat, setActiveChat] = useState<{
         participantId: string;
@@ -284,7 +285,7 @@ export default function DoctorAuctionDetailPage() {
                             const isWinner = userProfile?.id && Number(awardedDoctorId) === Number(userProfile.id);
                             
                             if (isWinner) {
-                                return <WinnerSettlementSection auction={auction} role={actorRole} />;
+                                return actorRole === 'PHARMACY' ? null : <WinnerSettlementSection auction={auction} role={actorRole as 'DOCTOR' | 'CLINIC'} />;
                             }
                             return null;
                         })()

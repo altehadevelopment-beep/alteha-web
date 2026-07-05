@@ -151,6 +151,8 @@ def main():
     check('B3', 'Login clínica Loira', bool(tok_cli))
     tok_ins = actor_login('test.seguro@alteha.com', 'Test2026*', 'INSURANCE_COMPANY')
     check('B4', 'Login seguro de prueba', bool(tok_ins))
+    tok_far = actor_login('test.farmacia@alteha.com', 'Test2026*', 'PHARMACY')
+    check('B4b', 'Login casa de salud de prueba', bool(tok_far))
     st, r = http('POST', f'{API}/actor-authenticate',
                  {'username': 'test.doctor@alteha.com', 'password': 'MALA', 'role': 'DOCTOR'}, AH)
     check('B5', 'Contraseña incorrecta es rechazada', st != 200 or not (isinstance(r, dict) and r.get('id_token')))
@@ -481,6 +483,74 @@ def main():
                  {'reasonCode': 'OTRO', 'reasonText': 'intento indebido'}, {'X-Alteha-Token': tok_ins})
     msg = str(unwrap(r).get('message', '') or (r or {}).get('message', ''))
     check('K10', 'Adjudicada: solo vía Disputas (bloqueada)', is_rejected(st, r) and 'isputa' in msg, f'st={st} msg={msg[:120]}')
+
+    # ═══ L. CASAS DE SALUD: OFERTA POR INSUMOS + ADJUDICACIÓN DOBLE ═══
+    section("L. Casas de salud (insumos)")
+    pay3 = dict(payload); pay3['title'] = 'E2E CON INSUMOS'
+    pay3['requiredSupplies'] = [
+        {'itemName': 'Catéter doble J', 'quantity': 2, 'description': 'Insumo E2E'},
+        {'itemName': 'Kit de sutura', 'quantity': 1, 'description': 'Insumo E2E'},
+    ]
+    st, r = http('POST', f'{FRONT}/api/auctions/publish', headers={'X-Alteha-Token': tok_ins}, form={'auction': pay3})
+    a3 = (r.get('data') if isinstance(r, dict) and isinstance(r.get('data'), dict) else r) or {}
+    a3_no, a3_id = a3.get('auctionNumber'), a3.get('id')
+    st3 = a3.get('status')
+    for target in ('PUBLISHED', 'ACTIVE'):
+        if st3 == 'ACTIVE': break
+        _, rr = http('POST', f'{FRONT}/api/auctions/change-status',
+                     {'auctionNumber': a3_no, 'newStatus': target, 'reason': 'E2E'}, {'X-Alteha-Token': tok_ins})
+        st3 = (unwrap(rr) or {}).get('status') or st3
+    check('L1', 'Subasta con insumos activa', st3 == 'ACTIVE' and bool(a3_no))
+
+    # La casa de salud la ve en su lista de abiertas
+    st, r = http('GET', f'{FRONT}/api/pharmacy-auctions/open', headers={'X-Alteha-Token': tok_far})
+    opens = r if isinstance(r, list) else []
+    mine3 = next((x for x in opens if x.get('auctionNumber') == a3_no), None)
+    check('L2', 'La casa de salud ve la subasta abierta con insumos', bool(mine3), f'{len(opens)} abiertas')
+
+    # Detalle accesible con rol PHARMACY (ids de los insumos)
+    st, r = http('GET', f'{FRONT}/api/auctions/doctor/details/{a3_no}?role=PHARMACY', headers={'X-Alteha-Token': tok_far})
+    supplies = (r or {}).get('requiredSupplies') or []
+    check('L3', 'Detalle accesible para la casa de salud (2 insumos)', st == 200 and len(supplies) == 2)
+
+    # Oferta itemizada SOLO por los insumos
+    items = [{'auctionSupply': {'id': sup['id']}, 'quantity': sup.get('quantity', 1), 'unitPrice': 40,
+              'itemName': sup.get('itemName')} for sup in supplies]
+    st, r = http('POST', f'{FRONT}/api/bids/advanced',
+                 {'auction': {'id': a3_id}, 'bidType': 'PHARMACY', 'bidAmount': 0,
+                  'notes': 'Material alemán certificado, despacho 48h antes de la intervención',
+                  'bidItems': items}, {'X-Alteha-Token': tok_far})
+    ph_bid = unwrap(r).get('id')
+    ph_amount = unwrap(r).get('bidAmount')
+    check('L4', 'Casa de salud oferta itemizada por los insumos', bool(ph_bid), str(r)[:180])
+
+    # El médico también oferta (para la adjudicación doble)
+    st, r = http('POST', f'{FRONT}/api/bids/advanced',
+                 {'auction': {'id': a3_id}, 'bidType': 'DOCTOR_ONLY', 'modality': 'PAQUETE_COMPLETO',
+                  'bidAmount': 420, 'notes': 'E2E médico', 'doctor': {'id': doc_id},
+                  'clinic': {'id': cli_id}, 'estimatedDurationDays': 1}, {'X-Alteha-Token': tok_doc})
+    med_bid = unwrap(r).get('id')
+    check('L5', 'Médico oferta en la misma subasta', bool(med_bid))
+
+    # El resumen separa insumos de ofertas médicas
+    st, r = http('GET', f'{FRONT}/api/clinic-invitations/auction/{a3_id}/bids-summary',
+                 headers={'X-Alteha-Token': tok_ins})
+    check('L6', 'Resumen separa ofertas médicas (1) e insumos (1)',
+          isinstance(r, dict) and r.get('totalBids') == 1 and r.get('pharmacyBids') == 1, str(r)[:140])
+
+    # Adjudicación doble: médico + casa de salud
+    st, r = http('POST', f'{FRONT}/api/auctions/{a3_no}/award/{med_bid}?pharmacyBidId={ph_bid}',
+                 headers={'X-Alteha-Token': tok_ins})
+    awarded = unwrap(r)
+    ph_awarded = (awarded.get('awardedPharmacyBid') or {}).get('id') if isinstance(awarded.get('awardedPharmacyBid'), dict) else awarded.get('awardedPharmacyBidId')
+    check('L7', 'Adjudicación doble (médico + casa de salud)',
+          st == 200 and (awarded.get('status') == 'AWARDED') and (str(ph_awarded) == str(ph_bid) or ph_awarded is None),
+          f"status={awarded.get('status')} phBid={ph_awarded}")
+
+    # Mis ofertas de la casa de salud registran la oferta
+    st, r = http('GET', f'{FRONT}/api/pharmacy-auctions/my-bids', headers={'X-Alteha-Token': tok_far})
+    mybids = r if isinstance(r, list) else []
+    check('L8', 'Mis ofertas de la casa de salud', any(str(b.get('id')) == str(ph_bid) for b in mybids), f'{len(mybids)} ofertas')
 
     # ═══ J. NOTIFICACIONES (fuentes) ═══
     section("J. Fuentes de notificaciones")
