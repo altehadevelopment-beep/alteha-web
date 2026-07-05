@@ -222,7 +222,13 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
             }
 
             // Sort by amount ascending (Inverse auction: lower is better)
-            setBids([...bidsData].sort((a, b) => a.bidAmount - b.bidAmount));
+            // Total efectivo: con dupla aceptada, el total real es honorarios + parte del otro actor
+            const effTotal = (b: any) => {
+                const d = dMap[Number(b.id)];
+                if (d && d.status === 'ACCEPTED' && d.total != null) return Number(d.total);
+                return Number(b.bidAmount) || 0;
+            };
+            setBids([...bidsData].sort((a, b) => effTotal(a) - effTotal(b)));
 
             // Handle top offers
             if (Array.isArray(topRes)) {
@@ -710,9 +716,13 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
                                     {/* Amount + expand */}
                                     <div className="text-right flex items-center gap-3 flex-shrink-0">
                                         <div>
-                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total</p>
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                                {duplaMap[bid.id]?.status === 'ACCEPTED' && duplaMap[bid.id]?.total != null ? 'Total dupla' : 'Total'}
+                                            </p>
                                             <p className="text-xl font-black text-slate-900">
-                                                ${(bid.bidAmount || bid.totalAmount || 0).toLocaleString()}
+                                                ${(duplaMap[bid.id]?.status === 'ACCEPTED' && duplaMap[bid.id]?.total != null
+                                                    ? Number(duplaMap[bid.id].total)
+                                                    : (bid.bidAmount || bid.totalAmount || 0)).toLocaleString()}
                                             </p>
                                             {bid.createdAt && (
                                                 <p className="text-[9px] text-slate-400 font-bold flex items-center gap-1 justify-end mt-0.5">
