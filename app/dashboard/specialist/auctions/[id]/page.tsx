@@ -103,6 +103,7 @@ export default function DoctorAuctionDetailPage() {
     const isClinicView = pathname?.includes('/clinic') ?? false;
     const actorRole = isClinicView ? 'CLINIC' : 'DOCTOR';
     const auctionsBase = isClinicView ? '/dashboard/clinic/auctions' : '/dashboard/specialist/auctions';
+    const [showPatient, setShowPatient] = useState(false);
     const [activeChat, setActiveChat] = useState<{
         participantId: string;
         participantName: string;
@@ -328,12 +329,17 @@ export default function DoctorAuctionDetailPage() {
                         {/* Patient */}
                         {auction.patient && (
                             <div className="bg-white p-8 rounded-[2.5rem] border-2 border-slate-50 shadow-xl shadow-slate-100 flex items-center gap-5">
-                                <div className="w-20 h-20 bg-slate-900 rounded-[1.5rem] flex items-center justify-center overflow-hidden border-4 border-white shadow-lg">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPatient(true)}
+                                    title="Ver resumen del paciente"
+                                    className="w-20 h-20 bg-slate-900 rounded-[1.5rem] flex items-center justify-center overflow-hidden border-4 border-white shadow-lg cursor-zoom-in hover:ring-4 hover:ring-alteha-violet/30 hover:scale-105 transition-all shrink-0"
+                                >
                                     {auction.patient.profileImageUrl
                                         ? <img src={auction.patient.profileImageUrl} alt="Patient" className="w-full h-full object-cover" />
                                         : <User className="w-10 h-10 text-white/30" />
                                     }
-                                </div>
+                                </button>
                                 <div className="min-w-0">
                                     <p className="text-[9px] font-black text-alteha-violet uppercase tracking-widest mb-1">Paciente</p>
                                     <h4 className="text-lg font-black text-slate-900 leading-tight truncate">
@@ -531,6 +537,73 @@ export default function DoctorAuctionDetailPage() {
                     />
                 </div>
             </Modal>
+            {/* Resumen del paciente (foto expandida + datos clínicos de la subasta) */}
+            <Modal
+                isOpen={showPatient && !!auction.patient}
+                onClose={() => setShowPatient(false)}
+                title="Resumen del Paciente"
+                maxWidth="max-w-lg"
+            >
+                {auction.patient && (
+                    <div className="space-y-6">
+                        <div className="flex flex-col items-center gap-4">
+                            <div className="w-44 h-44 rounded-[2rem] overflow-hidden border-4 border-white shadow-2xl bg-slate-900 flex items-center justify-center">
+                                {auction.patient.profileImageUrl
+                                    ? <img src={auction.patient.profileImageUrl} alt="Paciente" className="w-full h-full object-cover" />
+                                    : <User className="w-20 h-20 text-white/30" />
+                                }
+                            </div>
+                            <div className="text-center">
+                                <h3 className="text-2xl font-black text-slate-900 tracking-tight">
+                                    {auction.patient.firstName} {auction.patient.lastName}
+                                </h3>
+                                <div className="flex items-center justify-center gap-2 mt-2">
+                                    <span className="px-3 py-1 bg-slate-100 rounded-lg text-[10px] font-black text-slate-600 uppercase tracking-widest">
+                                        {auction.patientAge} años
+                                    </span>
+                                    <span className="px-3 py-1 bg-slate-100 rounded-lg text-[10px] font-black text-slate-600 uppercase tracking-widest">
+                                        {auction.patientGender === 'FEMALE' || auction.patientGender === 'FEMENINO' ? 'Femenino' : 'Masculino'}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-slate-50 rounded-2xl p-5 space-y-3 text-sm">
+                            <div>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Procedimiento</p>
+                                <p className="font-bold text-slate-800">{auction.title}</p>
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Historia médica</p>
+                                <p className="font-medium text-slate-600 leading-relaxed">
+                                    {auction.medicalHistory?.trim() || 'Sin historia médica registrada para esta subasta.'}
+                                </p>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3 pt-1">
+                                <div>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Fecha del procedimiento</p>
+                                    <p className="font-bold text-slate-800">
+                                        {auction.estimatedSurgeryDate ? new Date(auction.estimatedSurgeryDate).toLocaleDateString('es-VE') : '—'}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Hospitalización</p>
+                                    <p className="font-bold text-slate-800">{auction.requiresHospitalization ? 'Sí' : 'No'}</p>
+                                </div>
+                                <div className="col-span-2">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Ubicación preferida</p>
+                                    <p className="font-bold text-slate-800">{auction.preferredLocation || '—'}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <p className="text-[10px] text-slate-400 font-bold text-center uppercase tracking-widest">
+                            Información confidencial · uso exclusivo para esta subasta
+                        </p>
+                    </div>
+                )}
+            </Modal>
+
             {/* Chat Modal */}
             <Modal
                 isOpen={!!activeChat}
