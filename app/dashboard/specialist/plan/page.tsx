@@ -1,5 +1,7 @@
 "use client";
 
+import { loadStripe } from '@stripe/stripe-js';
+
 import React, { useEffect, useState } from 'react';
 import {
     Crown, CheckCircle2, X, Loader2, CreditCard, Smartphone, Landmark,
@@ -211,6 +213,42 @@ function PaymentModal({ plan, bcvRate, onClose, onPaid }: {
     const [tokenRequested, setTokenRequested] = useState(false);
     // Binance
     const [binanceRef, setBinanceRef] = useState('');
+    // Stripe Elements: el usuario escribe SU tarjeta; los datos van directo a Stripe (PCI)
+    const stripeRef = React.useRef<any>(null);
+    const cardElementRef = React.useRef<any>(null);
+    const cardMountRef = React.useRef<HTMLDivElement>(null);
+    const [cardReady, setCardReady] = useState(false);
+    const [cardComplete, setCardComplete] = useState(false);
+    useEffect(() => {
+        if (method !== 'STRIPE_CARD' || !gateways?.stripe?.publishableKey || cardElementRef.current) return;
+        let active = true;
+        (async () => {
+            try {
+                const stripe = await loadStripe(gateways.stripe.publishableKey);
+                if (!active || !stripe || !cardMountRef.current) return;
+                stripeRef.current = stripe;
+                const elements = stripe.elements();
+                const card = elements.create('card', {
+                    hidePostalCode: true,
+                    style: {
+                        base: {
+                            fontSize: '15px',
+                            fontFamily: 'Outfit, sans-serif',
+                            fontWeight: '600',
+                            color: '#0f172a',
+                            '::placeholder': { color: '#94a3b8' },
+                        },
+                        invalid: { color: '#ef4444' },
+                    },
+                });
+                card.mount(cardMountRef.current);
+                card.on('ready', () => setCardReady(true));
+                card.on('change', (e: any) => { setCardComplete(!!e.complete); setError(e.error?.message || null); });
+                cardElementRef.current = card;
+            } catch { setError('No se pudo cargar el formulario de tarjeta.'); }
+        })();
+        return () => { active = false; };
+    }, [method, gateways?.stripe?.publishableKey]);
 
     const bsAmount = bcvRate ? plan.priceUsd * bcvRate : null;
     const hasBsMethod = savedMethods.some(m => m.type === 'BS_C2P');
@@ -245,6 +283,27 @@ function PaymentModal({ plan, bcvRate, onClose, onPaid }: {
             const body: any = { planCode: plan.code, method };
             if (method === 'BS_C2P') body.c2pToken = c2pToken;
             if (method === 'BINANCE') body.reference = binanceRef;
+
+            if (method === 'STRIPE_CARD') {
+                // 1) el backend crea el PaymentIntent; 2) Stripe cobra la tarjeta del usuario;
+                // 3) el backend verifica el cobro en Stripe antes de activar el plan.
+                const token = localStorage.getItem('id_token');
+                const intentRes = await fetch('/api/subscriptions/stripe-intent', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Alteha-Token': token || '' },
+                    body: JSON.stringify({ planCode: plan.code }),
+                });
+                const intent = await intentRes.json();
+                if (!intent?.clientSecret) { setError(intent?.message || 'No se pudo iniciar el pago con Stripe.'); return; }
+                const stripe = stripeRef.current;
+                const card = cardElementRef.current;
+                if (!stripe || !card) { setError('El formulario de tarjeta no está listo.'); return; }
+                const result = await stripe.confirmCardPayment(intent.clientSecret, { payment_method: { card } });
+                if (result.error) { setError(result.error.message || 'La tarjeta fue rechazada.'); return; }
+                if (result.paymentIntent?.status !== 'succeeded') { setError('El pago no se completó (' + (result.paymentIntent?.status || 'desconocido') + ').'); return; }
+                body.paymentIntentId = result.paymentIntent.id;
+            }
+
             const res = await subscribeToPlan(body);
             if (res?.planCode) onPaid();
             else setError(res?.message || 'No se pudo procesar el pago.');
@@ -252,7 +311,7 @@ function PaymentModal({ plan, bcvRate, onClose, onPaid }: {
         finally { setBusy(false); }
     };
 
-    const canPay = method === 'STRIPE_CARD' ? true : (method === 'BS_C2P'
+    const canPay = method === 'STRIPE_CARD' ? (cardReady && cardComplete) : (method === 'BS_C2P'
         ? hasBsMethod && c2pToken.trim().length >= 4
         : binanceRef.trim().length >= 4);
 
@@ -350,14 +409,29 @@ function PaymentModal({ plan, bcvRate, onClose, onPaid }: {
                     {method === 'STRIPE_CARD' && (
                         <div className="bg-slate-50 rounded-2xl p-5 space-y-3">
                             <p className="text-xs text-slate-600 font-medium">
-                                Pago con tarjeta procesado por <strong>Stripe</strong> bajo estándar PCI: tus datos de tarjeta nunca pasan por Alteha.
+                                Pago con tarjeta procesado por <strong>Stripe</strong> bajo estándar PCI: tus datos de tarjeta
+                                van directo a Stripe y <strong>nunca pasan por Alteha</strong>.
                             </p>
-                            <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-1">
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Modo prueba activo</p>
-                                <p className="text-sm font-bold text-slate-700">Se cobrará <strong>${plan.priceUsd.toFixed(2)}</strong> a la tarjeta de prueba de Stripe:</p>
-                                <code className="text-sm font-black text-slate-900 tracking-widest">4242 4242 4242 4242</code>
-                                <p className="text-[10px] text-slate-400 font-medium">{gateways?.stripe?.instructions || 'Las claves de Stripe son administrables desde el backend.'}</p>
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Datos de la tarjeta</label>
+                                <div className="bg-white border-2 border-slate-200 focus-within:border-alteha-turquoise rounded-xl px-4 py-3.5 transition-colors">
+                                    <div ref={cardMountRef} />
+                                    {!cardReady && (
+                                        <p className="text-xs text-slate-400 font-bold flex items-center gap-2">
+                                            <Loader2 className="w-3.5 h-3.5 animate-spin" /> Cargando formulario seguro de Stripe…
+                                        </p>
+                                    )}
+                                </div>
                             </div>
+                            <p className="text-xs font-bold text-slate-600">Se cobrará <strong>${plan.priceUsd.toFixed(2)}</strong> al confirmar.</p>
+                            {gateways?.stripe?.mode === 'test' && (
+                                <div className="bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+                                    <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest">Modo prueba</p>
+                                    <p className="text-[11px] font-medium text-amber-700">
+                                        Usa la tarjeta de prueba <code className="font-black">4242 4242 4242 4242</code>, cualquier fecha futura y cualquier CVC.
+                                    </p>
+                                </div>
+                            )}
                         </div>
                     )}
 
