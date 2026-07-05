@@ -3,7 +3,7 @@
 import React from 'react';
 import { DashboardSidebar } from '@/components/dashboard/Sidebar';
 import { useAuth } from '@/contexts/AuthContext';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 
 export default function DashboardLayout({
@@ -13,12 +13,18 @@ export default function DashboardLayout({
 }) {
     const { isAuthenticated, isInitializing } = useAuth();
     const router = useRouter();
+    const pathname = usePathname();
 
     useEffect(() => {
         if (!isInitializing && !isAuthenticated) {
-            router.replace('/login');
+            // Conservar el perfil en el login: si la sesión venció en /dashboard/insurance,
+            // el login debe abrir con "Seguro" preseleccionado (y así con cada rol).
+            const segments = (pathname || '').split('/');
+            const dashboardIndex = segments.indexOf('dashboard');
+            const role = dashboardIndex !== -1 ? segments[dashboardIndex + 1] : null;
+            router.replace(role ? `/login?role=${role}` : '/login');
         }
-    }, [isAuthenticated, isInitializing, router]);
+    }, [isAuthenticated, isInitializing, router, pathname]);
 
     if (isInitializing) {
         return (
