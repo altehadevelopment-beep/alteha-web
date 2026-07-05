@@ -17,7 +17,7 @@ import {
     Edit3
 } from 'lucide-react';
 import Link from 'next/link';
-import { Crown } from 'lucide-react';
+import { Crown, ExternalLink, DollarSign, MessageSquare, Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { PlanExpiredModal } from '@/components/plan/UpgradeModal';
 
@@ -59,15 +59,111 @@ export default function ClinicDashboard() {
         );
     }, []);
 
-    // Invitaciones de médicos pendientes de respuesta: aviso destacado en el dashboard
+    // Invitaciones de médicos: aviso de pendientes + actividad reciente
     const [pendingInvitations, setPendingInvitations] = React.useState<any[]>([]);
+    const [allInvitations, setAllInvitations] = React.useState<any[]>([]);
     React.useEffect(() => {
         import('@/lib/api').then(({ getClinicInvitations }) =>
             getClinicInvitations()
-                .then((list: any[]) => setPendingInvitations((list || []).filter((i) => i.status === 'PENDING')))
+                .then((list: any[]) => {
+                    setAllInvitations(list || []);
+                    setPendingInvitations((list || []).filter((i) => i.status === 'PENDING'));
+                })
                 .catch(() => {})
         );
     }, []);
+
+    // Paquetes publicados por la clínica (conteo real)
+    const [packagesCount, setPackagesCount] = React.useState<number | null>(null);
+    React.useEffect(() => {
+        import('@/lib/api').then(({ getMyMedicalPackages }) =>
+            getMyMedicalPackages()
+                .then((res: any) => {
+                    const list = Array.isArray(res) ? res : (res?.data ?? res?.content ?? []);
+                    setPackagesCount(Array.isArray(list) ? list.length : 0);
+                })
+                .catch(() => setPackagesCount(0))
+        );
+    }, []);
+
+    // Reseñas recibidas (la clínica es la valorada)
+    const [reviews, setReviews] = React.useState<any[]>([]);
+    const [reviewsLoaded, setReviewsLoaded] = React.useState(false);
+    const accountId = (userProfile as any)?.account?.id;
+    React.useEffect(() => {
+        if (!accountId) return;
+        (async () => {
+            try {
+                const resp = await fetch(`/api/reviews?revieweeId.equals=${accountId}&size=200`);
+                const data = await resp.json();
+                setReviews(Array.isArray(data) ? data : (data?.content ?? []));
+            } catch { /* sin reseñas */ } finally { setReviewsLoaded(true); }
+        })();
+    }, [accountId]);
+
+    // Publicidades del dashboard (igual que el perfil del médico)
+    const [ads, setAds] = React.useState<any[]>([]);
+    const [isLoadingAds, setIsLoadingAds] = React.useState(true);
+    const [showAllAds, setShowAllAds] = React.useState(false);
+    React.useEffect(() => {
+        import('@/lib/api').then(({ getDashboardAds }) =>
+            getDashboardAds('CLINIC')
+                .then((res: any) => {
+                    const list = Array.isArray(res) ? res : (res?.data ?? res?.content ?? []);
+                    setAds(Array.isArray(list) ? list : []);
+                })
+                .catch(() => {})
+                .finally(() => setIsLoadingAds(false))
+        );
+    }, []);
+
+    // Ganancias del mes: subastas SETTLED de este mes (misma regla que el médico)
+    const now = new Date();
+    const monthEarnings = auctions
+        .filter((a: any) => a.status === 'SETTLED' && a.updatedAt &&
+            new Date(a.updatedAt).getMonth() === now.getMonth() &&
+            new Date(a.updatedAt).getFullYear() === now.getFullYear())
+        .reduce((sum: number, a: any) => sum + Number(a.awardedBid?.bidAmount ?? 0), 0);
+
+    const reviewsAvg = reviews.length
+        ? reviews.reduce((s2: number, r: any) => s2 + (Number(r.rating) || 0), 0) / reviews.length
+        : null;
+
+    // Actividad reciente real: invitaciones (recibidas/respondidas) + reseñas
+    const activity = React.useMemo(() => {
+        const items: { icon: any; text: string; date: Date; color: string }[] = [];
+        allInvitations.forEach((inv: any) => {
+            if (inv.invitedAt) {
+                items.push({
+                    icon: Bell,
+                    text: `${inv.doctorName || 'Un médico'} te invitó a "${inv.auctionTitle || inv.auctionNumber}"`,
+                    date: new Date(inv.invitedAt),
+                    color: 'bg-amber-50 text-amber-500',
+                });
+            }
+            if (inv.respondedAt) {
+                items.push({
+                    icon: Gavel,
+                    text: inv.status === 'ACCEPTED'
+                        ? `Aceptaste la dupla de "${inv.auctionTitle || inv.auctionNumber}"`
+                        : `Rechazaste la invitación de "${inv.auctionTitle || inv.auctionNumber}"`,
+                    date: new Date(inv.respondedAt),
+                    color: inv.status === 'ACCEPTED' ? 'bg-emerald-50 text-emerald-500' : 'bg-red-50 text-red-400',
+                });
+            }
+        });
+        reviews.forEach((r: any) => {
+            if (r.createdAt) {
+                items.push({
+                    icon: Star,
+                    text: `Nueva reseña recibida (${Number(r.rating) || 0}★)`,
+                    date: new Date(r.createdAt),
+                    color: 'bg-amber-50 text-amber-500',
+                });
+            }
+        });
+        return items.sort((a, b) => b.date.getTime() - a.date.getTime()).slice(0, 5);
+    }, [allInvitations, reviews]);
 
     const displayProfile = userProfile || {
         name: 'Cargando...',
@@ -163,9 +259,9 @@ export default function ClinicDashboard() {
             {/* Quick Stats */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <StatCard label="Subastas Activas" value={isLoadingAuctions ? '…' : String(auctions.filter((a) => ['PUBLISHED', 'ACTIVE', 'AWARDED', 'PAYMENT_VALIDATION', 'PAID'].includes(a.status)).length)} icon={Gavel} trend={`${auctions.length} en total`} color="text-emerald-600" />
-                <StatCard label="Ahorro Generado" value="$42.5k" icon={TrendingUp} trend="15% vs mes anterior" color="text-blue-600" />
-                <StatCard label="Paquetes Propios" value="8" icon={Package} trend="2 nuevos" color="text-alteha-violet" />
-                <StatCard label="Especialistas en Red" value="45" icon={Users} trend="+5 hoy" color="text-amber-600" />
+                <StatCard label="Ganancias del Mes" value={isLoadingAuctions ? '…' : `$${monthEarnings.toLocaleString('en-US', { maximumFractionDigits: 0 })}`} icon={TrendingUp} trend="Subastas liquidadas" color="text-blue-600" />
+                <StatCard label="Paquetes Propios" value={packagesCount == null ? '…' : String(packagesCount)} icon={Package} trend="Publicados" color="text-alteha-violet" />
+                <StatCard label="Reseñas Recibidas" value={!reviewsLoaded ? '…' : String(reviews.length)} icon={Star} trend={reviewsAvg != null ? `${reviewsAvg.toFixed(1)} ★ promedio` : 'Sin reseñas aún'} color="text-amber-600" />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
@@ -199,13 +295,96 @@ export default function ClinicDashboard() {
                 <div className="space-y-6">
                     <h3 className="text-2xl font-black text-slate-900 px-2">Actividad Reciente</h3>
                     <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100 divide-y divide-slate-50">
-                        <ActivityItem icon={Star} text="Nueva reseña de Dr. Roberto" time="Hace 10m" color="bg-amber-50 text-amber-500" />
-                        <ActivityItem icon={Gavel} text="Oferta recibida en Subasta #102" time="Hace 25m" color="bg-emerald-50 text-emerald-500" />
-                        <ActivityItem icon={Users} text="Dr. Elena se unió a tu red" time="Hace 1h" color="bg-blue-50 text-blue-500" />
-                        <ActivityItem icon={TrendingUp} text="Reporte mensual listo" time="Hace 3h" color="bg-purple-50 text-purple-500" />
+                        {activity.length === 0 ? (
+                            <p className="text-sm text-slate-400 font-medium py-6 text-center">
+                                Sin actividad todavía. Aquí verás invitaciones, duplas y reseñas a medida que participes.
+                            </p>
+                        ) : (
+                            activity.map((item, i) => (
+                                <ActivityItem key={i} icon={item.icon} text={item.text} time={timeAgo(item.date)} color={item.color} />
+                            ))
+                        )}
                     </div>
                 </div>
             </div>
+
+            {/* Publicidad — igual que el perfil del médico */}
+            <section className="space-y-4">
+                <div className="flex items-center justify-between">
+                    <span className="text-emerald-600 text-[10px] font-black uppercase tracking-[0.3em]">Publicidad Especializada</span>
+                    {ads.length > 3 && (
+                        <button
+                            type="button"
+                            onClick={() => setShowAllAds(v => !v)}
+                            className="flex items-center gap-1.5 text-xs font-black text-emerald-600 hover:gap-2.5 transition-all"
+                        >
+                            {showAllAds ? 'Ver menos' : 'Ver más'}
+                            <ChevronRight className={`w-4 h-4 transition-transform ${showAllAds ? 'rotate-90' : ''}`} />
+                        </button>
+                    )}
+                </div>
+
+                {isLoadingAds ? (
+                    <div className="flex items-center justify-center py-12 bg-slate-100 rounded-[2rem]">
+                        <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
+                    </div>
+                ) : ads.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {(showAllAds ? ads : ads.slice(0, 3)).map((ad: any, i: number) => {
+                            const isImg = ad.mediaUrl && ad.mediaType === 'IMAGE';
+                            const isBanner = isImg && (!ad.title || !ad.title.trim());
+                            const adHref = `/dashboard/clinic/ads/${ad.id}`;
+
+                            if (isBanner) {
+                                return (
+                                    <Link
+                                        key={ad.id ?? i}
+                                        href={adHref}
+                                        className="relative h-44 rounded-[2rem] overflow-hidden shadow-lg shadow-slate-200/60 hover:-translate-y-1 transition-transform bg-slate-50 flex items-center justify-center"
+                                    >
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img src={ad.mediaUrl} alt={ad.subtitle || 'Publicidad'} className="w-full h-full object-contain" />
+                                    </Link>
+                                );
+                            }
+                            return (
+                                <Link
+                                    key={ad.id ?? i}
+                                    href={adHref}
+                                    className="relative h-44 rounded-[2rem] overflow-hidden shadow-lg shadow-slate-200/60 hover:-translate-y-1 transition-transform block"
+                                    style={{
+                                        backgroundImage: `linear-gradient(to top, rgba(15,23,42,0.96), rgba(15,23,42,0.3)), url(${isImg ? ad.mediaUrl : '/images/ads/cardiology.png'})`,
+                                        backgroundSize: 'cover',
+                                        backgroundPosition: 'center'
+                                    }}
+                                >
+                                    <div className="absolute inset-0 p-5 flex flex-col justify-end">
+                                        <span className="text-emerald-300 text-[9px] font-black uppercase tracking-[0.2em] mb-1 line-clamp-1">{ad.subtitle || 'Patrocinado'}</span>
+                                        <h4 className="text-base font-black text-white leading-tight line-clamp-2 mb-3">{ad.title}</h4>
+                                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-400 text-slate-900 rounded-lg font-black text-[10px] uppercase w-fit">
+                                            {ad.ctaText || 'Ver más'}
+                                            <ExternalLink className="w-3 h-3" />
+                                        </span>
+                                    </div>
+                                </Link>
+                            );
+                        })}
+                    </div>
+                ) : (
+                    <div
+                        className="relative h-44 rounded-[2rem] overflow-hidden shadow-lg flex flex-col justify-end p-6"
+                        style={{
+                            backgroundImage: `linear-gradient(to top, rgba(15,23,42,0.95), rgba(15,23,42,0.35)), url(/images/ads/traumatology.png)`,
+                            backgroundSize: 'cover',
+                            backgroundPosition: 'center'
+                        }}
+                    >
+                        <span className="text-emerald-300 text-[10px] font-black uppercase tracking-[0.3em] mb-1 block">Bienvenido a Alteha</span>
+                        <h3 className="text-xl font-black text-white mb-1">Potencia tu Centro de Salud</h3>
+                        <p className="text-white/70 text-sm font-medium">Gestiona tus subastas, duplas y paquetes con la tecnología más avanzada.</p>
+                    </div>
+                )}
+            </section>
 
             {/* Plan vencido: alerta intrusiva hasta que renueve (o posponga en esta sesión) */}
             {expiredPlanName && (
@@ -216,6 +395,18 @@ export default function ClinicDashboard() {
             )}
         </div>
     );
+}
+
+function timeAgo(date: Date): string {
+    const diffMs = Date.now() - date.getTime();
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 1) return 'Ahora';
+    if (mins < 60) return `Hace ${mins}m`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `Hace ${hours}h`;
+    const days = Math.floor(hours / 24);
+    if (days < 30) return `Hace ${days}d`;
+    return date.toLocaleDateString('es-VE');
 }
 
 function StatCard({ label, value, icon: Icon, trend, color }: any) {
