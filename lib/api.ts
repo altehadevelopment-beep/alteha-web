@@ -137,6 +137,7 @@ export interface MedicalPackage {
     specialty?: any;
     procedureType?: any;
     imageUrl?: string | null;
+    packageCategory?: string | null;
     packageItems: MedicalPackageItem[];
 }
 
@@ -1718,6 +1719,37 @@ export const getMyMedicalPackages = async (page: number = 0, size: number = 20):
     }
 };
 
+export const updateMyMedicalPackage = async (id: number, data: Partial<MedicalPackage>): Promise<any> => {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+    const response = await fetch(`/api/medical-packages/my/packages/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-Alteha-Token': token },
+        body: JSON.stringify(data),
+    });
+    return response.json();
+};
+
+export const toggleMyMedicalPackage = async (id: number): Promise<any> => {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+    const response = await fetch(`/api/medical-packages/my/packages/${id}/toggle`, {
+        method: 'PUT',
+        headers: { 'X-Alteha-Token': token },
+    });
+    return response.json();
+};
+
+export const deleteMyMedicalPackage = async (id: number): Promise<any> => {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+    const response = await fetch(`/api/medical-packages/my/packages/${id}`, {
+        method: 'DELETE',
+        headers: { 'X-Alteha-Token': token },
+    });
+    return response.json();
+};
+
 export const getAllMedicalPackages = async (page: number = 0, size: number = 10): Promise<ApiResponse<MedicalPackage[]>> => {
     const token = getStoredToken();
     
@@ -1856,6 +1888,68 @@ export async function uploadRedemptionFiniquito(id: number, file: File): Promise
     });
     return response.json();
 }
+
+// ===== Suscripciones médicas (planes administrables en BD) =====
+
+export interface SubscriptionPlanInfo {
+    id: number;
+    code: string;
+    name: string;
+    description?: string;
+    priceUsd: number;
+    maxAwardsMonth: number;
+    maxPackagesMonth: number;
+    maxContentPostsMonth: number;
+    maxPromoPostsMonth: number;
+    welcomeAward?: boolean;
+    currencyConversion?: boolean;
+    insurerVisibility?: boolean;
+    creditAccess?: boolean;
+    malpracticePolicy?: boolean;
+    sortOrder: number;
+}
+
+export interface MySubscription {
+    contractedPlan: SubscriptionPlanInfo;
+    effectivePlan: SubscriptionPlanInfo;
+    status: string;
+    expired: boolean;
+    currentPeriodEnd?: string | null;
+    startedAt?: string;
+    usage: { awardsThisMonth: number; packagesThisMonth: number; awardsLifetime: number };
+}
+
+async function subGet(path: string): Promise<any> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+    const response = await fetch(path, { headers: { 'X-Alteha-Token': token } });
+    return response.json();
+}
+
+async function subPost(path: string, body?: any): Promise<any> {
+    const token = getStoredToken();
+    if (!token) throw new Error('No token found');
+    const response = await fetch(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Alteha-Token': token },
+        body: JSON.stringify(body || {}),
+    });
+    return response.json();
+}
+
+export const getSubscriptionPlans = (): Promise<SubscriptionPlanInfo[]> =>
+    subGet('/api/subscriptions/plans').then(d => (Array.isArray(d) ? d : []));
+export const getMySubscription = (): Promise<MySubscription> => subGet('/api/subscriptions/me');
+export const getSubscriptionPayments = (): Promise<any[]> =>
+    subGet('/api/subscriptions/payments').then(d => (Array.isArray(d) ? d : []));
+export const getSubscriptionPaymentMethods = (): Promise<any[]> =>
+    subGet('/api/subscriptions/payment-methods').then(d => (Array.isArray(d) ? d : []));
+export const saveSubscriptionPaymentMethod = (body: any) => subPost('/api/subscriptions/payment-methods', body);
+export const getBcvRate = (): Promise<{ rate?: number; rateDate?: string; history?: any[] }> =>
+    subGet('/api/subscriptions/bcv-rate');
+export const requestC2pToken = () => subPost('/api/subscriptions/request-c2p-token');
+export const subscribeToPlan = (body: { planCode: string; method?: string; c2pToken?: string; reference?: string; stripeToken?: string }) =>
+    subPost('/api/subscriptions/subscribe', body);
 
 // Payment Methods
 export async function getPaymentMethods(role: string, page: number = 0, size: number = 20): Promise<ApiResponse<PaymentMethod[]>> {

@@ -267,22 +267,25 @@ export default function DoctorAuctionDetailPage() {
 
                     {/* TOP SUMMARY ROW: Budget, Time & Patient */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                        {/* Budget */}
+                        {/* Budget — los honorarios médicos son el protagonista: es lo que el médico gana */}
                         <div className="bg-slate-900 p-8 rounded-[2.5rem] text-white relative overflow-hidden shadow-xl shadow-slate-200">
                             <div className="absolute top-0 right-0 w-24 h-24 bg-alteha-turquoise/10 rounded-full blur-2xl" />
-                            <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mb-4">Presupuesto Máximo</p>
-                            <div className="flex items-baseline gap-1 mb-6">
+                            <p className="text-[9px] font-black text-alteha-turquoise uppercase tracking-[0.2em] mb-1 flex items-center gap-1.5">
+                                <DollarSign className="w-3 h-3" /> Tus Honorarios Médicos
+                            </p>
+                            <p className="text-[10px] text-slate-500 font-bold mb-3">Lo que ganarías por esta intervención</p>
+                            <div className="flex items-baseline gap-1 mb-6 bg-alteha-turquoise/10 border border-alteha-turquoise/20 rounded-2xl px-4 py-3 w-fit">
                                 <span className="text-xl font-black text-alteha-turquoise">$</span>
-                                <span className="text-4xl font-black tracking-tighter">{(auction.maxBudget || 0).toLocaleString()}</span>
+                                <span className="text-4xl font-black tracking-tighter text-alteha-turquoise">{(auction.doctorBudget || 0).toLocaleString()}</span>
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div className="bg-white/5 p-3 rounded-xl border border-white/5">
-                                    <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest leading-none mb-1">Hon. Médicos</p>
-                                    <p className="text-sm font-black text-white">${(auction.doctorBudget || 0).toLocaleString()}</p>
-                                </div>
-                                <div className="bg-white/5 p-3 rounded-xl border border-white/5">
                                     <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest leading-none mb-1">Gastos Clínica</p>
                                     <p className="text-sm font-black text-white">${(auction.clinicBudget || 0).toLocaleString()}</p>
+                                </div>
+                                <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                                    <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest leading-none mb-1">Presupuesto Total</p>
+                                    <p className="text-sm font-black text-white">${(auction.maxBudget || 0).toLocaleString()}</p>
                                 </div>
                             </div>
                         </div>

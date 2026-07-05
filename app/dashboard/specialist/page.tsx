@@ -26,13 +26,15 @@ import {
     Building2,
     ExternalLink,
     FileCheck,
-    Shield
+    Shield,
+    Crown
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 import { getDashboardAds, getMyInvitations, getAuctionBidsCount, getAuctionDetailsAsDoctor, type Advertisement, type Auction, getIdentityCompliance, searchIdentityCompliance } from '@/lib/api';
 import AuctionCountdown from '@/components/auctions/AuctionCountdown';
 import { RatingExperienceModal } from '@/components/dashboard/RatingExperienceModal';
+import { PlanExpiredModal } from '@/components/plan/UpgradeModal';
 import { ratedStorageKey } from '@/components/payments/WinnerSettlementSection';
 
 export default function SpecialistDashboard() {
@@ -51,6 +53,21 @@ export default function SpecialistDashboard() {
     const [nextIntervention, setNextIntervention] = useState<Auction | null>(null);
     // Subasta liquidada pendiente de valoración → dispara el modal intrusivo
     const [ratingAuction, setRatingAuction] = useState<any>(null);
+    // Plan pago vencido → alerta intrusiva de renovación; y badge del plan en el encabezado
+    const [expiredPlanName, setExpiredPlanName] = useState<string | null>(null);
+    const [planBadge, setPlanBadge] = useState<{ name: string; code: string; expired: boolean } | null>(null);
+    useEffect(() => {
+        import('@/lib/api').then(({ getMySubscription }) =>
+            getMySubscription()
+                .then((s: any) => {
+                    setPlanBadge({ name: s?.effectivePlan?.name || '', code: s?.effectivePlan?.code || '', expired: !!s?.expired });
+                    let snoozed = false;
+                    try { snoozed = !!sessionStorage.getItem('alteha_plan_expired_snooze'); } catch { /* ignore */ }
+                    if (!snoozed && s?.expired && s?.contractedPlan?.priceUsd > 0) setExpiredPlanName(s.contractedPlan.name);
+                })
+                .catch(() => {})
+        );
+    }, []);
     // Estadísticas reales del dashboard (paquetes y reseñas se cargan aparte)
     const [packagesCount, setPackagesCount] = useState<number | null>(null);
     const [receivedReviews, setReceivedReviews] = useState<{ count: number; avg: number | null } | null>(null);
@@ -595,7 +612,7 @@ export default function SpecialistDashboard() {
                                     )}
                                 </div>
                                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-slate-500 font-medium text-sm">
-                                    <span className="text-alteha-violet font-bold">{specialtyNames}</span>
+                                    <span className="text-xs text-slate-400 font-medium leading-relaxed">{specialtyNames}</span>
                                     <span className="w-1 h-1 rounded-full bg-slate-300 hidden md:block" />
                                     <div className="flex items-center gap-1.5 text-slate-400 group">
                                         <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
@@ -609,6 +626,21 @@ export default function SpecialistDashboard() {
                                         <Calendar className="w-4 h-4" />
                                         <span>Miembro desde: <span className="text-slate-900 font-bold">{formattedDate}</span></span>
                                     </div>
+                                    {planBadge && (
+                                        <>
+                                            <span className="w-1.5 h-1.5 rounded-full bg-slate-300 hidden md:block" />
+                                            <Link
+                                                href="/dashboard/specialist/plan"
+                                                className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider transition-all hover:scale-105 ${planBadge.expired
+                                                    ? 'bg-red-50 text-red-500'
+                                                    : 'bg-amber-50 text-amber-600'}`}
+                                            >
+                                                <Crown className="w-3.5 h-3.5" />
+                                                Plan {planBadge.name.replace('Alteha ', '')}
+                                                {planBadge.expired && <span className="text-[9px]">· VENCIDO</span>}
+                                            </Link>
+                                        </>
+                                    )}
                                 </div>
                             </>
                         )}
@@ -806,6 +838,14 @@ export default function SpecialistDashboard() {
             {/* Valoración obligatoria al terminar el proceso de una subasta (fondos liquidados) */}
             {ratingAuction && (
                 <RatingExperienceModal auction={ratingAuction} onClose={() => setRatingAuction(null)} />
+            )}
+
+            {/* Plan vencido: alerta intrusiva hasta que renueve (o posponga en esta sesión) */}
+            {expiredPlanName && !ratingAuction && (
+                <PlanExpiredModal
+                    planName={expiredPlanName}
+                    onClose={() => { try { sessionStorage.setItem('alteha_plan_expired_snooze', '1'); } catch { /* ignore */ } setExpiredPlanName(null); }}
+                />
             )}
         </div>
     );

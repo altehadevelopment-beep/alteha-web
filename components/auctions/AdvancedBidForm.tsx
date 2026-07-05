@@ -18,6 +18,7 @@ import {
     ChevronDown,
     Activity
 } from 'lucide-react';
+import { UpgradeModal } from '@/components/plan/UpgradeModal';
 import { Button } from '@/components/ui/Button';
 import { placeAdvancedBid, getAuctionBids, type Auction, type BidPayload, type BidItem } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
@@ -54,6 +55,7 @@ export default function AdvancedBidForm({ auction, onSuccess, hideHeader = false
 
     const [isLoading, setIsLoading] = useState(false);
     const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
+    const [planLimitMsg, setPlanLimitMsg] = useState<string | null>(null);
     const [message, setMessage] = useState('');
 
     // Form state
@@ -123,7 +125,11 @@ export default function AdvancedBidForm({ auction, onSuccess, hideHeader = false
                 /* ignore */
             }
         })();
-        return () => { active = false; };
+        if (planLimitMsg) {
+        return <UpgradeModal message={planLimitMsg} onClose={() => setPlanLimitMsg(null)} />;
+    }
+
+    return () => { active = false; };
     }, [auction?.id]);
 
     // Items for Pharmacy / Supplies
@@ -224,8 +230,14 @@ export default function AdvancedBidForm({ auction, onSuccess, hideHeader = false
                 setMessage('¡Oferta enviada con éxito!');
                 if (onSuccess) setTimeout(onSuccess, 2000);
             } else {
-                setStatus('error');
-                setMessage(response.message || 'Error al enviar la oferta');
+                const msg = response.message || 'Error al enviar la oferta';
+                if (msg.includes('PLAN_LIMIT')) {
+                    setPlanLimitMsg(msg);
+                    setStatus('idle');
+                } else {
+                    setStatus('error');
+                    setMessage(msg);
+                }
             }
         } catch (err) {
             setStatus('error');
@@ -365,7 +377,7 @@ export default function AdvancedBidForm({ auction, onSuccess, hideHeader = false
                                             ))}
                                         </select>
                                     </div>
-                                    <p className="text-[10px] text-amber-600 font-bold italic ml-1">
+                                    <p className="text-sm text-amber-600 font-bold italic ml-1">
                                         {modality === 'SOLO_MEDICO'
                                             ? '* Se le enviará una invitación a esta clínica para que confirme y defina sus honorarios.'
                                             : '* Indica la clínica donde se realizará el procedimiento (no recibirá invitación).'}
@@ -502,13 +514,19 @@ export default function AdvancedBidForm({ auction, onSuccess, hideHeader = false
 
                         {(auction.doctorBudget || auction.clinicBudget || auction.maxBudget) && (
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                <div className="bg-white rounded-xl p-3 text-center border border-slate-100">
-                                    <p className="text-[8px] font-black uppercase tracking-tight text-slate-400">Honorarios méd.</p>
-                                    <p className="text-sm font-black text-slate-900">${money(auction.doctorBudget)}</p>
+                                {/* Honorarios: resaltados siempre (en ambas modalidades los cobra el médico) */}
+                                <div className="bg-alteha-violet/10 rounded-xl p-3 text-center border-2 border-alteha-violet/40 shadow-sm">
+                                    <p className="text-[8px] font-black uppercase tracking-tight text-alteha-violet">Honorarios méd. ★</p>
+                                    <p className="text-base font-black text-alteha-violet">${money(auction.doctorBudget)}</p>
                                 </div>
-                                <div className="bg-white rounded-xl p-3 text-center border border-slate-100">
-                                    <p className="text-[8px] font-black uppercase tracking-tight text-slate-400">Clínica</p>
-                                    <p className="text-sm font-black text-slate-900">${money(auction.clinicBudget)}</p>
+                                {/* Clínica: resaltada solo en paquete completo (el médico también la gestiona/paga) */}
+                                <div className={modality === 'PAQUETE_COMPLETO'
+                                    ? 'bg-alteha-violet/10 rounded-xl p-3 text-center border-2 border-alteha-violet/40 shadow-sm'
+                                    : 'bg-white rounded-xl p-3 text-center border border-slate-100'}>
+                                    <p className={`text-[8px] font-black uppercase tracking-tight ${modality === 'PAQUETE_COMPLETO' ? 'text-alteha-violet' : 'text-slate-400'}`}>
+                                        Clínica{modality === 'PAQUETE_COMPLETO' ? ' ★' : ''}
+                                    </p>
+                                    <p className={`font-black ${modality === 'PAQUETE_COMPLETO' ? 'text-base text-alteha-violet' : 'text-sm text-slate-900'}`}>${money(auction.clinicBudget)}</p>
                                 </div>
                                 <div className="bg-white rounded-xl p-3 text-center border border-slate-100">
                                     <p className="text-[8px] font-black uppercase tracking-tight text-slate-400">Total subasta</p>

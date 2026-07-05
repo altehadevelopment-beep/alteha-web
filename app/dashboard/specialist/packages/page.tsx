@@ -28,9 +28,12 @@ import { Button } from '@/components/ui/Button';
 import {
     createMedicalPackage, getMyMedicalPackages, getProcedureTypes, uploadPackageImage,
     getProviderRedemptions, acceptRedemption, rejectRedemption, uploadRedemptionFiniquito,
+    updateMyMedicalPackage, toggleMyMedicalPackage, deleteMyMedicalPackage,
     type MedicalPackage, type MedicalPackageItem, type PackageRedemptionItem
 } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
+import { PACKAGE_CATEGORIES, getPackageCategory } from '@/components/packages/categories';
+import { UpgradeModal } from '@/components/plan/UpgradeModal';
 
 export default function PublishPackagePage() {
     const { userProfile } = useAuth();
@@ -52,6 +55,9 @@ export default function PublishPackagePage() {
         validUntil: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 3 months later
     });
 
+    // Tipo de paquete (clasificación comercial); INTERVENCION exige especialidad → intervención
+    const [packageCategory, setPackageCategory] = useState<string | null>(null);
+    const selectedCategory = getPackageCategory(packageCategory);
     // Especialidad → tipo de intervención (igual que al crear una subasta)
     const [specialtyId, setSpecialtyId] = useState<number | null>(null);
     const [procedureTypeId, setProcedureTypeId] = useState<number | null>(null);
@@ -61,6 +67,11 @@ export default function PublishPackagePage() {
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const [createError, setCreateError] = useState<string | null>(null);
+    const [upgradeMsg, setUpgradeMsg] = useState<string | null>(null);
+    // Edición de un paquete ya publicado
+    const [editingId, setEditingId] = useState<number | null>(null);
+    const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
+    const [togglingId, setTogglingId] = useState<number | null>(null);
     // Solicitudes de uso (redenciones) dirigidas a este proveedor
     const [redemptions, setRedemptions] = useState<PackageRedemptionItem[]>([]);
     const [redemptionsLoading, setRedemptionsLoading] = useState(true);
@@ -116,6 +127,50 @@ export default function PublishPackagePage() {
         { itemName: 'Consulta Especialista', description: 'Evaluación médica inicial', quantity: 1, unitPrice: 50 },
     ]);
 
+    // Cargar un paquete publicado en el asistente para editarlo
+    const startEdit = (pkg: MedicalPackage) => {
+        setEditingId(pkg.id!);
+        setFormData({
+            packageName: pkg.packageName || '',
+            packageCode: pkg.packageCode || '',
+            description: pkg.description || '',
+            basePrice: pkg.basePrice || 0,
+            discountedPrice: pkg.discountedPrice || 0,
+            discountPercentage: pkg.basePrice ? Math.round((1 - (pkg.discountedPrice || pkg.basePrice) / pkg.basePrice) * 100) : 0,
+            validFrom: pkg.validFrom || new Date().toISOString().split('T')[0],
+            validUntil: pkg.validUntil || new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        });
+        setItems(pkg.packageItems?.length ? pkg.packageItems.map(i => ({ itemName: i.itemName, description: i.description, quantity: i.quantity, unitPrice: i.unitPrice })) : [{ itemName: '', description: '', quantity: 1, unitPrice: 0 }]);
+        setPackageCategory((pkg as any).packageCategory || null);
+        setSpecialtyId(pkg.specialty?.id ? Number(pkg.specialty.id) : null);
+        setProcedureTypeId(pkg.procedureType?.id ? Number(pkg.procedureType.id) : null);
+        setImageFile(null);
+        setImagePreview(pkg.imageUrl || null);
+        setExistingImageUrl(pkg.imageUrl || null);
+        setCreateError(null);
+        setStep(1);
+        setIsCreating(true);
+    };
+
+    const handleToggle = async (pkg: MedicalPackage) => {
+        setTogglingId(pkg.id!);
+        try {
+            const res = await toggleMyMedicalPackage(pkg.id!);
+            if (res?.message && !('isActive' in res)) alert(res.message);
+            await fetchPackages();
+        } finally { setTogglingId(null); }
+    };
+
+    const handleDelete = async (pkg: MedicalPackage) => {
+        if (!confirm(`¿Eliminar el paquete "${pkg.packageName}"? Esta acción no se puede deshacer.`)) return;
+        setTogglingId(pkg.id!);
+        try {
+            const res = await deleteMyMedicalPackage(pkg.id!);
+            if (res?.deleted) await fetchPackages();
+            else alert(res?.message || 'No se pudo eliminar el paquete.');
+        } finally { setTogglingId(null); }
+    };
+
     useEffect(() => {
         fetchPackages();
     }, []);
@@ -137,8 +192,13 @@ export default function PublishPackagePage() {
     };
 
     const handleCreatePackage = async () => {
-        if (!procedureTypeId) {
-            setCreateError('Todo paquete debe estar asociado a un tipo de intervención.');
+        if (!packageCategory) {
+            setCreateError('Selecciona el tipo de paquete que vas a comercializar.');
+            setStep(1);
+            return;
+        }
+        if (selectedCategory?.requiresProcedure && !procedureTypeId) {
+            setCreateError('Los paquetes de intervención deben asociarse a un tipo de intervención (como en las subastas).');
             setStep(1);
             return;
         }
@@ -158,17 +218,28 @@ export default function PublishPackagePage() {
                 basePrice: totalAmount,
                  discountedPrice: discountedAmount,
                 specialty: specialtyId ? { id: specialtyId } : undefined,
-                procedureType: { id: procedureTypeId },
+                procedureType: procedureTypeId ? { id: procedureTypeId } : undefined,
+                packageCategory,
                 imageUrl,
                 packageItems: items
             };
-            const response = await createMedicalPackage(payload as any);
+            if (!imageUrl && existingImageUrl) imageUrl = existingImageUrl; // conservar imagen previa al editar
+            (payload as any).imageUrl = imageUrl;
+            const response = editingId
+                ? await updateMyMedicalPackage(editingId, payload as any)
+                : await createMedicalPackage(payload as any);
             // Handle both wrapped and unwrapped responses
             const success = (response as any).id || (response as any).code === '00';
             if (success) {
                 setIsCreating(false);
+                setEditingId(null);
+                setExistingImageUrl(null);
                 setStep(1);
                 fetchPackages();
+            } else {
+                const msg = (response as any)?.message || 'No se pudo crear el paquete.';
+                if (msg.includes('PLAN_LIMIT')) setUpgradeMsg(msg);
+                else setCreateError(msg);
             }
         } catch (error) {
             console.error('Error creating package:', error);
@@ -197,6 +268,7 @@ export default function PublishPackagePage() {
     if (!isCreating) {
         return (
             <div className="space-y-10 font-outfit max-w-6xl mx-auto pb-20">
+                {upgradeMsg && <UpgradeModal message={upgradeMsg} onClose={() => setUpgradeMsg(null)} />}
                 <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                     <div>
                         <Link href="/dashboard/specialist" className="inline-flex items-center gap-2 text-slate-500 hover:text-alteha-turquoise transition-colors mb-4 font-medium">
@@ -253,16 +325,23 @@ export default function PublishPackagePage() {
                                     <div className="p-4 bg-alteha-turquoise/10 text-alteha-turquoise rounded-2xl">
                                         <Package className="w-6 h-6" />
                                     </div>
-                                    <div className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-[10px] font-black uppercase tracking-widest">
-                                        Activo
+                                    <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${pkg.isActive !== false ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                                        {pkg.isActive !== false ? 'Activo' : 'Deshabilitado'}
                                     </div>
                                 </div>
                                 <h3 className="text-xl font-black text-slate-900 mb-2 leading-tight group-hover:text-alteha-turquoise transition-colors">{pkg.packageName}</h3>
-                                {pkg.procedureType?.name && (
-                                    <span className="inline-block w-fit px-3 py-1 mb-2 bg-alteha-violet/10 text-alteha-violet rounded-full text-[10px] font-black uppercase tracking-widest">
-                                        {pkg.procedureType.name}
-                                    </span>
-                                )}
+                                <div className="flex flex-wrap gap-1.5 mb-2">
+                                    {getPackageCategory((pkg as any).packageCategory) && (
+                                        <span className="px-3 py-1 bg-slate-900 text-white rounded-full text-[10px] font-black uppercase tracking-widest">
+                                            {getPackageCategory((pkg as any).packageCategory)!.emoji} {getPackageCategory((pkg as any).packageCategory)!.label}
+                                        </span>
+                                    )}
+                                    {pkg.procedureType?.name && (
+                                        <span className="px-3 py-1 bg-alteha-violet/10 text-alteha-violet rounded-full text-[10px] font-black uppercase tracking-widest">
+                                            {pkg.procedureType.name}
+                                        </span>
+                                    )}
+                                </div>
                                 <p className="text-sm text-slate-500 font-medium line-clamp-2 mb-6 flex-1 italic">
                                     &ldquo;{pkg.description}&rdquo;
                                 </p>
@@ -280,6 +359,32 @@ export default function PublishPackagePage() {
                                     <div className="flex items-center gap-2 text-slate-400 text-[11px] font-bold">
                                         <Calendar className="w-3.5 h-3.5" />
                                         <span>Válido hasta: {pkg.validUntil ? new Date(pkg.validUntil).toLocaleDateString() : 'N/A'}</span>
+                                    </div>
+                                    {/* Acciones del paquete */}
+                                    <div className="flex items-center gap-2 pt-2">
+                                        <button
+                                            onClick={() => startEdit(pkg)}
+                                            className="flex-1 py-2 rounded-xl bg-slate-900 text-white text-xs font-black hover:bg-alteha-turquoise hover:text-slate-900 transition-all"
+                                        >
+                                            ✏️ Editar
+                                        </button>
+                                        <button
+                                            onClick={() => handleToggle(pkg)}
+                                            disabled={togglingId === pkg.id}
+                                            className={`flex-1 py-2 rounded-xl text-xs font-black transition-all disabled:opacity-50 ${pkg.isActive !== false
+                                                ? 'bg-amber-50 text-amber-600 hover:bg-amber-100'
+                                                : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'}`}
+                                        >
+                                            {togglingId === pkg.id ? '…' : pkg.isActive !== false ? '⏸ Deshabilitar' : '▶ Habilitar'}
+                                        </button>
+                                        <button
+                                            onClick={() => handleDelete(pkg)}
+                                            disabled={togglingId === pkg.id}
+                                            title="Eliminar paquete"
+                                            className="p-2 rounded-xl bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-500 transition-all disabled:opacity-50"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
                                     </div>
                                 </div>
                                 </div>
@@ -364,13 +469,14 @@ export default function PublishPackagePage() {
 
     return (
         <div className="space-y-10 font-outfit max-w-6xl mx-auto pb-20">
+                {upgradeMsg && <UpgradeModal message={upgradeMsg} onClose={() => setUpgradeMsg(null)} />}
             {/* Header */}
             <div>
-                <button onClick={() => setIsCreating(false)} className="inline-flex items-center gap-2 text-slate-500 hover:text-alteha-turquoise transition-colors mb-4 font-medium">
+                <button onClick={() => { setIsCreating(false); setEditingId(null); setExistingImageUrl(null); }} className="inline-flex items-center gap-2 text-slate-500 hover:text-alteha-turquoise transition-colors mb-4 font-medium">
                     <ArrowLeft className="w-5 h-5" />
                     <span>Regresar a la lista</span>
                 </button>
-                <h1 className="text-4xl font-black text-slate-900 tracking-tight">Configurar Nuevo Paquete</h1>
+                <h1 className="text-4xl font-black text-slate-900 tracking-tight">{editingId ? 'Editar Paquete' : 'Configurar Nuevo Paquete'}</h1>
                 <p className="text-slate-500 font-medium">Diseña una oferta personalizada para tu comunidad</p>
             </div>
 
@@ -388,7 +494,46 @@ export default function PublishPackagePage() {
                     {step === 1 && (
                         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
                             <div className="bg-white p-10 rounded-[3rem] shadow-xl shadow-slate-200/50 border border-slate-100 space-y-10">
-                                <section className="space-y-6">
+                                {/* ── 1º: ¿Qué tipo de paquete vas a comercializar? ── */}
+                                <section className="space-y-5">
+                                    <h3 className="text-2xl font-black text-slate-900 flex items-center gap-3">
+                                        <div className="w-10 h-10 bg-alteha-violet/10 rounded-xl flex items-center justify-center text-alteha-violet">
+                                            <Package className="w-6 h-6" />
+                                        </div>
+                                        Tipo de Paquete *
+                                    </h3>
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                        {PACKAGE_CATEGORIES.map(cat => (
+                                            <button
+                                                key={cat.id}
+                                                type="button"
+                                                onClick={() => {
+                                                    setPackageCategory(cat.id);
+                                                    if (!cat.requiresProcedure) setProcedureTypeId(null);
+                                                    setCreateError(null);
+                                                }}
+                                                className={`p-4 rounded-2xl border-2 text-center transition-all hover:shadow-md ${packageCategory === cat.id
+                                                    ? 'border-alteha-violet bg-alteha-violet/5 shadow-md'
+                                                    : 'border-slate-100 bg-white'}`}
+                                            >
+                                                <div className="text-2xl mb-1">{cat.emoji}</div>
+                                                <div className={`text-[11px] font-black uppercase tracking-wide leading-tight ${packageCategory === cat.id ? 'text-alteha-violet' : 'text-slate-500'}`}>
+                                                    {cat.label}
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                    {selectedCategory && (
+                                        <div className="bg-alteha-violet/5 border border-alteha-violet/15 rounded-2xl px-5 py-4 flex gap-3">
+                                            <Info className="w-5 h-5 text-alteha-violet shrink-0 mt-0.5" />
+                                            <p className="text-sm text-slate-600 font-medium leading-relaxed">
+                                                <strong className="text-slate-900">{selectedCategory.emoji} {selectedCategory.label}:</strong> {selectedCategory.description}
+                                            </p>
+                                        </div>
+                                    )}
+                                </section>
+
+                                <section className="space-y-6 pt-6 border-t border-slate-50">
                                     <h3 className="text-2xl font-black text-slate-900 flex items-center gap-3">
                                         <div className="w-10 h-10 bg-alteha-turquoise/10 rounded-xl flex items-center justify-center text-alteha-turquoise">
                                             <Info className="w-6 h-6" />
@@ -409,38 +554,43 @@ export default function PublishPackagePage() {
                                                 value={formData.packageCode}
                                                 onChange={(e) => setFormData({...formData, packageCode: e.target.value})}
                                             />
-                                            <div>
-                                                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Especialidad</label>
+                                            <div className="relative">
+                                                {/* Etiqueta interna para alinear con el Input de Código (min-h 60px, label flotante) */}
+                                                <label className="absolute left-4 top-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest z-10 pointer-events-none">Especialidad</label>
                                                 <select
                                                     value={specialtyId ?? ''}
                                                     onChange={e => setSpecialtyId(e.target.value ? Number(e.target.value) : null)}
-                                                    className="w-full h-12 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm font-bold text-slate-800 outline-none"
+                                                    className="w-full min-h-[60px] pt-5 pb-1.5 px-4 rounded-2xl bg-white border border-slate-200 text-sm font-bold text-slate-800 outline-none focus:border-alteha-turquoise transition-colors appearance-none"
                                                 >
                                                     <option value="">Selecciona...</option>
                                                     {(userProfile?.specialties || []).map((s: any) => (
                                                         <option key={s.id} value={s.id}>{s.name}</option>
                                                     ))}
                                                 </select>
+                                                <svg className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" /></svg>
                                             </div>
                                         </div>
-                                        {/* Tipo de intervención: obligatorio, filtrado por especialidad (como en las subastas) */}
+                                        {/* Tipo de intervención: solo para paquetes de INTERVENCION (como en las subastas) */}
+                                        {selectedCategory?.requiresProcedure && (
                                         <div>
-                                            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                                                Tipo de Intervención *
-                                            </label>
-                                            <select
-                                                value={procedureTypeId ?? ''}
-                                                onChange={e => setProcedureTypeId(e.target.value ? Number(e.target.value) : null)}
-                                                disabled={loadingProcedures || !specialtyId}
-                                                className="w-full h-12 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm font-bold text-slate-800 outline-none disabled:opacity-50"
-                                            >
-                                                <option value="">{loadingProcedures ? 'Cargando intervenciones...' : !specialtyId ? 'Elige primero la especialidad' : 'Selecciona la intervención...'}</option>
-                                                {procedureTypes.map((p: any) => (
-                                                    <option key={p.id} value={p.id}>{p.name}</option>
-                                                ))}
-                                            </select>
-                                            <p className="text-[11px] text-slate-400 mt-1.5">Todo paquete queda asociado a una intervención: el seguro la redime por paciente.</p>
+                                            <div className="relative">
+                                                <label className="absolute left-4 top-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest z-10 pointer-events-none">Tipo de Intervención *</label>
+                                                <select
+                                                    value={procedureTypeId ?? ''}
+                                                    onChange={e => setProcedureTypeId(e.target.value ? Number(e.target.value) : null)}
+                                                    disabled={loadingProcedures || !specialtyId}
+                                                    className="w-full min-h-[60px] pt-5 pb-1.5 px-4 rounded-2xl bg-white border border-slate-200 text-sm font-bold text-slate-800 outline-none focus:border-alteha-turquoise transition-colors appearance-none disabled:opacity-50"
+                                                >
+                                                    <option value="">{loadingProcedures ? 'Cargando intervenciones...' : !specialtyId ? 'Elige primero la especialidad' : 'Selecciona la intervención...'}</option>
+                                                    {procedureTypes.map((p: any) => (
+                                                        <option key={p.id} value={p.id}>{p.name}</option>
+                                                    ))}
+                                                </select>
+                                                <svg className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" /></svg>
+                                            </div>
+                                            <p className="text-[11px] text-slate-400 mt-1.5">El paquete queda asociado a esta intervención: el seguro la redime por paciente.</p>
                                         </div>
+                                        )}
                                         {/* Imagen comercial del paquete */}
                                         <div>
                                             <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Imagen del paquete (se muestra en el marketplace)</label>
@@ -499,60 +649,11 @@ export default function PublishPackagePage() {
                                         />
                                     </div>
                                 </section>
-                                <section className="space-y-6 pt-6 border-t border-slate-50">
-                                    <h3 className="text-2xl font-black text-slate-900 flex items-center gap-3">
-                                        <DollarSign className="w-6 h-6 text-emerald-500" />
-                                        Estrategia de Precio
-                                    </h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div className="space-y-2">
-                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest px-1">Descuento (%)</p>
-                                            <div className="relative">
-                                                <input
-                                                    type="number"
-                                                    className="w-full bg-slate-50 border border-slate-100 rounded-2xl p-4 font-black text-slate-700 outline-none focus:border-alteha-turquoise transition-all"
-                                                    value={formData.discountPercentage}
-                                                    onChange={(e) => {
-                                                        const pct = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
-                                                        setFormData({
-                                                            ...formData, 
-                                                            discountPercentage: pct,
-                                                            discountedPrice: totalAmount * (1 - pct / 100)
-                                                        });
-                                                    }}
-                                                />
-                                                <span className="absolute right-4 top-1/2 -translate-y-1/2 font-black text-slate-300">%</span>
-                                            </div>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest px-1">Precio Final de Oferta ($)</p>
-                                            <div className="relative">
-                                                <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-slate-300">$</span>
-                                                <input
-                                                    type="number"
-                                                    className="w-full bg-alteha-turquoise/5 border border-alteha-turquoise/10 rounded-2xl p-4 pl-8 font-black text-alteha-turquoise outline-none focus:border-alteha-turquoise transition-all"
-                                                    value={Math.round(discountedAmount)}
-                                                    onChange={(e) => {
-                                                        const price = parseFloat(e.target.value) || 0;
-                                                        setFormData({
-                                                            ...formData, 
-                                                            discountedPrice: price,
-                                                            discountPercentage: totalAmount > 0 ? Math.round((1 - price / totalAmount) * 100) : 0
-                                                        });
-                                                    }}
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <p className="text-[10px] font-bold text-slate-400 bg-slate-50 p-4 rounded-xl border border-slate-100 italic">
-                                        * El precio base se calcula automáticamente sumando los ítems en el siguiente paso.
-                                    </p>
-                                </section>
                             </div>
                             <div className="flex justify-end">
-                                <Button 
-                                    onClick={() => setStep(2)} 
-                                    disabled={!formData.packageName || !formData.description}
+                                <Button
+                                    onClick={() => setStep(2)}
+                                    disabled={!packageCategory || !formData.packageName || !formData.description || (selectedCategory?.requiresProcedure && !procedureTypeId)}
                                     className="bg-slate-900 px-10 py-6 rounded-2xl font-black text-white hover:bg-slate-800 transition-all flex items-center gap-2 group"
                                 >
                                     Continuar al Configurador
@@ -629,6 +730,60 @@ export default function PublishPackagePage() {
                                         </div>
                                     ))}
                                 </div>
+
+                                {/* ── Precio: una sola vez, junto a los ítems que lo calculan ── */}
+                                <section className="space-y-5 pt-6 border-t border-slate-50">
+                                    <h3 className="text-xl font-black text-slate-900 flex items-center gap-3">
+                                        <DollarSign className="w-5 h-5 text-emerald-500" />
+                                        Precio del Paquete
+                                    </h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                                        <div className="space-y-2">
+                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest px-1">Precio Referencial (suma de ítems)</p>
+                                            <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 font-black text-slate-500">
+                                                ${totalAmount.toLocaleString()}
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest px-1">Descuento (%)</p>
+                                            <div className="relative">
+                                                <input
+                                                    type="number"
+                                                    className="w-full bg-slate-50 border border-slate-100 rounded-2xl p-4 font-black text-slate-700 outline-none focus:border-alteha-turquoise transition-all"
+                                                    value={formData.discountPercentage}
+                                                    onChange={(e) => {
+                                                        const pct = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
+                                                        setFormData({
+                                                            ...formData,
+                                                            discountPercentage: pct,
+                                                            discountedPrice: totalAmount * (1 - pct / 100)
+                                                        });
+                                                    }}
+                                                />
+                                                <span className="absolute right-4 top-1/2 -translate-y-1/2 font-black text-slate-300">%</span>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest px-1">Precio Final de Oferta ($)</p>
+                                            <div className="relative">
+                                                <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-slate-300">$</span>
+                                                <input
+                                                    type="number"
+                                                    className="w-full bg-alteha-turquoise/5 border border-alteha-turquoise/10 rounded-2xl p-4 pl-8 font-black text-alteha-turquoise outline-none focus:border-alteha-turquoise transition-all"
+                                                    value={Math.round(discountedAmount)}
+                                                    onChange={(e) => {
+                                                        const price = parseFloat(e.target.value) || 0;
+                                                        setFormData({
+                                                            ...formData,
+                                                            discountedPrice: price,
+                                                            discountPercentage: totalAmount > 0 ? Math.round((1 - price / totalAmount) * 100) : 0
+                                                        });
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </section>
                             </div>
 
                             <div className="flex justify-between">

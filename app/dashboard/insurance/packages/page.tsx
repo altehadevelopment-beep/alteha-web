@@ -11,6 +11,7 @@ import {
     getInsuranceRedemptions, createPackageRedemption, searchPatient,
     type MedicalPackage, type PackagePurchaseSummary, type PackageRedemptionItem
 } from '@/lib/api';
+import { getPackageCategory } from '@/components/packages/categories';
 
 const REDEMPTION_BADGE: Record<string, { label: string; color: string }> = {
     REQUESTED: { label: 'Esperando al proveedor', color: 'bg-amber-50 text-amber-600' },
@@ -156,6 +157,11 @@ export default function InsurancePackagesPage() {
                                 )}
                                 <div className="p-6 flex flex-col flex-1 space-y-3">
                                     <div className="flex flex-wrap gap-2">
+                                        {getPackageCategory(pkg.packageCategory) && (
+                                            <span className="px-3 py-1 bg-slate-900 text-white rounded-full text-[10px] font-black uppercase tracking-widest">
+                                                {getPackageCategory(pkg.packageCategory)!.emoji} {getPackageCategory(pkg.packageCategory)!.label}
+                                            </span>
+                                        )}
                                         {pkg.procedureType?.name && (
                                             <span className="px-3 py-1 bg-alteha-violet/10 text-alteha-violet rounded-full text-[10px] font-black uppercase tracking-widest">{pkg.procedureType.name}</span>
                                         )}

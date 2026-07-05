@@ -26,6 +26,7 @@ import {
     UserCheck,
     History,
     Wrench,
+    Crown,
     ChevronDown
 } from 'lucide-react';
 import { Logo } from '@/components/ui/Logo';
@@ -33,12 +34,23 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 
 const specialistItems = [
+    // ── Trabajo diario: donde el médico genera ingresos ──
+    { section: 'Principal' },
     { title: 'Dashboard', icon: LayoutDashboard, href: '/dashboard/specialist' },
-    { title: 'Métodos de Cobro', icon: CreditCard, href: '/dashboard/specialist/payments' },
+    { title: 'Subastas', icon: Gavel, href: '/dashboard/specialist/auctions' },
     { title: 'Paquetes', icon: Package, href: '/dashboard/specialist/packages' },
+    { title: 'Histórico de Subastas', icon: History, href: '/dashboard/specialist/history' },
+    // ── Dinero: cómo cobra y qué plan tiene ──
+    { section: 'Finanzas' },
+    { title: 'Métodos de Cobro', icon: CreditCard, href: '/dashboard/specialist/payments' },
+    { title: 'Mi Plan', icon: Crown, href: '/dashboard/specialist/plan' },
+    // ── Relación con la red ──
+    { section: 'Gestión' },
     { title: 'Conversaciones', icon: MessageSquare, href: '/dashboard/specialist/conversations' },
-    { title: 'Referir Colega', icon: Users, href: '/dashboard/specialist/referrals' },
     { title: 'Disputas', icon: AlertCircle, href: '/dashboard/specialist/disputes' },
+    { title: 'Referir Colega', icon: Users, href: '/dashboard/specialist/referrals' },
+    // ── Herramientas de apoyo ──
+    { section: 'Herramientas' },
     {
         title: 'Utilitarios',
         icon: Wrench,
@@ -46,7 +58,6 @@ const specialistItems = [
             { title: 'Recetario', icon: Stethoscope, href: '/dashboard/specialist/recipes' },
         ],
     },
-    { title: 'Histórico de Subastas', icon: History, href: '/dashboard/specialist/history' },
 ];
 
 const clinicItems = [
@@ -92,6 +103,16 @@ export function DashboardSidebar() {
     const { logout } = useAuth();
     const [isOpen, setIsOpen] = React.useState(false);
     const [expandedMenu, setExpandedMenu] = React.useState<string | null>(null);
+    // Plan de suscripción siempre visible (solo médicos)
+    const [myPlan, setMyPlan] = React.useState<{ name: string; code: string; expired: boolean } | null>(null);
+    React.useEffect(() => {
+        if (!pathname?.startsWith('/dashboard/specialist')) return;
+        import('@/lib/api').then(({ getMySubscription }) =>
+            getMySubscription()
+                .then((s: any) => setMyPlan({ name: s?.effectivePlan?.name || '', code: s?.effectivePlan?.code || '', expired: !!s?.expired }))
+                .catch(() => {})
+        );
+    }, [pathname]);
 
     const isClinic = pathname.includes('/dashboard/clinic');
     const isInsurance = pathname.includes('/dashboard/insurance');
@@ -142,7 +163,15 @@ export function DashboardSidebar() {
                     </Link>
 
                     <nav className="flex-1 space-y-2">
-                        {menuItems.map((item: any) => {
+                        {menuItems.map((item: any, idx: number) => {
+                            // Encabezado de sección
+                            if (item.section) {
+                                return (
+                                    <p key={`sec-${item.section}`} className={`px-4 text-[10px] font-black uppercase tracking-widest text-slate-300 ${idx === 0 ? 'pt-0' : 'pt-4'}`}>
+                                        {item.section}
+                                    </p>
+                                );
+                            }
                             // Grupo con submenú (ej: Utilitarios → Recetario)
                             if (item.children) {
                                 const childActive = item.children.some((c: any) => pathname.startsWith(c.href));
@@ -190,7 +219,11 @@ export function DashboardSidebar() {
                                 );
                             }
 
-                            const isActive = pathname === item.href || (item.href !== '/dashboard/approval' && pathname.startsWith(item.href));
+                            // Los dashboards raíz solo se resaltan con match exacto (evita doble resaltado)
+                            const ROOTS = ['/dashboard/specialist', '/dashboard/clinic', '/dashboard/insurance', '/dashboard/provider', '/dashboard/approval'];
+                            const isActive = ROOTS.includes(item.href)
+                                ? pathname === item.href
+                                : (pathname === item.href || pathname.startsWith(item.href + '/'));
                             return (
                                 <Link
                                     key={item.href}
@@ -211,14 +244,26 @@ export function DashboardSidebar() {
                         })}
                     </nav>
 
-                    <div className="pt-6 border-t border-slate-50 space-y-2">
-                        <Link
-                            href={settingsHref}
-                            className="flex items-center gap-3 px-4 py-3.5 rounded-2xl font-semibold text-slate-400 hover:bg-slate-50 hover:text-slate-600 transition-all"
-                        >
-                            <Settings className="w-5 h-5" />
-                            <span>Configuración</span>
+                    {myPlan && pathname?.startsWith('/dashboard/specialist') && (
+                        <Link href="/dashboard/specialist/plan"
+                            className={cn("flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-black transition-all mb-1",
+                                myPlan.expired ? "bg-red-50 text-red-500 hover:bg-red-100" : "bg-amber-50 text-amber-600 hover:bg-amber-100")}>
+                            <Crown className="w-4 h-4" />
+                            <span className="truncate">Plan: {myPlan.name}</span>
+                            {myPlan.expired && <span className="ml-auto text-[9px] uppercase tracking-widest">Vencido</span>}
                         </Link>
+                    )}
+                    <div className="pt-6 border-t border-slate-50 space-y-2">
+                        {/* Configuración oculta para el médico (gestiona todo desde Editar Perfil y Mi Plan) */}
+                        {!pathname?.startsWith('/dashboard/specialist') && (
+                            <Link
+                                href={settingsHref}
+                                className="flex items-center gap-3 px-4 py-3.5 rounded-2xl font-semibold text-slate-400 hover:bg-slate-50 hover:text-slate-600 transition-all"
+                            >
+                                <Settings className="w-5 h-5" />
+                                <span>Configuración</span>
+                            </Link>
+                        )}
                         <button
                             onClick={handleLogout}
                             className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl font-semibold text-red-400 hover:bg-red-50 hover:text-red-500 transition-all"

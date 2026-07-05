@@ -885,8 +885,8 @@ export default function NewAuctionPage() {
                                                                     <textarea placeholder="Especificaciones técnicas, medidas, marcas preferidas..." value={supply.description} onChange={(e) => { const n = [...formData.requiredSupplies]; n[index].description = e.target.value; setFormData({ ...formData, requiredSupplies: n }); }} className="w-full bg-slate-50 px-4 py-4 rounded-xl text-sm font-medium text-slate-600 outline-none border-2 border-transparent focus:border-alteha-violet transition-all resize-none h-24" />
                                                                 </div>
                                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                                                    <div><p className="text-[9px] font-black text-slate-400 uppercase mb-1 ml-1">Cant.</p><input type="number" value={supply.quantity} onChange={(e) => { const n = [...formData.requiredSupplies]; n[index].quantity = parseInt(e.target.value); setFormData({ ...formData, requiredSupplies: n }); }} className="w-full bg-slate-50 px-4 py-3 rounded-xl text-base font-black outline-none border border-transparent focus:border-alteha-violet" /></div>
-                                                                    <div><p className="text-[9px] font-black text-slate-400 uppercase mb-1 ml-1">Ref ($)</p><input type="number" value={supply.referenceAmount} onChange={(e) => { const n = [...formData.requiredSupplies]; n[index].referenceAmount = parseFloat(e.target.value); setFormData({ ...formData, requiredSupplies: n }); }} className="w-full bg-slate-50 px-4 py-3 rounded-xl text-base font-black outline-none border border-transparent focus:border-alteha-violet" /></div>
+                                                                    <div><p className="text-[9px] font-black text-slate-400 uppercase mb-1 ml-1">Cant.</p><input type="number" value={supply.quantity === 0 ? '' : supply.quantity} placeholder="0" onFocus={(e) => e.target.select()} onChange={(e) => { const n = [...formData.requiredSupplies]; n[index].quantity = parseInt(e.target.value) || 0; setFormData({ ...formData, requiredSupplies: n }); }} className="w-full bg-slate-50 px-4 py-3 rounded-xl text-base font-black outline-none border border-transparent focus:border-alteha-violet" /></div>
+                                                                    <div><p className="text-[9px] font-black text-slate-400 uppercase mb-1 ml-1">Ref ($)</p><input type="number" value={supply.referenceAmount === 0 ? '' : supply.referenceAmount} placeholder="0" onFocus={(e) => e.target.select()} onChange={(e) => { const n = [...formData.requiredSupplies]; n[index].referenceAmount = parseFloat(e.target.value) || 0; setFormData({ ...formData, requiredSupplies: n }); }} className="w-full bg-slate-50 px-4 py-3 rounded-xl text-base font-black outline-none border border-transparent focus:border-alteha-violet" /></div>
                                                                 </div>
                                                             </div>
                                                         ))}
@@ -908,20 +908,24 @@ export default function NewAuctionPage() {
                                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                                         <div className="space-y-2">
                                                             <label className="text-[10px] font-black text-white/40 uppercase tracking-widest ml-1">Honorarios Médicos ($)</label>
-                                                            <input 
-                                                                type="number" 
-                                                                value={formData.doctorBudget} 
-                                                                onChange={(e) => setFormData({ ...formData, doctorBudget: parseFloat(e.target.value) || 0 })} 
-                                                                className="w-full bg-white/5 border border-white/10 p-4 rounded-2xl text-xl font-black text-white focus:border-alteha-violet outline-none transition-all" 
+                                                            <input
+                                                                type="number"
+                                                                value={formData.doctorBudget === 0 ? '' : formData.doctorBudget}
+                                                                placeholder="0"
+                                                                onFocus={(e) => e.target.select()}
+                                                                onChange={(e) => setFormData({ ...formData, doctorBudget: parseFloat(e.target.value) || 0 })}
+                                                                className="w-full bg-white/5 border border-white/10 p-4 rounded-2xl text-xl font-black text-white placeholder:text-white/25 focus:border-alteha-violet outline-none transition-all"
                                                             />
                                                         </div>
                                                         <div className="space-y-2">
                                                             <label className="text-[10px] font-black text-white/40 uppercase tracking-widest ml-1">Gastos Clínica ($)</label>
-                                                            <input 
-                                                                type="number" 
-                                                                value={formData.clinicBudget} 
-                                                                onChange={(e) => setFormData({ ...formData, clinicBudget: parseFloat(e.target.value) || 0 })} 
-                                                                className="w-full bg-white/5 border border-white/10 p-4 rounded-2xl text-xl font-black text-white focus:border-alteha-violet outline-none transition-all" 
+                                                            <input
+                                                                type="number"
+                                                                value={formData.clinicBudget === 0 ? '' : formData.clinicBudget}
+                                                                placeholder="0"
+                                                                onFocus={(e) => e.target.select()}
+                                                                onChange={(e) => setFormData({ ...formData, clinicBudget: parseFloat(e.target.value) || 0 })}
+                                                                className="w-full bg-white/5 border border-white/10 p-4 rounded-2xl text-xl font-black text-white placeholder:text-white/25 focus:border-alteha-violet outline-none transition-all"
                                                             />
                                                         </div>
                                                     </div>
