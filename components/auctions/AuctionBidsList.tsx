@@ -517,6 +517,16 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
                                         }}
                                     >
                                         {(() => {
+                                            // Oferta creada por una clínica (Solo Clínica o Paquete Completo de clínica)
+                                            const isClinicBid = (bid as any).modality === 'SOLO_CLINICA' || bid.bidType === 'CLINIC_ONLY' || bid.bidType === 'BOTH';
+                                            if (isClinicBid) {
+                                                const logo = bid.clinic?.logoUrl;
+                                                return logo ? (
+                                                    <img src={logo} className="w-full h-full object-contain bg-white" alt="Clínica" />
+                                                ) : (
+                                                    <Building2 className="w-6 h-6 text-emerald-400" />
+                                                );
+                                            }
                                             const dId = typeof bid.doctor === 'object' ? bid.doctor?.id : (typeof bid.doctor === 'number' ? bid.doctor : (bid as any).doctorId);
                                             const profile = dId ? doctorProfiles[dId] : null;
                                             const imageUrl = profile?.profileImageUrl || bid.doctor?.profileImageUrl;
@@ -541,6 +551,10 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
                                                 }}
                                             >
                                                 {(() => {
+                                                    const isClinicBid = (bid as any).modality === 'SOLO_CLINICA' || bid.bidType === 'CLINIC_ONLY' || bid.bidType === 'BOTH';
+                                                    if (isClinicBid) {
+                                                        return bid.clinic?.name || (bid as any).clinicName || 'Clínica';
+                                                    }
                                                     const dId = typeof bid.doctor === 'object' ? bid.doctor?.id : (typeof bid.doctor === 'number' ? bid.doctor : (bid as any).doctorId);
                                                     return bid.doctor?.fullName || 
                                                            (bid.doctor?.firstName ? `${bid.doctor.firstName} ${bid.doctor.lastName}` : null) || 
@@ -566,13 +580,27 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
                                                         </span>
                                                     );
                                                 }
+                                                if (modality === 'SOLO_CLINICA' || bid.bidType === 'CLINIC_ONLY') {
+                                                    return (
+                                                        <span className="px-2 py-0.5 rounded-md bg-violet-50 text-[8px] font-black uppercase tracking-widest text-alteha-violet">
+                                                            Solo Clínica
+                                                        </span>
+                                                    );
+                                                }
+                                                if (bid.bidType === 'BOTH') {
+                                                    return (
+                                                        <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-[8px] font-black uppercase tracking-widest text-emerald-600">
+                                                            Paquete Completo
+                                                        </span>
+                                                    );
+                                                }
                                                 return bid.bidType ? (
                                                     <span className="px-2 py-0.5 rounded-md bg-slate-100 text-[8px] font-black uppercase tracking-widest text-slate-500">
                                                         {bid.bidType}
                                                     </span>
                                                 ) : null;
                                             })()}
-                                            {mode === 'insurance' && ((bid as any).modality !== 'SOLO_MEDICO' || duplaMap[bid.id]?.status === 'ACCEPTED') && (
+                                            {mode === 'insurance' && (((bid as any).modality !== 'SOLO_MEDICO' && (bid as any).modality !== 'SOLO_CLINICA') || duplaMap[bid.id]?.status === 'ACCEPTED') && (
                                                 <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-[8px] font-black uppercase tracking-widest text-emerald-600 inline-flex items-center gap-1">
                                                     <Trophy className="w-2.5 h-2.5" /> Adjudicable
                                                 </span>
@@ -608,11 +636,50 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
                                                 </div>
                                             );
                                         })()}
-                                        {bid.clinic?.name && (
-                                            <p className="text-xs font-bold text-slate-400 flex items-center gap-1">
-                                                <Building2 className="w-3 h-3" /> {bid.clinic.name}
-                                            </p>
-                                        )}
+                                        {(bid as any).modality === 'SOLO_CLINICA' && (() => {
+                                            const dupla = duplaMap[bid.id];
+                                            const status = dupla?.status || 'PENDING';
+                                            const doctorName = dupla?.doctorName || bid.doctor?.fullName || 'el médico';
+                                            const m: Record<string, { cls: string; label: string }> = {
+                                                PENDING: { cls: 'bg-amber-50 text-amber-600 border-amber-100', label: `En espera de aprobación de ${doctorName}` },
+                                                ACCEPTED: { cls: 'bg-emerald-50 text-emerald-600 border-emerald-100', label: `${doctorName} aceptó · dupla confirmada` },
+                                                REJECTED: { cls: 'bg-red-50 text-red-500 border-red-100', label: `${doctorName} rechazó la invitación` },
+                                            };
+                                            const st = m[status] || m.PENDING;
+                                            return (
+                                                <div className="space-y-1 mt-1">
+                                                    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-[9px] font-black uppercase tracking-widest ${st.cls}`}>
+                                                        <Clock className="w-2.5 h-2.5" />
+                                                        {st.label}
+                                                    </span>
+                                                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] font-bold text-slate-500">
+                                                        <span>Gastos clínica: <b className="text-slate-700">${money(dupla?.clinicFee ?? bid.bidAmount)}</b></span>
+                                                        {status === 'ACCEPTED' && (
+                                                            <>
+                                                                <span>Honorarios médico: <b className="text-slate-700">${money(dupla?.doctorFee ?? dupla?.honorarios)}</b></span>
+                                                                <span>Total dupla: <b className="text-emerald-600">${money(dupla?.total)}</b></span>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
+                                        {(() => {
+                                            const isClinicBid = (bid as any).modality === 'SOLO_CLINICA' || bid.bidType === 'CLINIC_ONLY' || bid.bidType === 'BOTH';
+                                            if (isClinicBid) {
+                                                const dName = bid.doctor?.fullName || (bid.doctor?.firstName ? `${bid.doctor.firstName} ${bid.doctor.lastName}` : (bid as any).doctorName);
+                                                return dName ? (
+                                                    <p className="text-xs font-bold text-slate-400 flex items-center gap-1">
+                                                        <Stethoscope className="w-3 h-3" /> Médico: {dName}
+                                                    </p>
+                                                ) : null;
+                                            }
+                                            return bid.clinic?.name ? (
+                                                <p className="text-xs font-bold text-slate-400 flex items-center gap-1">
+                                                    <Building2 className="w-3 h-3" /> {bid.clinic.name}
+                                                </p>
+                                            ) : null;
+                                        })()}
                                         {bid.doctor?.specialties && bid.doctor.specialties.length > 0 && (
                                             <p className="text-[10px] text-alteha-violet font-black uppercase tracking-widest truncate">
                                                 <Stethoscope className="w-2.5 h-2.5 inline mr-1" />
