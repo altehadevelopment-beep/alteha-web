@@ -193,7 +193,7 @@ export default function DoctorInvitationsPage() {
                                                     </div>
                                                 </div>
                                                 <Link
-                                                    href={`/dashboard/specialist/payments?addMethod=${compat.missing[0]}`}
+                                                    href={`/dashboard/specialist/payments?addMethod=${compat.missing[0]}&returnTo=${encodeURIComponent('/dashboard/specialist/invitations')}`}
                                                     className="inline-flex items-center gap-2 bg-amber-500 text-white text-xs font-black px-4 py-2 rounded-xl hover:bg-amber-600 transition-colors"
                                                 >
                                                     <CreditCard className="w-4 h-4" /> Configurar ahora

@@ -27,12 +27,19 @@ const METHOD_TYPES = [
     { id: 'CRYPTO_WALLET', name: 'Crypto Wallet', icon: Wallet, color: 'bg-orange-500', description: 'USDT (TRC20, ERC20, BEP20)' },
 ];
 
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 
 export default function PaymentMethodsManager({ role, onSelect, selectionMode = false }: PaymentMethodsManagerProps) {
     const isPayer = role === 'INSURANCE_COMPANY' || role === 'INSURANCE';
     const methodWord = isPayer ? 'Pago' : 'Cobro';
     const searchParams = useSearchParams();
+    const router = useRouter();
+    // Si el usuario llegó desde otra pantalla (p. ej. una invitación que exige un
+    // método compatible), al guardar volvemos allí para no perder el hilo.
+    const returnTo = (() => {
+        const rt = searchParams?.get('returnTo');
+        return rt && rt.startsWith('/') ? rt : null;
+    })();
     const [methods, setMethods] = useState<PaymentMethod[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isAdding, setIsAdding] = useState(false);
@@ -212,6 +219,10 @@ export default function PaymentMethodsManager({ role, onSelect, selectionMode = 
             }
 
             if (res.code === '00' || (res as any).id) {
+                if (returnTo && !editingMethod?.id) {
+                    router.push(returnTo);
+                    return;
+                }
                 await loadMethods();
                 resetForm();
             } else {
