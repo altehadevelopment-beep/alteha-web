@@ -43,6 +43,16 @@ export default function PaymentProcessModal({ isOpen, onClose, bid, auctionTitle
             .catch(() => {});
     }, [isOpen, auctionNumber, bid]);
     const payableTotal: number = Number(commission?.total ?? bid?.bidAmount ?? 0);
+    // Tasa BCV del día: si el seguro paga en bolívares, se muestra el equivalente oficial en Bs
+    const [bcvRate, setBcvRate] = React.useState<number>(0);
+    React.useEffect(() => {
+        if (!isOpen) return;
+        const token = typeof window !== 'undefined' ? localStorage.getItem('id_token') : null;
+        fetch('/api/subscriptions/bcv-rate', { headers: { 'X-Alteha-Token': token || '' } })
+            .then(r => r.json())
+            .then(d => { const rate = Number(d?.rate ?? d?.data?.rate); if (rate > 0) setBcvRate(rate); })
+            .catch(() => {});
+    }, [isOpen]);
     const [step, setStep] = useState<'select' | 'confirm' | 'success'>('select');
     const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
@@ -428,7 +438,23 @@ export default function PaymentProcessModal({ isOpen, onClose, bid, auctionTitle
                             <div className="flex justify-between items-center pb-6 border-b border-slate-50">
                                 <div>
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Monto Total a Transferir</p>
-                                    <p className="text-3xl font-black text-slate-900">${payableTotal.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</p>
+                                    {(() => {
+                                        const isBs = ['BS_PAGO_MOVIL', 'BS_BANK_TRANSFER', 'BS_C2P'].includes(selectedMethod?.methodType || '');
+                                        if (isBs && bcvRate > 0) {
+                                            return (
+                                                <>
+                                                    <p className="text-3xl font-black text-slate-900">
+                                                        Bs {(payableTotal * bcvRate).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    </p>
+                                                    <p className="text-[11px] font-bold text-slate-500">
+                                                        Equivale a ${payableTotal.toLocaleString('es-VE', { minimumFractionDigits: 2 })} a la tasa oficial BCV de hoy
+                                                        (Bs {bcvRate.toLocaleString('es-VE', { minimumFractionDigits: 2 })}/USD)
+                                                    </p>
+                                                </>
+                                            );
+                                        }
+                                        return <p className="text-3xl font-black text-slate-900">${payableTotal.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</p>;
+                                    })()}
                                     {commission?.amount != null && (
                                         <p className="text-[10px] font-bold text-slate-400">
                                             Incluye comisión Alteha ({commission.rate}%): ${Number(commission.amount).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
@@ -437,7 +463,7 @@ export default function PaymentProcessModal({ isOpen, onClose, bid, auctionTitle
                                 </div>
                                 <div className="text-right">
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">ID Subasta</p>
-                                    <p className="font-bold text-slate-600">#{(bid as any)?.auctionNumber || '---'}</p>
+                                    <p className="font-bold text-slate-600">#{(bid as any)?.auctionNumber || auctionNumber || '---'}</p>
                                 </div>
                             </div>
 
