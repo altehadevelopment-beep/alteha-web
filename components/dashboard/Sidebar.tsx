@@ -163,7 +163,7 @@ export function DashboardSidebar() {
                         <span className="font-black text-2xl tracking-[0.05em] text-slate-800">ALTEHA</span>
                     </Link>
 
-                    <nav className="flex-1 space-y-2">
+                    <nav className="flex-1 space-y-2 overflow-y-auto pr-1 -mr-1 [scrollbar-width:thin]">
                         {menuItems.map((item: any, idx: number) => {
                             // Encabezado de sección
                             if (item.section) {
