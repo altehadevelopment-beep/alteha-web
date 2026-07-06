@@ -139,7 +139,8 @@ export default function ProviderDashboard() {
 
     const providerName = displayProfile.name || displayProfile.commercialName || displayProfile.legalName || 'Proveedor';
     const logoOk = typeof displayProfile.logoUrl === 'string' && displayProfile.logoUrl.startsWith('http');
-    const rating = Number(displayProfile.rating) > 0 ? Number(displayProfile.rating).toFixed(1) : '5.0';
+    const rating = Number(displayProfile.rating) > 0 ? Number(displayProfile.rating).toFixed(1) : '—';
+    const verified = displayProfile.verificationStatus === 'VERIFIED';
 
     return (
         <div className="space-y-10 font-outfit pb-20">
@@ -177,7 +178,10 @@ export default function ProviderDashboard() {
                             <div className="flex items-center gap-1.5">
                                 <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
                                 <span className="font-bold text-slate-900">{rating}</span>
-                                <span className="text-xs font-medium text-slate-400">(Socio Verificado)</span>
+                                <span className="text-xs font-medium text-slate-400">
+                                    {Number(displayProfile.totalReviews) > 0 ? `(${Number(displayProfile.totalReviews).toLocaleString('es-VE')} reseñas)` : ''}
+                                    {verified ? ' · Socio Verificado' : ' · Verificación pendiente'}
+                                </span>
                             </div>
                         </div>
                     </div>
