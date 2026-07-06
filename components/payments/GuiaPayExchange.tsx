@@ -30,6 +30,13 @@ export default function GuiaPayExchange({ role, auctionNumber, defaultAmount, me
     const [showUpgrade, setShowUpgrade] = useState(false);
     const [myOps, setMyOps] = useState<any[]>([]);
 
+    // El monto por defecto (lo que cobra el ganador) llega asíncrono: precargarlo si el campo está vacío
+    useEffect(() => {
+        if (defaultAmount && defaultAmount > 0) {
+            setAmount(prev => (prev ? prev : String(defaultAmount)));
+        }
+    }, [defaultAmount]);
+
     useEffect(() => {
         const token = localStorage.getItem('id_token');
         fetch('/api/exchange/config', { headers: { 'X-Alteha-Token': token || '' } })

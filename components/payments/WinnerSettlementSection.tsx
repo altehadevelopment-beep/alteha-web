@@ -387,7 +387,6 @@ export const WinnerSettlementSection: React.FC<WinnerSettlementSectionProps> = (
                     </div>
                 )}
             </div>
-            )}
             </div>
 
             {/* Guía Pay: cambio de moneda al recibir los fondos (requiere plan Expansión/Élite) */}
