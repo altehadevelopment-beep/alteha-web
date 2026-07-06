@@ -33,7 +33,7 @@ const VENEZUELA_COUNTRY_ID = 1;
 
 export default function PaymentProcessModal({ isOpen, onClose, bid, auctionTitle, auctionNumber, role, allowedPaymentMethods }: PaymentProcessModalProps) {
     // Comisión de Alteha: el pago del seguro incluye la comisión (total = base con dupla + comisión)
-    const [commission, setCommission] = React.useState<{ baseAmount?: number; rate?: number; amount?: number; total?: number } | null>(null);
+    const [commission, setCommission] = React.useState<{ baseAmount?: number; rate?: number; amount?: number; total?: number; doctorAmount?: number; clinicAmount?: number; pharmacyAmount?: number; pharmacyName?: string | null } | null>(null);
     React.useEffect(() => {
         const auctionNum = auctionNumber || (bid as any)?.auctionNumber;
         if (!isOpen || !auctionNum) return;
@@ -466,6 +466,39 @@ export default function PaymentProcessModal({ isOpen, onClose, bid, auctionTitle
                                     <p className="font-bold text-slate-600">#{(bid as any)?.auctionNumber || auctionNumber || '---'}</p>
                                 </div>
                             </div>
+
+                            {/* Desglose: a quién corresponde cada parte del pago */}
+                            {(Number(commission?.doctorAmount) > 0 || Number(commission?.clinicAmount) > 0 || Number(commission?.pharmacyAmount) > 0) && (
+                                <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 space-y-2">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">¿A quién corresponde este pago?</p>
+                                    {(() => {
+                                        const isBs = ['BS_PAGO_MOVIL', 'BS_BANK_TRANSFER', 'BS_C2P'].includes(selectedMethod?.methodType || '');
+                                        const showBs = isBs && bcvRate > 0;
+                                        const fmt = (n: any) => showBs
+                                            ? `Bs ${(Number(n) * bcvRate).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                            : `$${Number(n).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`;
+                                        const rows: { label: string; value: any }[] = [];
+                                        if (Number(commission?.doctorAmount) > 0) rows.push({ label: 'Honorarios del médico', value: commission!.doctorAmount });
+                                        if (Number(commission?.clinicAmount) > 0) rows.push({ label: 'Gastos de la clínica', value: commission!.clinicAmount });
+                                        if (Number(commission?.pharmacyAmount) > 0) rows.push({ label: `Insumos — ${commission?.pharmacyName || 'Casa de Salud'}`, value: commission!.pharmacyAmount });
+                                        if (Number(commission?.amount) > 0) rows.push({ label: `Comisión Alteha (${commission?.rate}%)`, value: commission!.amount });
+                                        return (
+                                            <>
+                                                {rows.map((r, i) => (
+                                                    <div key={i} className="flex justify-between text-sm font-bold">
+                                                        <span className="text-slate-500">{r.label}</span>
+                                                        <span className="text-slate-900">{fmt(r.value)}</span>
+                                                    </div>
+                                                ))}
+                                                <div className="flex justify-between text-sm font-black border-t border-slate-200 pt-2">
+                                                    <span className="text-slate-700">Total</span>
+                                                    <span className="text-alteha-violet">{fmt(payableTotal)}</span>
+                                                </div>
+                                            </>
+                                        );
+                                    })()}
+                                </div>
+                            )}
 
                             {/* Alteha Instructions */}
                             <div className="p-6 bg-slate-900 border-2 border-slate-800 rounded-3xl space-y-4 shadow-lg text-white">
