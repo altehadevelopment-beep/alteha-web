@@ -113,7 +113,8 @@ export default function ApprovalDashboardPage() {
     const accentMap: Record<string, { bg: string; ring: string; iconBg: string; iconColor: string; badge: string }> = {
         amber: { bg: 'from-amber-50 to-orange-50', ring: 'hover:ring-amber-200', iconBg: 'bg-amber-100', iconColor: 'text-amber-600', badge: 'bg-amber-100 text-amber-700' },
         emerald: { bg: 'from-emerald-50 to-teal-50', ring: 'hover:ring-emerald-200', iconBg: 'bg-emerald-100', iconColor: 'text-emerald-600', badge: 'bg-emerald-100 text-emerald-700' },
-        violet: { bg: 'from-violet-50 to-purple-50', ring: 'hover:ring-violet-200', iconBg: 'bg-violet-100', iconColor: 'text-violet-600', badge: 'bg-violet-100 text-violet-700' }
+        violet: { bg: 'from-violet-50 to-purple-50', ring: 'hover:ring-violet-200', iconBg: 'bg-violet-100', iconColor: 'text-violet-600', badge: 'bg-violet-100 text-violet-700' },
+        indigo: { bg: 'from-indigo-50 to-blue-50', ring: 'hover:ring-indigo-200', iconBg: 'bg-indigo-100', iconColor: 'text-indigo-600', badge: 'bg-indigo-100 text-indigo-700' }
     };
 
     return (
@@ -175,7 +176,7 @@ export default function ApprovalDashboardPage() {
             {/* Section cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
                 {kpiCards.map(card => {
-                    const a = accentMap[card.accent];
+                    const a = accentMap[card.accent] || accentMap['violet'];
                     const Icon = card.icon;
                     return (
                         <Link
