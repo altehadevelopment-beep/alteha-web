@@ -70,6 +70,8 @@ function printReceipt(p: any, actorName: string) {
         <div class="row"><div class="k">${p.direction === 'RECIBIDO' ? 'Beneficiario' : 'Pagador'}</div><div class="v">${actorName}</div></div>
         <div class="row"><div class="k">Contraparte</div><div class="v">${p.counterparty || 'Alteha'}</div></div>
         ${p.method ? `<div class="row"><div class="k">Método</div><div class="v">${METHOD_LABEL[p.method] || p.method}</div></div>` : ''}
+        ${p.guiaPay ? `<div class="row"><div class="k">Canal</div><div class="v"><span style="color:#2e86c1;font-weight:900">● guia<span style="font-weight:300">pay</span></span> — cambio ${p.guiaPay.fromCurrency} → ${p.guiaPay.toCurrency}</div></div>
+        <div class="row"><div class="k">Detalle del cambio</div><div class="v">${money(p.guiaPay.amountOrigin, p.guiaPay.fromCurrency === 'BS' ? 'Bs' : p.guiaPay.fromCurrency)} convertidos a tasa BCV ${Number(p.guiaPay.bcvRate || 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })} · gastos administrativos ${p.guiaPay.marginRate}%</div></div>` : ''}
         ${p.reference ? `<div class="row"><div class="k">Referencia</div><div class="v">${p.reference}</div></div>` : ''}
         ${p.note ? `<div class="row"><div class="k">Nota</div><div class="v">${p.note}</div></div>` : ''}
         <div class="row"><div class="k">Estado</div><div class="v">${STATUS_LABEL[p.status]?.label || p.status || '—'}</div></div>
@@ -109,7 +111,7 @@ export default function MyPayments() {
         const q = search.trim().toLowerCase();
         return items.filter(p =>
             (filter === 'ALL' || p.direction === filter) &&
-            (!q || `${p.concept} ${p.reference} ${p.receiptNumber} ${p.counterparty}`.toLowerCase().includes(q))
+            (!q || `${p.concept}{p.guiaPay ? <span className="ml-2 inline-flex items-center gap-1 align-middle px-2 py-0.5 rounded-md bg-indigo-50 text-[9px] font-black"><span className="w-1.5 h-1.5 rounded-full bg-[#2e86c1] inline-block" /><span className="lowercase tracking-tight font-light text-slate-700">guia<span className="text-[#2e86c1]">pay</span></span></span> : null} ${p.reference} ${p.receiptNumber} ${p.counterparty}`.toLowerCase().includes(q))
         );
     }, [items, filter, search]);
 
