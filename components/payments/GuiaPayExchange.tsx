@@ -218,7 +218,7 @@ export default function GuiaPayExchange({ role, auctionNumber, defaultAmount, me
                         {preview && (
                             <div className="bg-slate-800/60 rounded-xl p-4 space-y-1.5 text-sm font-bold">
                                 <div className="flex justify-between text-slate-300"><span>Conversión a tasa BCV</span><span className="text-white">{fmt(preview.gross, to)}</span></div>
-                                <div className="flex justify-between text-slate-300"><span>Servicio Guía Pay ({margin}%)</span><span className="text-white">− {fmt(preview.gain, to)}</span></div>
+                                <div className="flex justify-between text-slate-300"><span>Gastos administrativos ({margin}%)</span><span className="text-white">− {fmt(preview.gain, to)}</span></div>
                                 <div className="flex justify-between border-t border-white/10 pt-1.5"><span className="text-indigo-300 font-black">Recibirás</span><span className="text-indigo-300 font-black text-lg">{fmt(preview.target, to)}</span></div>
                             </div>
                         )}

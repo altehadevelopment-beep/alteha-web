@@ -106,7 +106,7 @@ export default function AdminExchangePage() {
             <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm p-8 flex flex-col md:flex-row md:items-end gap-5">
                 <div className="flex-1 space-y-1">
                     <p className="text-sm font-black text-slate-900 flex items-center gap-2">
-                        <Percent className="w-4 h-4 text-indigo-500" /> Margen de ganancia de Alteha
+                        <Percent className="w-4 h-4 text-indigo-500" /> Gastos administrativos (ganancia de Alteha)
                     </p>
                     <p className="text-xs text-slate-400 font-medium">
                         Porcentaje que se descuenta de cada conversión sobre la tasa BCV
@@ -163,7 +163,7 @@ export default function AdminExchangePage() {
                                             {op.auctionNumber ? ` · ${op.auctionNumber}` : ''} · {op.createdAt ? new Date(op.createdAt).toLocaleString('es-VE') : ''}
                                         </p>
                                         <p className="text-[11px] text-slate-400 font-medium mt-1">
-                                            Tasa BCV {Number(op.bcvRate || 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })} · margen {op.marginRate}% ·
+                                            Tasa BCV {Number(op.bcvRate || 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })} · gastos administrativos {op.marginRate}% ·
                                             ganancia Alteha <strong className="text-slate-600">{fmt(op.altehaGain, op.toCurrency)}</strong>
                                             {op.scheduledAt ? ` · programada para ${new Date(op.scheduledAt).toLocaleString('es-VE')}` : ''}
                                         </p>
