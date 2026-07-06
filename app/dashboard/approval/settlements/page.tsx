@@ -47,14 +47,36 @@ export default function SettlementsPage() {
     const [exchangeOps, setExchangeOps] = useState<any[]>([]);
     // Monto de los insumos adjudicados (para liquidar a la casa de salud)
     const [pharmacyAmount, setPharmacyAmount] = useState<number | null>(null);
+    // Desglose por actor + órdenes de liquidación ya registradas (subastas compartidas = varios pagos)
+    const [actorBreakdown, setActorBreakdown] = useState<any>(null);
+    const [settlementOrders, setSettlementOrders] = useState<any[]>([]);
+
+    const loadSettlementStatus = (auctionNumber: string) => {
+        fetch(`/api/commissions/auction/${auctionNumber}`)
+            .then(r => r.json())
+            .then(d => {
+                setActorBreakdown(d || null);
+                setPharmacyAmount(d?.pharmacyAmount != null ? Number(d.pharmacyAmount) : null);
+            })
+            .catch(() => { setActorBreakdown(null); setPharmacyAmount(null); });
+        fetch(`/api/commissions/auction/${auctionNumber}/settlements`)
+            .then(r => r.json())
+            .then(d => setSettlementOrders(Array.isArray(d) ? d : []))
+            .catch(() => setSettlementOrders([]));
+    };
 
     useEffect(() => {
-        if (!settlementAuction?.auctionNumber) { setPharmacyAmount(null); return; }
-        fetch(`/api/commissions/auction/${settlementAuction.auctionNumber}`)
-            .then(r => r.json())
-            .then(d => setPharmacyAmount(d?.pharmacyAmount != null ? Number(d.pharmacyAmount) : null))
-            .catch(() => setPharmacyAmount(null));
+        if (!settlementAuction?.auctionNumber) { setPharmacyAmount(null); setActorBreakdown(null); setSettlementOrders([]); return; }
+        loadSettlementStatus(settlementAuction.auctionNumber);
     }, [settlementAuction?.auctionNumber]);
+
+    // Estado de pago por actor: requerido (desglose) vs pagado (órdenes PAID)
+    const actorStatus = (role: 'DOCTOR' | 'CLINIC' | 'PHARMACY') => {
+        const amt = role === 'DOCTOR' ? actorBreakdown?.doctorAmount : role === 'CLINIC' ? actorBreakdown?.clinicAmount : actorBreakdown?.pharmacyAmount;
+        if (!(Number(amt) > 0)) return null; // este actor no cobra en esta subasta
+        const paid = settlementOrders.some(o => o.payeeRole === role && o.status === 'PAID');
+        return { amount: Number(amt), paid };
+    };
     // Método de pago que corresponde a cada moneda destino de GuiaPay
     const GUIAPAY_METHOD: Record<string, string> = { BS: 'BS_BANK_TRANSFER', USDT: 'BINANCE_PAY', USD: 'USD_ACH' };
     // Última operación por rol (dedupe: /exchange/all viene ordenado por fecha desc)
@@ -201,10 +223,33 @@ export default function SettlementsPage() {
             setIsLoading(true);
             try {
                 const result = await getAllAuctions('COMPLETED,PENDING_SETTLEMENT', 0, 50, 'updatedAt,desc');
+                let list: any[] = [];
                 if (result.code === '00' && result.data) {
                     const content = (result.data as any).content || result.data;
-                    setCompletedAuctions(Array.isArray(content) ? content : []);
+                    list = Array.isArray(content) ? content : [];
                 }
+
+                // Liquidación anticipada de la casa de salud: subastas aún PAGADAS (sin
+                // finiquito) cuya orden de entrega ya fue aprobada por Alteha
+                try {
+                    const token = localStorage.getItem('id_token');
+                    const dispatches = await window.fetch('/api/dispatch-orders/all', { headers: { 'X-Alteha-Token': token || '' } }).then(r => r.json());
+                    const approvedNums = new Set(
+                        (Array.isArray(dispatches) ? dispatches : [])
+                            .filter((d: any) => d.status === 'APPROVED')
+                            .map((d: any) => d.auctionNumber)
+                    );
+                    const missing = [...approvedNums].filter(n => !list.some((a: any) => a.auctionNumber === n));
+                    if (missing.length) {
+                        const paidRes = await getAllAuctions('PAID', 0, 50, 'updatedAt,desc');
+                        const paidContent = (paidRes as any)?.data?.content || (paidRes as any)?.data || [];
+                        (Array.isArray(paidContent) ? paidContent : [])
+                            .filter((a: any) => missing.includes(a.auctionNumber))
+                            .forEach((a: any) => list.push({ ...a, casaEarly: true }));
+                    }
+                } catch { /* la lista principal funciona igual */ }
+
+                setCompletedAuctions(list);
             } catch (err) {
                 console.error('Error loading settlements:', err);
             } finally {
@@ -252,6 +297,7 @@ export default function SettlementsPage() {
             const res = await registerSettlement(payload, settlementProof);
             if (res.code === '00') {
                 setSuccess(true);
+                if (settlementAuction?.auctionNumber) loadSettlementStatus(settlementAuction.auctionNumber);
                 setCompletedAuctions(prev => prev.map(a =>
                     a.auctionNumber === settlementAuction.auctionNumber ? { ...a, status: 'PENDING_SETTLEMENT' } : a
                 ));
@@ -321,6 +367,7 @@ export default function SettlementsPage() {
                     <div className="flex flex-col gap-4">
                         {completedAuctions.map(auction => {
                             const isPending = auction.status === 'PENDING_SETTLEMENT';
+                            const casaEarly = (auction as any).casaEarly === true;
                             return (
                                 <div key={auction.id} className="bg-slate-50 rounded-2xl p-5 border border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                                     <div className="flex items-center gap-4">
@@ -331,8 +378,8 @@ export default function SettlementsPage() {
                                             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{auction.auctionNumber}</p>
                                             <p className="font-bold text-slate-900 text-sm">{auction.title}</p>
                                             <div className="flex items-center gap-2 mt-1">
-                                                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${isPending ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                                                    {isPending ? 'ESPERANDO CONFIRMACIÓN' : 'COMPLETADA'}
+                                                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${casaEarly ? 'bg-indigo-100 text-indigo-700' : isPending ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                                                    {casaEarly ? 'CASA DE SALUD POR LIQUIDAR (PRE-FINIQUITO)' : isPending ? 'ESPERANDO CONFIRMACIÓN' : 'COMPLETADA'}
                                                 </span>
                                                 {auction.awardedBid?.bidAmount && (
                                                     <span className="text-xs font-bold text-slate-400">
@@ -342,15 +389,12 @@ export default function SettlementsPage() {
                                             </div>
                                         </div>
                                     </div>
-                                    {isPending ? (
-                                        <div className="w-full sm:w-auto px-5 py-2.5 bg-amber-50 text-amber-600 border border-amber-200 rounded-xl font-bold text-sm flex items-center justify-center gap-2">
-                                            <Clock className="w-4 h-4" /> Esperando Confirmación
-                                        </div>
-                                    ) : (
-                                        <button onClick={() => openModal(auction)} className="w-full sm:w-auto px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors shadow-md">
-                                            <DollarSign className="w-4 h-4" /> Registrar Liquidación
-                                        </button>
-                                    )}
+                                    <button
+                                        onClick={() => { openModal(auction); if (casaEarly) setTimeout(() => setSettlementForm(p => ({ ...p, recipientRole: 'PHARMACY' as any })), 0); }}
+                                        className={`w-full sm:w-auto px-5 py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors shadow-md ${casaEarly ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : isPending ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'bg-emerald-600 hover:bg-emerald-700 text-white'}`}
+                                    >
+                                        <DollarSign className="w-4 h-4" /> {casaEarly ? 'Liquidar casa de salud' : isPending ? 'Liquidar actores pendientes' : 'Registrar Liquidación'}
+                                    </button>
                                 </div>
                             );
                         })}
@@ -459,6 +503,31 @@ export default function SettlementsPage() {
                                         <p className="text-sm font-bold text-slate-900">{settlementAuction.title}</p>
                                     </div>
                                 </div>
+
+                                {/* Subastas compartidas: estado de pago por actor (médico + clínica + casa) */}
+                                {actorBreakdown && (
+                                    <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 space-y-2">
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Liquidaciones de esta subasta</p>
+                                        {(['DOCTOR', 'CLINIC', 'PHARMACY'] as const).map(r => {
+                                            const st = actorStatus(r);
+                                            if (!st) return null;
+                                            const label = r === 'DOCTOR' ? 'Médico' : r === 'CLINIC' ? 'Clínica' : `Casa de Salud${actorBreakdown?.pharmacyName ? ` (${actorBreakdown.pharmacyName})` : ''}`;
+                                            return (
+                                                <button
+                                                    key={r}
+                                                    type="button"
+                                                    onClick={() => !st.paid && setSettlementForm(p => ({ ...p, recipientRole: r as any }))}
+                                                    className={`w-full flex items-center justify-between gap-3 rounded-xl px-4 py-2.5 text-sm font-bold transition-all ${st.paid ? 'bg-emerald-50 text-emerald-700 cursor-default' : (settlementForm.recipientRole === r ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:border-slate-300 cursor-pointer')}`}
+                                                >
+                                                    <span>{label} — ${st.amount.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</span>
+                                                    <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md ${st.paid ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                                                        {st.paid ? 'Pagado ✓' : (settlementForm.recipientRole === r ? 'Liquidando…' : 'Pendiente — clic para liquidar')}
+                                                    </span>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                )}
 
                                 {/* GuiaPay: el destinatario pidió cobrar en otra moneda — el pago debe ejecutarse en esa moneda */}
                                 {Object.values(guiaPayByRole).map((op: any) => {
