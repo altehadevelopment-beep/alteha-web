@@ -33,7 +33,7 @@ export default function GuiaPayExchange({ role, auctionNumber, defaultAmount, me
     const [open, setOpen] = useState(false);
     const [from, setFrom] = useState<string>('');
     const [to, setTo] = useState<string>('');
-    const [amount, setAmount] = useState<string>(defaultAmount ? String(defaultAmount) : '');
+    const [amount, setAmount] = useState<string>('');
     const [sending, setSending] = useState(false);
     const [done, setDone] = useState<any>(null);
     const [error, setError] = useState<string | null>(null);
@@ -50,12 +50,16 @@ export default function GuiaPayExchange({ role, auctionNumber, defaultAmount, me
         return () => window.removeEventListener('guiapay:open', openIt);
     }, []);
 
-    // El monto por defecto (lo que cobra el ganador) llega asíncrono: precargarlo si el campo está vacío
+    // El monto de la subasta está en USD; precargar el campo en la MONEDA DE ORIGEN
+    // (si recibes en Bs por transferencia, lo que llega es USD × tasa BCV).
+    const [amountTouched, setAmountTouched] = useState(false);
     useEffect(() => {
-        if (defaultAmount && defaultAmount > 0) {
-            setAmount(prev => (prev ? prev : String(defaultAmount)));
-        }
-    }, [defaultAmount]);
+        if (amountTouched || !defaultAmount || defaultAmount <= 0 || !from) return;
+        const bcvNow = Number(cfg?.bcvRate) || 0;
+        if (from === 'BS' && bcvNow <= 0) return; // esperar la tasa para convertir
+        const val = from === 'BS' ? defaultAmount * bcvNow : defaultAmount;
+        setAmount(String(Math.round(val * 100) / 100));
+    }, [defaultAmount, from, cfg, amountTouched]);
 
     useEffect(() => {
         const token = localStorage.getItem('id_token');
@@ -199,10 +203,15 @@ export default function GuiaPayExchange({ role, auctionNumber, defaultAmount, me
                                     type="number"
                                     min="0"
                                     value={amount}
-                                    onChange={e => setAmount(e.target.value)}
+                                    onChange={e => { setAmountTouched(true); setAmount(e.target.value); }}
                                     placeholder="0.00"
                                     className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3 font-black text-white outline-none focus:border-indigo-400"
                                 />
+                                {defaultAmount ? (
+                                    <p className="text-[10px] font-bold text-slate-500">
+                                        Equivale a lo que cobras de la subasta (${Number(defaultAmount).toLocaleString('es-VE', { minimumFractionDigits: 2 })}{from === 'BS' ? ' convertidos a Bs por tasa BCV' : ''}).
+                                    </p>
+                                ) : null}
                             </div>
                         </div>
 
