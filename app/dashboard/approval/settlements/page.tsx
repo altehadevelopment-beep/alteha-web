@@ -49,6 +49,28 @@ export default function SettlementsPage() {
     const [pharmacyAmount, setPharmacyAmount] = useState<number | null>(null);
     // Desglose por actor + órdenes de liquidación ya registradas (subastas compartidas = varios pagos)
     const [actorBreakdown, setActorBreakdown] = useState<any>(null);
+    // Por fila de la lista: a quién se está esperando (nombre + foto/logo por actor sin liquidar)
+    const [pendingByAuction, setPendingByAuction] = useState<Record<string, { role: string; name: string; image?: string | null }[]>>({});
+
+    const loadPendingActors = async (nums: string[]) => {
+        const entries = await Promise.all(nums.map(async (num) => {
+            try {
+                const [bd, orders] = await Promise.all([
+                    window.fetch(`/api/commissions/auction/${num}`).then(r => r.json()),
+                    window.fetch(`/api/commissions/auction/${num}/settlements`).then(r => r.json()),
+                ]);
+                const paidRoles = new Set((Array.isArray(orders) ? orders : []).filter((o: any) => o.status === 'PAID').map((o: any) => o.payeeRole));
+                const pend: { role: string; name: string; image?: string | null }[] = [];
+                if (Number(bd?.doctorAmount) > 0 && !paidRoles.has('DOCTOR')) pend.push({ role: 'Médico', name: bd?.doctorName || 'Médico', image: bd?.doctorPhoto });
+                if (Number(bd?.clinicAmount) > 0 && !paidRoles.has('CLINIC')) pend.push({ role: 'Clínica', name: bd?.clinicName || 'Clínica', image: bd?.clinicLogo });
+                if (Number(bd?.pharmacyAmount) > 0 && !paidRoles.has('PHARMACY')) pend.push({ role: 'Casa de Salud', name: bd?.pharmacyName || 'Casa de Salud', image: bd?.pharmacyLogo });
+                return [num, pend] as const;
+            } catch {
+                return [num, []] as const;
+            }
+        }));
+        setPendingByAuction(prev => ({ ...prev, ...Object.fromEntries(entries) }));
+    };
     const [settlementOrders, setSettlementOrders] = useState<any[]>([]);
 
     const loadSettlementStatus = (auctionNumber: string) => {
@@ -250,6 +272,7 @@ export default function SettlementsPage() {
                 } catch { /* la lista principal funciona igual */ }
 
                 setCompletedAuctions(list);
+                loadPendingActors(list.filter((a: any) => a.status === 'PENDING_SETTLEMENT' || a.casaEarly).map((a: any) => a.auctionNumber));
             } catch (err) {
                 console.error('Error loading settlements:', err);
             } finally {
@@ -381,6 +404,23 @@ export default function SettlementsPage() {
                                                 <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${casaEarly ? 'bg-indigo-100 text-indigo-700' : isPending ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
                                                     {casaEarly ? 'CASA DE SALUD POR LIQUIDAR (PRE-FINIQUITO)' : isPending ? 'ESPERANDO CONFIRMACIÓN' : 'COMPLETADA'}
                                                 </span>
+                                                {(isPending || casaEarly) && (pendingByAuction[auction.auctionNumber] || []).length > 0 && (
+                                                    <span className="inline-flex items-center gap-2 flex-wrap">
+                                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Esperando a:</span>
+                                                        {(pendingByAuction[auction.auctionNumber] || []).map((p, i) => (
+                                                            <span key={i} className="inline-flex items-center gap-1.5 bg-white border border-amber-200 rounded-full pl-1 pr-3 py-0.5" title={p.role}>
+                                                                {p.image && String(p.image).startsWith('http') ? (
+                                                                    <img src={p.image} alt="" className="w-5 h-5 rounded-full object-cover border border-slate-100" />
+                                                                ) : (
+                                                                    <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-700 text-[9px] font-black flex items-center justify-center">
+                                                                        {p.name.charAt(0).toUpperCase()}
+                                                                    </span>
+                                                                )}
+                                                                <span className="text-[11px] font-black text-slate-700">{p.name}</span>
+                                                            </span>
+                                                        ))}
+                                                    </span>
+                                                )}
                                                 {auction.awardedBid?.bidAmount && (
                                                     <span className="text-xs font-bold text-slate-400">
                                                         ${Number(auction.awardedBid.bidAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
