@@ -52,6 +52,25 @@ export const WinnerSettlementSection: React.FC<WinnerSettlementSectionProps> = (
     const [isSuccess, setIsSuccess] = useState(false);
     const [winningBid, setWinningBid] = useState<any>(null);
     const [dupla, setDupla] = useState<any>(null);
+    // Operación de cambio GuiaPay activa del actor para ESTA subasta:
+    // si existe, el cobro llega por GuiaPay y el finiquito se habilita aunque
+    // no tenga el método de pago que exige el seguro.
+    const [guiaPayOp, setGuiaPayOp] = useState<any>(null);
+
+    useEffect(() => {
+        const token = localStorage.getItem('id_token');
+        fetch(`/api/exchange/mine?role=${role}`, { headers: { 'X-Alteha-Token': token || '' } })
+            .then(r => r.json())
+            .then(d => {
+                const list = Array.isArray(d) ? d : [];
+                const op = list.find((o: any) =>
+                    o.auctionNumber === auction.auctionNumber &&
+                    (o.status === 'REQUESTED' || o.status === 'SCHEDULED')
+                );
+                setGuiaPayOp(op || null);
+            })
+            .catch(() => setGuiaPayOp(null));
+    }, [auction.auctionNumber, role]);
 
     // Load the winning bid (modality + amount) and, for SOLO_MEDICO, the clinic's separate fee (dupla).
     useEffect(() => {
@@ -334,7 +353,31 @@ export const WinnerSettlementSection: React.FC<WinnerSettlementSectionProps> = (
 
                 {auction.status === 'PAID' ? (
                     <div className="space-y-6">
-                        {paymentMethods.length === 0 || methodsError ? (
+                        {/* Con una operación GuiaPay activa, el cobro llega por esa vía: el finiquito queda habilitado */}
+                        {guiaPayOp && (
+                            <div className="bg-indigo-500/10 border border-indigo-400/30 rounded-[2rem] p-6 space-y-2">
+                                <div className="flex items-center justify-between gap-3 flex-wrap">
+                                    <span className="inline-flex items-center gap-1">
+                                        <span className="w-2.5 h-2.5 rounded-full bg-[#2e86c1] inline-block translate-y-[1px]" />
+                                        <span className="text-lg font-light lowercase tracking-tight leading-none">
+                                            <span className="text-white">guia</span><span className="text-[#2e86c1]">pay</span>
+                                        </span>
+                                    </span>
+                                    <span className="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-indigo-400/20 text-indigo-300">
+                                        Cobro en {guiaPayOp.toCurrency === 'BS' ? 'Bs' : guiaPayOp.toCurrency} vía GuíaPay
+                                    </span>
+                                </div>
+                                <p className="text-sm text-slate-300 font-medium">
+                                    Solicitaste recibir tus fondos por GuíaPay: cobrarás{' '}
+                                    <strong className="text-white">
+                                        {guiaPayOp.toCurrency === 'BS' ? 'Bs ' : guiaPayOp.toCurrency === 'USDT' ? '₮ ' : '$'}
+                                        {Number(guiaPayOp.amountTarget || 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                                    </strong>{' '}
+                                    (descontados los gastos administrativos) en tu método de cobro configurado. Puedes subir el acta de finiquito sin el método que exige el seguro.
+                                </p>
+                            </div>
+                        )}
+                        {(paymentMethods.length === 0 || methodsError) && !guiaPayOp ? (
                             <div className="bg-white/5 border border-white/10 rounded-[2rem] p-8 text-center space-y-3">
                                 <AlertCircle className="w-8 h-8 text-amber-500/80 mx-auto" />
                                 <p className="text-sm font-medium text-slate-300">
