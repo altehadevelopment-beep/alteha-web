@@ -95,9 +95,12 @@ export default function GuiaPayExchange({ role, auctionNumber, defaultAmount, me
         `${cur === 'BS' ? 'Bs ' : cur === 'USDT' ? '₮ ' : '$'}${n.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
     const planPath = role === 'CLINIC' ? '/dashboard/clinic/plan' : '/dashboard/specialist/plan';
+    const cobroPath = role === 'CLINIC' ? '/dashboard/clinic/payments' : role === 'PHARMACY' ? '/dashboard/provider/payments' : '/dashboard/specialist/payments';
+    const [needsMethod, setNeedsMethod] = useState<string | null>(null);
 
     const submit = async () => {
         setError(null);
+        setNeedsMethod(null);
         setSending(true);
         try {
             const token = localStorage.getItem('id_token');
@@ -120,6 +123,8 @@ export default function GuiaPayExchange({ role, auctionNumber, defaultAmount, me
                 setMyOps(prev => [data.data, ...prev]);
             } else if (msg.includes('PLAN_LIMIT')) {
                 setShowUpgrade(true);
+            } else if (msg.includes('METODO_COBRO')) {
+                setNeedsMethod(msg.replace('METODO_COBRO:', '').trim());
             } else {
                 setError(msg || 'No se pudo solicitar la operación');
             }
@@ -224,6 +229,17 @@ export default function GuiaPayExchange({ role, auctionNumber, defaultAmount, me
                         )}
 
                         {error && <p className="text-sm font-bold text-red-400">{error}</p>}
+                        {needsMethod && (
+                            <div className="bg-amber-500/10 border border-amber-400/20 rounded-2xl p-5 space-y-3">
+                                <p className="text-sm font-bold text-amber-300">{needsMethod}</p>
+                                <Link
+                                    href={cobroPath}
+                                    className="inline-flex items-center gap-2 px-6 py-3 bg-amber-400 text-amber-950 rounded-xl font-black text-xs uppercase tracking-widest hover:scale-105 transition-all"
+                                >
+                                    Configurar Métodos de Cobro
+                                </Link>
+                            </div>
+                        )}
 
                         <div className="flex gap-3">
                             <button

@@ -43,6 +43,8 @@ export default function SettlementsPage() {
     const [dupla, setDupla] = useState<any>(null);
     // Intervenciones de paquetes ejecutadas (con finiquito) pendientes de liquidar
     const [pkgRedemptions, setPkgRedemptions] = useState<PackageRedemptionItem[]>([]);
+    // Operaciones de cambio GuiaPay activas de la subasta abierta
+    const [exchangeOps, setExchangeOps] = useState<any[]>([]);
     const [settlingId, setSettlingId] = useState<number | null>(null);
 
     const loadPkgRedemptions = async () => {
@@ -59,6 +61,22 @@ export default function SettlementsPage() {
             else alert(res?.message || 'No se pudo liquidar.');
         } finally { setSettlingId(null); }
     };
+
+    // Operaciones GuiaPay activas de la subasta abierta: marcan la moneda en la que debe ejecutarse el pago
+    useEffect(() => {
+        if (!settlementAuction?.auctionNumber) { setExchangeOps([]); return; }
+        const token = localStorage.getItem('id_token');
+        fetch('/api/exchange/all', { headers: { 'X-Alteha-Token': token || '' } })
+            .then(r => r.json())
+            .then(d => {
+                const list = Array.isArray(d) ? d : [];
+                setExchangeOps(list.filter((o: any) =>
+                    o.auctionNumber === settlementAuction.auctionNumber &&
+                    (o.status === 'REQUESTED' || o.status === 'SCHEDULED')
+                ));
+            })
+            .catch(() => setExchangeOps([]));
+    }, [settlementAuction?.auctionNumber]);
 
     // Al abrir el modal, carga la oferta ganadora y (si es dupla) la parte de la clínica
     useEffect(() => {
@@ -413,6 +431,36 @@ export default function SettlementsPage() {
                                         <p className="text-sm font-bold text-slate-900">{settlementAuction.title}</p>
                                     </div>
                                 </div>
+
+                                {/* GuiaPay: el destinatario pidió cobrar en otra moneda — el pago debe ejecutarse en esa moneda */}
+                                {exchangeOps.map((op: any) => {
+                                    const roleLabel = op.actorRole === 'CLINIC' ? 'La clínica' : op.actorRole === 'PHARMACY' ? 'La casa de salud' : 'El médico';
+                                    const cur = (c: string) => c === 'BS' ? 'Bs' : c;
+                                    const money = (n: any, c: string) => `${c === 'BS' ? 'Bs ' : c === 'USDT' ? '₮ ' : '$'}${Number(n || 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`;
+                                    const matchesRecipient = op.actorRole === settlementForm.recipientRole;
+                                    return (
+                                        <div key={op.id} className={`rounded-2xl p-5 border-2 space-y-2 ${matchesRecipient ? 'bg-indigo-950 border-indigo-400' : 'bg-indigo-50 border-indigo-100'}`}>
+                                            <div className="flex items-center justify-between gap-3 flex-wrap">
+                                                <span className="inline-flex items-center gap-1">
+                                                    <span className="w-2.5 h-2.5 rounded-full bg-[#2e86c1] inline-block translate-y-[1px]" />
+                                                    <span className="text-lg font-light lowercase tracking-tight leading-none">
+                                                        <span className={matchesRecipient ? 'text-white' : 'text-slate-800'}>guia</span><span className="text-[#2e86c1]">pay</span>
+                                                    </span>
+                                                </span>
+                                                <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${matchesRecipient ? 'bg-amber-400 text-amber-950 animate-pulse' : 'bg-indigo-100 text-indigo-600'}`}>
+                                                    Ejecutar el pago en {cur(op.toCurrency)}
+                                                </span>
+                                            </div>
+                                            <p className={`text-sm font-bold ${matchesRecipient ? 'text-white' : 'text-slate-700'}`}>
+                                                {roleLabel} ({op.actorEmail}) solicitó cobrar por GuíaPay en <strong>{cur(op.toCurrency)}</strong>:
+                                                debe recibir <strong>{money(op.amountTarget, op.toCurrency)}</strong> por sus {money(op.amountOrigin, op.fromCurrency)}.
+                                            </p>
+                                            <p className={`text-[11px] font-medium ${matchesRecipient ? 'text-indigo-200' : 'text-slate-400'}`}>
+                                                Tasa BCV {Number(op.bcvRate || 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })} · gastos administrativos {op.marginRate}% (ganancia Alteha {money(op.altehaGain, op.toCurrency)}) · estado: {op.status === 'SCHEDULED' ? 'programada' : 'solicitada'}
+                                            </p>
+                                        </div>
+                                    );
+                                })}
 
                                 {/* Fila 1: a quién y por qué método */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

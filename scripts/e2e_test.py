@@ -582,14 +582,22 @@ def main():
     quote_ok = abs(float(q.get('amountTarget') or 0) - expected) < 0.05
     check('M2', 'Cotización USD→BS usa tasa BCV y margen', quote_ok, f"target={q.get('amountTarget')} esperado={expected}")
 
-    # El médico (plan Élite) puede solicitar la operación
+    # Sin método de cobro en la moneda destino, la solicitud se rechaza
     st, r = http('POST', f'{FRONT}/api/exchange/request',
-                 {'role': 'DOCTOR', 'fromCurrency': 'USD', 'toCurrency': 'USDT', 'amount': 300,
-                  'methodType': 'USD_ACH', 'auctionNumber': a3_no},
+                 {'role': 'DOCTOR', 'fromCurrency': 'USD', 'toCurrency': 'USDT', 'amount': 300},
                  {'X-Alteha-Token': tok_doc})
+    msgM2 = str((r or {}).get('message', ''))
+    check('M2b', 'Sin método de cobro en la moneda destino: rechazado (METODO_COBRO)',
+          'METODO_COBRO' in msgM2, msgM2[:120])
+
+    # La clínica (plan Élite, con Transferencia BS activa) sí puede solicitar USD→BS
+    st, r = http('POST', f'{FRONT}/api/exchange/request',
+                 {'role': 'CLINIC', 'fromCurrency': 'USD', 'toCurrency': 'BS', 'amount': 300,
+                  'methodType': 'BS_BANK_TRANSFER', 'auctionNumber': a3_no},
+                 {'X-Alteha-Token': tok_cli})
     op = unwrap(r)
     op_id = op.get('id')
-    check('M3', 'Médico con plan Élite solicita cambio USD→USDT', bool(op_id) and op.get('status') == 'REQUESTED', str(r)[:160])
+    check('M3', 'Clínica Élite con método en Bs solicita cambio USD→BS', bool(op_id) and op.get('status') == 'REQUESTED', str(r)[:160])
 
     # La casa de salud sin plan Expansión/Élite es invitada a mejorar (PLAN_LIMIT)
     st, r = http('POST', f'{FRONT}/api/exchange/request',
