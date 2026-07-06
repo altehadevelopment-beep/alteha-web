@@ -45,6 +45,16 @@ export default function SettlementsPage() {
     const [pkgRedemptions, setPkgRedemptions] = useState<PackageRedemptionItem[]>([]);
     // Operaciones de cambio GuiaPay activas de la subasta abierta
     const [exchangeOps, setExchangeOps] = useState<any[]>([]);
+    // Monto de los insumos adjudicados (para liquidar a la casa de salud)
+    const [pharmacyAmount, setPharmacyAmount] = useState<number | null>(null);
+
+    useEffect(() => {
+        if (!settlementAuction?.auctionNumber) { setPharmacyAmount(null); return; }
+        fetch(`/api/commissions/auction/${settlementAuction.auctionNumber}`)
+            .then(r => r.json())
+            .then(d => setPharmacyAmount(d?.pharmacyAmount != null ? Number(d.pharmacyAmount) : null))
+            .catch(() => setPharmacyAmount(null));
+    }, [settlementAuction?.auctionNumber]);
     // Método de pago que corresponde a cada moneda destino de GuiaPay
     const GUIAPAY_METHOD: Record<string, string> = { BS: 'BS_BANK_TRANSFER', USDT: 'BINANCE_PAY', USD: 'USD_ACH' };
     // Última operación por rol (dedupe: /exchange/all viene ordenado por fecha desc)
@@ -117,6 +127,7 @@ export default function SettlementsPage() {
 
     // Monto que corresponde según destinatario + modalidad de la oferta ganadora
     const suggestedAmount = (role: string | undefined): number | null => {
+        if (role === 'PHARMACY') return pharmacyAmount ?? null;
         if (!winningBid) return null;
         const bidAmount = Number(winningBid.bidAmount ?? 0);
         if (winningBid.modality === 'SOLO_MEDICO') {
@@ -148,7 +159,7 @@ export default function SettlementsPage() {
         const amt = suggestedAmount(settlementForm.recipientRole);
         if (amt != null) setSettlementForm(p => ({ ...p, amount: amt }));
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [winningBid, dupla, settlementForm.recipientRole, exchangeOps]);
+    }, [winningBid, dupla, settlementForm.recipientRole, exchangeOps, pharmacyAmount]);
 
     // Al abrir el modal (o cambiar el destinatario) trae solo los métodos registrados por ese destinatario
     useEffect(() => {

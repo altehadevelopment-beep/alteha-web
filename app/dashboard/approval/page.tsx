@@ -89,6 +89,14 @@ export default function ApprovalDashboardPage() {
             ]
         },
         {
+            title: 'Validación de Entregas',
+            description: 'Aprueba las órdenes de entrega de las casas de salud para liberar sus pagos.',
+            href: '/dashboard/approval/deliveries',
+            icon: CheckCircle2,
+            accent: 'emerald',
+            metrics: []
+        },
+        {
             title: 'Operaciones de Cambio',
             description: 'Guía Pay: programa pagos en Bs/USD/USDT y configura el margen de Alteha.',
             href: '/dashboard/approval/exchange',

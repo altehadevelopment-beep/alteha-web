@@ -562,6 +562,32 @@ def main():
     check('L7b', 'Comisión sobre médico+insumos y total del pago correcto',
           base_ok and total_ok, f"base={comm.get('baseAmount')} esperado={420 + float(ph_amount or 0)} total={comm.get('total')}")
 
+    # La adjudicación con casa de salud emite la ORDEN DE DESPACHO (destinatario = dueño de la oferta)
+    st, r = http('GET', f'{FRONT}/api/dispatch-orders/mine', headers={'X-Alteha-Token': tok_far})
+    dispatches = r if isinstance(r, list) else []
+    dsp = next((d for d in dispatches if d.get('auctionNumber') == a3_no), None)
+    check('L9', 'Orden de despacho emitida a la casa (despacho al médico dueño de la oferta)',
+          bool(dsp) and dsp.get('status') == 'PENDING_DISPATCH' and dsp.get('recipientRole') == 'DOCTOR',
+          f"status={dsp.get('status') if dsp else None} dest={dsp.get('recipientRole') if dsp else None}")
+
+    # La casa carga la orden de entrega firmada (multipart) → queda en validación
+    if dsp:
+        png_dsp = bytes.fromhex('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d4944415478da63fcffff3f03000501010d0a2db40000000049454e44ae426082')
+        st, r = http('POST', f'{FRONT}/api/dispatch-orders/{dsp["id"]}/delivery', headers={'X-Alteha-Token': tok_far},
+                     form={'proof': ('entrega.png', png_dsp, 'image/png'), 'notes': 'Entregado E2E'})
+        check('L10', 'Casa de salud carga la orden de entrega (en validación)',
+              unwrap(r).get('status') == 'DELIVERY_REPORTED', str(r)[:140])
+
+        # Alteha aprueba la entrega → se libera la liquidación PENDIENTE de la casa
+        tok_admD = actor_login('test.admin@alteha.com', 'Test2026*', 'ADMIN')
+        st, r = http('POST', f'{FRONT}/api/dispatch-orders/{dsp["id"]}/review',
+                     {'approved': True, 'notes': 'Entrega conforme E2E'}, {'X-Alteha-Token': tok_admD})
+        check('L11', 'Alteha aprueba la entrega y libera la liquidación de la casa',
+              unwrap(r).get('status') == 'APPROVED', str(r)[:140])
+    else:
+        check('L10', 'Casa de salud carga la orden de entrega (en validación)', False, 'sin orden de despacho')
+        check('L11', 'Alteha aprueba la entrega y libera la liquidación de la casa', False, 'sin orden de despacho')
+
     # Mis ofertas de la casa de salud registran la oferta
     st, r = http('GET', f'{FRONT}/api/pharmacy-auctions/my-bids', headers={'X-Alteha-Token': tok_far})
     mybids = r if isinstance(r, list) else []
