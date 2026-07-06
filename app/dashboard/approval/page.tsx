@@ -89,6 +89,14 @@ export default function ApprovalDashboardPage() {
             ]
         },
         {
+            title: 'Operaciones de Cambio',
+            description: 'Guía Pay: programa pagos en Bs/USD/USDT y configura el margen de Alteha.',
+            href: '/dashboard/approval/exchange',
+            icon: Banknote,
+            accent: 'indigo',
+            metrics: []
+        },
+        {
             title: 'Validación de Médicos',
             description: 'Aprueba o rechaza médicos en proceso de verificación.',
             href: '/dashboard/approval/doctors',

@@ -2,6 +2,7 @@
 
 import React from 'react';
 import PaymentMethodsManager from '@/components/dashboard/PaymentMethodsManager';
+import GuiaPayExchange from '@/components/payments/GuiaPayExchange';
 
 export default function ProviderPaymentsPage() {
     return (
@@ -14,6 +15,9 @@ export default function ProviderPaymentsPage() {
             <div className="bg-white rounded-[3rem] border border-slate-100 shadow-sm p-10">
                 <PaymentMethodsManager role="PHARMACY" />
             </div>
+
+            {/* Guía Pay: convertir los cobros por insumos a otra moneda */}
+            <GuiaPayExchange role="PHARMACY" />
         </div>
     );
 }

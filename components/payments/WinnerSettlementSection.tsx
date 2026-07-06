@@ -25,6 +25,7 @@ import {
     type PaymentMethod
 } from '@/lib/api';
 import { Star, FileText, ExternalLink } from 'lucide-react';
+import GuiaPayExchange from '@/components/payments/GuiaPayExchange';
 
 interface WinnerSettlementSectionProps {
     auction: any;
@@ -388,6 +389,14 @@ export const WinnerSettlementSection: React.FC<WinnerSettlementSectionProps> = (
             </div>
             )}
             </div>
+
+            {/* Guía Pay: cambio de moneda al recibir los fondos (requiere plan Expansión/Élite) */}
+            <GuiaPayExchange
+                role={role}
+                auctionNumber={auction.auctionNumber}
+                defaultAmount={role === 'DOCTOR' ? (wbAmount || null) : (clinicSep ?? null)}
+                methodType={paymentMethods[0]?.methodType || null}
+            />
         </div>
     );
 };

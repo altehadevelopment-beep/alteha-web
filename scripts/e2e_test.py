@@ -567,6 +567,58 @@ def main():
     mybids = r if isinstance(r, list) else []
     check('L8', 'Mis ofertas de la casa de salud', any(str(b.get('id')) == str(ph_bid) for b in mybids), f'{len(mybids)} ofertas')
 
+    # ═══ M. GUÍA PAY: OPERACIÓN DE CAMBIO DE MONEDA ═══
+    section("M. Guía Pay (cambio de moneda)")
+    st, r = http('GET', f'{FRONT}/api/exchange/config', headers={'X-Alteha-Token': tok_doc})
+    cfg_ok = isinstance(r, dict) and r.get('marginRate') is not None and float(r.get('bcvRate') or 0) > 0
+    check('M1', 'Config de Guía Pay (tasa BCV + margen + monedas)', st == 200 and cfg_ok, str(r)[:140])
+    bcv = float(r.get('bcvRate') or 0); marg = float(r.get('marginRate') or 0)
+
+    # Cotización USD→BS coincide con BCV + margen
+    st, r = http('POST', f'{FRONT}/api/exchange/quote', {'fromCurrency': 'USD', 'toCurrency': 'BS', 'amount': 100},
+                 {'X-Alteha-Token': tok_doc})
+    q = unwrap(r)
+    expected = round(100 * bcv, 2) - round(100 * bcv * marg) / 100
+    quote_ok = abs(float(q.get('amountTarget') or 0) - expected) < 0.05
+    check('M2', 'Cotización USD→BS usa tasa BCV y margen', quote_ok, f"target={q.get('amountTarget')} esperado={expected}")
+
+    # El médico (plan Élite) puede solicitar la operación
+    st, r = http('POST', f'{FRONT}/api/exchange/request',
+                 {'role': 'DOCTOR', 'fromCurrency': 'USD', 'toCurrency': 'USDT', 'amount': 300,
+                  'methodType': 'USD_ACH', 'auctionNumber': a3_no},
+                 {'X-Alteha-Token': tok_doc})
+    op = unwrap(r)
+    op_id = op.get('id')
+    check('M3', 'Médico con plan Élite solicita cambio USD→USDT', bool(op_id) and op.get('status') == 'REQUESTED', str(r)[:160])
+
+    # La casa de salud sin plan Expansión/Élite es invitada a mejorar (PLAN_LIMIT)
+    st, r = http('POST', f'{FRONT}/api/exchange/request',
+                 {'role': 'PHARMACY', 'fromCurrency': 'USDT', 'toCurrency': 'BS', 'amount': 50},
+                 {'X-Alteha-Token': tok_far})
+    msgM = str((r or {}).get('message', ''))
+    check('M4', 'Sin plan Expansión/Élite: invita a mejorar el plan (PLAN_LIMIT)', 'PLAN_LIMIT' in msgM, msgM[:120])
+
+    # Administración: lista, programa y completa la operación
+    tok_admE = actor_login('test.admin@alteha.com', 'Test2026*', 'ADMIN')
+    st, r = http('GET', f'{FRONT}/api/exchange/all', headers={'X-Alteha-Token': tok_admE})
+    ops = r if isinstance(r, list) else []
+    check('M5', 'Módulo admin lista las operaciones', st == 200 and any(str(o.get('id')) == str(op_id) for o in ops), f'{len(ops)} operaciones')
+
+    st, r = http('PUT', f'{FRONT}/api/exchange/{op_id}/status',
+                 {'status': 'SCHEDULED', 'scheduledAt': time.strftime('%Y-%m-%dT%H:%M:%S.000Z', time.gmtime(time.time() + 86400))},
+                 {'X-Alteha-Token': tok_admE})
+    check('M6', 'Admin programa el pago en la moneda destino', unwrap(r).get('status') == 'SCHEDULED', str(r)[:120])
+
+    st, r = http('PUT', f'{FRONT}/api/exchange/{op_id}/status', {'status': 'COMPLETED'}, {'X-Alteha-Token': tok_admE})
+    check('M7', 'Admin completa la operación', unwrap(r).get('status') == 'COMPLETED', str(r)[:120])
+
+    # Margen configurable: cambiar y restaurar
+    st, r = http('PUT', f'{FRONT}/api/exchange/config', {'marginRate': 4.5}, {'X-Alteha-Token': tok_admE})
+    changed = float((unwrap(r) or {}).get('marginRate') or 0) == 4.5
+    st, r = http('PUT', f'{FRONT}/api/exchange/config', {'marginRate': marg}, {'X-Alteha-Token': tok_admE})
+    restored = float((unwrap(r) or {}).get('marginRate') or -1) == marg
+    check('M8', 'Margen de Alteha configurable (cambia y restaura)', changed and restored)
+
     # ═══ J. NOTIFICACIONES (fuentes) ═══
     section("J. Fuentes de notificaciones")
     st, r = http('GET', f'{FRONT}/api/clinic-invitations/mine', headers={'X-Alteha-Token': tok_cli})
