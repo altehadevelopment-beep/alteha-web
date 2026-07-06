@@ -56,6 +56,16 @@ export const WinnerSettlementSection: React.FC<WinnerSettlementSectionProps> = (
     // si existe, el cobro llega por GuiaPay y el finiquito se habilita aunque
     // no tenga el método de pago que exige el seguro.
     const [guiaPayOp, setGuiaPayOp] = useState<any>(null);
+    // Reparto real del pago del seguro (médico / clínica / casa de salud), del endpoint de comisiones
+    const [breakdown, setBreakdown] = useState<{ doctorAmount?: number; clinicAmount?: number; pharmacyAmount?: number; pharmacyName?: string | null } | null>(null);
+
+    useEffect(() => {
+        if (!auction.auctionNumber) return;
+        fetch(`/api/commissions/auction/${auction.auctionNumber}`)
+            .then(r => r.json())
+            .then(d => { if (d && (d.doctorAmount != null || d.pharmacyAmount != null)) setBreakdown(d); })
+            .catch(() => {});
+    }, [auction.auctionNumber]);
 
     useEffect(() => {
         const token = localStorage.getItem('id_token');
@@ -243,6 +253,34 @@ export const WinnerSettlementSection: React.FC<WinnerSettlementSectionProps> = (
                                     </p>
                                 </div>
                             </>
+                        )}
+
+                        {/* Así se reparte el pago del seguro entre los actores */}
+                        {breakdown && (Number(breakdown.doctorAmount) > 0 || Number(breakdown.clinicAmount) > 0 || Number(breakdown.pharmacyAmount) > 0) && (
+                            <div className="bg-white/5 border border-white/10 rounded-2xl p-5 space-y-2">
+                                <p className="text-[10px] font-black text-alteha-turquoise uppercase tracking-widest">Así se reparte el pago del seguro</p>
+                                {Number(breakdown.doctorAmount) > 0 && (
+                                    <div className={`flex justify-between text-sm font-bold ${role === 'DOCTOR' ? 'text-white' : 'text-slate-300'}`}>
+                                        <span>Honorarios del médico{role === 'DOCTOR' ? ' (tú)' : ''}</span>
+                                        <span className={role === 'DOCTOR' ? 'text-alteha-turquoise font-black' : ''}>{fmtMoney(Number(breakdown.doctorAmount))}</span>
+                                    </div>
+                                )}
+                                {Number(breakdown.clinicAmount) > 0 && (
+                                    <div className={`flex justify-between text-sm font-bold ${role === 'CLINIC' ? 'text-white' : 'text-slate-300'}`}>
+                                        <span>Gastos de la clínica{role === 'CLINIC' ? ' (tú)' : ''}</span>
+                                        <span className={role === 'CLINIC' ? 'text-alteha-turquoise font-black' : ''}>{fmtMoney(Number(breakdown.clinicAmount))}</span>
+                                    </div>
+                                )}
+                                {Number(breakdown.pharmacyAmount) > 0 && (
+                                    <div className="flex justify-between text-sm font-bold text-slate-300">
+                                        <span>Insumos — {breakdown.pharmacyName || 'Casa de Salud'} (se pagan antes de la intervención)</span>
+                                        <span>{fmtMoney(Number(breakdown.pharmacyAmount))}</span>
+                                    </div>
+                                )}
+                                <p className="text-[10px] text-slate-400 font-medium pt-1 border-t border-white/10">
+                                    Cada actor cobra su parte directamente de Alteha; la comisión de la plataforma la paga el seguro.
+                                </p>
+                            </div>
                         )}
                     </div>
                 </div>
