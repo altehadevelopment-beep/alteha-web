@@ -538,6 +538,13 @@ def main():
     check('L6', 'Resumen separa ofertas médicas (1) e insumos (1)',
           isinstance(r, dict) and r.get('totalBids') == 1 and r.get('pharmacyBids') == 1, str(r)[:140])
 
+    # Con ofertas de insumos presentes, adjudicar sin elegir casa de salud debe rechazarse
+    st, r = http('POST', f'{FRONT}/api/auctions/{a3_no}/award/{med_bid}',
+                 headers={'X-Alteha-Token': tok_ins})
+    msgL = str(unwrap(r).get('message', '') or (r or {}).get('message', ''))
+    check('L6b', 'Adjudicar sin casa de salud es rechazado (selección obligatoria)',
+          is_rejected(st, r) and 'casa' in msgL.lower(), f'st={st} msg={msgL[:120]}')
+
     # Adjudicación doble: médico + casa de salud
     st, r = http('POST', f'{FRONT}/api/auctions/{a3_no}/award/{med_bid}?pharmacyBidId={ph_bid}',
                  headers={'X-Alteha-Token': tok_ins})
@@ -546,6 +553,14 @@ def main():
     check('L7', 'Adjudicación doble (médico + casa de salud)',
           st == 200 and (awarded.get('status') == 'AWARDED') and (str(ph_awarded) == str(ph_bid) or ph_awarded is None),
           f"status={awarded.get('status')} phBid={ph_awarded}")
+
+    # La comisión se calcula sobre médico+clínica+insumos y define el pago total del seguro
+    st, r = http('GET', f'{FRONT}/api/commissions/auction/{a3_no}', headers={'X-Alteha-Token': tok_ins})
+    comm = unwrap(r) if isinstance(r, dict) else {}
+    base_ok = abs(float(comm.get('baseAmount') or 0) - (420 + float(ph_amount or 0))) < 0.01
+    total_ok = abs(float(comm.get('total') or 0) - float(comm.get('baseAmount') or 0) * (1 + float(comm.get('rate') or 0) / 100)) < 0.05
+    check('L7b', 'Comisión sobre médico+insumos y total del pago correcto',
+          base_ok and total_ok, f"base={comm.get('baseAmount')} esperado={420 + float(ph_amount or 0)} total={comm.get('total')}")
 
     # Mis ofertas de la casa de salud registran la oferta
     st, r = http('GET', f'{FRONT}/api/pharmacy-auctions/my-bids', headers={'X-Alteha-Token': tok_far})

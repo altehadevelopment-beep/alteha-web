@@ -211,6 +211,10 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
 
     const confirmAward = async () => {
         if (!selectedBidId) return;
+        if (supplyBids.length > 0 && !selectedPharmacyBidId) {
+            alert('Selecciona la casa de salud a la que le comprarás los insumos antes de adjudicar.');
+            return;
+        }
         
         setIsAwarding(selectedBidId);
         try {
@@ -1215,17 +1219,11 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
 
                     {mode === 'insurance' && auctionStatus === 'ACTIVE' && (
                         <p className="text-[11px] font-bold text-slate-500 bg-violet-50 border border-violet-100 rounded-xl px-4 py-2.5">
-                            Selecciona a qué casa de salud le comprarás los insumos: se adjudicará junto con la oferta médica.
+                            Selecciona a qué casa de salud le comprarás los insumos: es obligatorio elegir una al adjudicar y su monto se suma al pago total.
                         </p>
                     )}
 
                     <div className="space-y-3">
-                        {mode === 'insurance' && auctionStatus === 'ACTIVE' && (
-                            <label className={`flex items-center gap-3 bg-white border-2 rounded-2xl p-4 cursor-pointer transition-all ${selectedPharmacyBidId === null ? 'border-slate-300' : 'border-slate-100 hover:border-slate-200'}`}>
-                                <input type="radio" name="pharmacy-bid" checked={selectedPharmacyBidId === null} onChange={() => setSelectedPharmacyBidId(null)} className="accent-alteha-turquoise w-4 h-4" />
-                                <span className="text-sm font-bold text-slate-500">No comprar insumos por ahora</span>
-                            </label>
-                        )}
                         {supplyBids.map((pb: any) => {
                             const pName = pb.pharmacy?.name || pb.pharmacy?.commercialName || pb.pharmacy?.legalName || `Casa de Salud #${typeof pb.pharmacy === 'object' ? pb.pharmacy?.id : pb.pharmacy}`;
                             const pId = typeof pb.pharmacy === 'object' ? pb.pharmacy?.id : pb.pharmacy;
@@ -1292,7 +1290,7 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
                 isOpen={awardModalOpen}
                 onClose={() => !isAwarding && setAwardModalOpen(false)}
                 title="Adjudicar Subasta"
-                maxWidth="max-w-md"
+                maxWidth="max-w-lg"
             >
                 <div className="text-center space-y-6 py-4">
                     <div className="w-20 h-20 bg-violet-50 rounded-full flex items-center justify-center mx-auto shadow-inner">
@@ -1305,36 +1303,65 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
                         </p>
                     </div>
 
-                    {/* Desglose del monto a pagar: subasta + comisión Alteha */}
+                    {/* Selección obligatoria de casa de salud cuando hay ofertas de insumos */}
+                    {supplyBids.length > 0 && (
+                        <div className="text-left space-y-2">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                1. Selecciona la casa de salud para los insumos <span className="text-red-400">*</span>
+                            </p>
+                            <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
+                                {supplyBids.map((pb: any) => {
+                                    const pName = pb.pharmacy?.name || pb.pharmacy?.commercialName || pb.pharmacy?.legalName || 'Casa de Salud';
+                                    const chosen = selectedPharmacyBidId === pb.id;
+                                    return (
+                                        <label key={pb.id} className={`flex items-center gap-3 bg-white border-2 rounded-2xl p-3.5 cursor-pointer transition-all ${chosen ? 'border-alteha-turquoise shadow-sm' : 'border-slate-100 hover:border-slate-200'}`}>
+                                            <input type="radio" name="award-pharmacy" checked={chosen} onChange={() => setSelectedPharmacyBidId(pb.id)} className="accent-alteha-turquoise w-4 h-4 shrink-0" />
+                                            {pb.pharmacy?.logoUrl && String(pb.pharmacy.logoUrl).startsWith('http')
+                                                ? <img src={pb.pharmacy.logoUrl} alt="" className="w-8 h-8 rounded-lg object-contain bg-white border border-slate-100 shrink-0" />
+                                                : null}
+                                            <span className="text-sm font-black text-slate-800 flex-1 truncate">{pName}</span>
+                                            <span className="text-sm font-black text-slate-900 shrink-0">${Number(pb.bidAmount || 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })}</span>
+                                        </label>
+                                    );
+                                })}
+                            </div>
+                            {!selectedPharmacyBidId && (
+                                <p className="text-[10px] font-bold text-amber-600">
+                                    Esta subasta tiene ofertas por los insumos: debes elegir una casa de salud para poder adjudicar.
+                                </p>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Desglose del monto a pagar: médico/clínica + insumos + comisión Alteha */}
                     {(() => {
                         const sel = bids.find(b => b.id === selectedBidId);
                         if (!sel) return null;
                         const d = duplaMap[sel.id];
                         const base = d && d.status === 'ACCEPTED' && d.total != null ? Number(d.total) : Number(sel.bidAmount) || 0;
-                        const fee = Math.round(base * commissionRate) / 100;
-                        const total = base + fee;
+                        const chosen = supplyBids.find((x: any) => x.id === selectedPharmacyBidId);
+                        const suppliesAmt = chosen ? Number(chosen.bidAmount || 0) : 0;
+                        const fee = Math.round((base + suppliesAmt) * commissionRate) / 100;
+                        const total = base + suppliesAmt + fee;
                         return (
                             <div className="bg-slate-50 rounded-2xl p-5 text-left space-y-2 text-sm font-bold">
-                                <div className="flex justify-between"><span className="text-slate-500">Monto adjudicado{d?.status === 'ACCEPTED' ? ' (dupla)' : ''}</span><span className="text-slate-900">${base.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</span></div>
+                                {supplyBids.length > 0 && <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest pb-1">2. Total a pagar</p>}
+                                <div className="flex justify-between"><span className="text-slate-500">Médico y clínica{d?.status === 'ACCEPTED' ? ' (dupla)' : ''}</span><span className="text-slate-900">${base.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</span></div>
+                                {chosen && (
+                                    <div className="flex justify-between"><span className="text-slate-500">Insumos — {chosen.pharmacy?.name || chosen.pharmacy?.commercialName || 'Casa de Salud'}</span><span className="text-slate-900">${suppliesAmt.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</span></div>
+                                )}
                                 <div className="flex justify-between"><span className="text-slate-500">Comisión Alteha ({commissionRate}%)</span><span className="text-slate-900">${fee.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</span></div>
                                 <div className="flex justify-between border-t border-slate-200 pt-2"><span className="text-slate-700 font-black">Total a pagar</span><span className="text-alteha-violet font-black text-base">${total.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</span></div>
-                                {supplyBids.length > 0 && (() => {
-                                    const chosen = supplyBids.find((x: any) => x.id === selectedPharmacyBidId);
-                                    return chosen ? (
-                                        <div className="flex justify-between border-t border-slate-200 pt-2"><span className="text-slate-500">Insumos — {chosen.pharmacy?.name || 'Casa de Salud'}</span><span className="text-slate-900">${Number(chosen.bidAmount || 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })} (se pagan a la casa antes de la intervención)</span></div>
-                                    ) : (
-                                        <p className="text-[10px] font-bold text-amber-600 pt-1">Sin casa de salud seleccionada: los insumos no se comprarán en esta adjudicación.</p>
-                                    );
-                                })()}
-                                <p className="text-[10px] text-slate-400 font-medium pt-1">La comisión queda registrada a nombre de tu compañía y se cobra junto con el pago de la subasta.</p>
+                                {chosen && <p className="text-[10px] text-slate-400 font-medium pt-1">Los insumos se despachan antes de la intervención.</p>}
+                                <p className="text-[10px] text-slate-400 font-medium pt-1">La comisión se calcula sobre el total adjudicado (intervención + insumos) y se cobra junto con el pago de la subasta.</p>
                             </div>
                         );
                     })()}
                     <div className="flex flex-col gap-3 pt-4">
                         <Button
                             onClick={confirmAward}
-                            disabled={!!isAwarding}
-                            className="bg-alteha-violet text-white py-4 rounded-2xl font-black text-lg shadow-xl shadow-violet-100 flex items-center justify-center gap-3 hover:scale-[1.02] transition-all"
+                            disabled={!!isAwarding || (supplyBids.length > 0 && !selectedPharmacyBidId)}
+                            className="bg-alteha-violet text-white py-4 rounded-2xl font-black text-lg shadow-xl shadow-violet-100 flex items-center justify-center gap-3 hover:scale-[1.02] transition-all disabled:opacity-40 disabled:hover:scale-100"
                         >
                             {isAwarding ? (
                                 <Loader2 className="w-6 h-6 animate-spin" />
