@@ -75,6 +75,7 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
     const { userProfile } = useAuth();
     const listPathname = usePathname();
     const viewerIsClinic = listPathname?.includes('/clinic/') ?? false;
+    const viewerIsPharmacy = listPathname?.includes('/provider') ?? false;
     // Seguro que publicó la subasta (logo + nombre en el encabezado de la lista)
     const [insurerHeader, setInsurerHeader] = useState<{ name?: string; logoUrl?: string } | null>(null);
     useEffect(() => {
@@ -168,6 +169,47 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
         }
         const dId = typeof bid.doctor === 'object' ? bid.doctor?.id : (typeof bid.doctor === 'number' ? bid.doctor : (bid as any).doctorId);
         if (!dId) { alert('No se pudo encontrar el ID del médico para iniciar el chat.'); return; }
+        let name = bid.doctor?.fullName || (bid.doctor?.firstName ? `${bid.doctor.firstName} ${bid.doctor.lastName}` : null) || doctorProfiles[dId]?.fullName || (bid as any).doctorName;
+        let photo = bid.doctor?.profileImageUrl || doctorProfiles[dId]?.profileImageUrl;
+        if (!name || !photo) {
+            try {
+                const res: any = await getDoctorById(Number(dId));
+                const info = res?.data ?? res;
+                if (info?.id) {
+                    setDoctorProfiles(prev => ({ ...prev, [dId]: info }));
+                    name = name || info.fullName || (info.firstName ? `${info.firstName} ${info.lastName}` : null);
+                    photo = photo || info.profileImageUrl;
+                }
+            } catch { /* usa lo disponible */ }
+        }
+        setActiveChat({ participantId: String(dId), participantName: name || 'Médico', participantPhoto: photo, participantRole: 'DOCTOR' });
+    };
+
+    // Chat de la casa de salud con el médico o la clínica de una oferta médica
+    const openBidActorChat = async (bid: any, which: 'DOCTOR' | 'CLINIC') => {
+        if (which === 'CLINIC') {
+            const cId = typeof (bid as any).clinic === 'object' ? (bid as any).clinic?.id : (bid as any).clinicId;
+            if (!cId) { alert('Esta oferta no tiene una clínica asociada.'); return; }
+            let cName = bid.clinic?.name || clinicProfiles[cId]?.name;
+            let cPhoto = bid.clinic?.logoUrl || clinicProfiles[cId]?.logoUrl;
+            if (!cName || !cPhoto) {
+                try {
+                    const token = localStorage.getItem('id_token');
+                    const res = await fetch(`/api/clinics/${cId}`, { headers: { 'X-Alteha-Token': token || '' } });
+                    let info: any = await res.json();
+                    if (info?.data) info = info.data;
+                    if (info?.id) {
+                        setClinicProfiles(prev => ({ ...prev, [cId]: info }));
+                        cName = cName || info.name;
+                        cPhoto = cPhoto || info.logoUrl;
+                    }
+                } catch { /* usa lo disponible */ }
+            }
+            setActiveChat({ participantId: String(cId), participantName: cName || 'Clínica', participantPhoto: cPhoto, participantRole: 'CLINIC' });
+            return;
+        }
+        const dId = getBidDoctorId(bid);
+        if (!dId) { alert('Esta oferta no tiene un médico asociado.'); return; }
         let name = bid.doctor?.fullName || (bid.doctor?.firstName ? `${bid.doctor.firstName} ${bid.doctor.lastName}` : null) || doctorProfiles[dId]?.fullName || (bid as any).doctorName;
         let photo = bid.doctor?.profileImageUrl || doctorProfiles[dId]?.profileImageUrl;
         if (!name || !photo) {
@@ -905,8 +947,28 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
                                             )}
                                         </div>
                                         
+                                        {/* Casa de salud: puede chatear con el médico y la clínica de la oferta */}
+                                        {auctionStatus === 'ACTIVE' && viewerIsPharmacy && !!getBidDoctorId(bid) && (
+                                            <ChatButtonWithBadge
+                                                auctionId={String(auctionId)}
+                                                currentUserId={String(userProfile?.id || 'guest')}
+                                                participantId={String(getBidDoctorId(bid))}
+                                                title="Chat con el Médico"
+                                                onClick={(e) => { e.stopPropagation(); openBidActorChat(bid, 'DOCTOR'); }}
+                                            />
+                                        )}
+                                        {auctionStatus === 'ACTIVE' && viewerIsPharmacy && !!(typeof (bid as any).clinic === 'object' ? (bid as any).clinic?.id : (bid as any).clinicId) && (
+                                            <ChatButtonWithBadge
+                                                auctionId={String(auctionId)}
+                                                currentUserId={String(userProfile?.id || 'guest')}
+                                                participantId={String(typeof (bid as any).clinic === 'object' ? (bid as any).clinic?.id : (bid as any).clinicId)}
+                                                title="Chat con la Clínica"
+                                                onClick={(e) => { e.stopPropagation(); openBidActorChat(bid, 'CLINIC'); }}
+                                            />
+                                        )}
+
                                         {/* Direct Chat Icon — insurance: any doctor; doctor: only on their OWN offer */}
-                                        {auctionStatus === 'ACTIVE' && (mode === 'insurance' || (!!userProfile?.id && getBidDoctorId(bid) === userProfile.id)) && (
+                                        {auctionStatus === 'ACTIVE' && !viewerIsPharmacy && (mode === 'insurance' || (!!userProfile?.id && getBidDoctorId(bid) === userProfile.id)) && (
                                             <ChatButtonWithBadge
                                                 auctionId={String(auctionId)}
                                                 currentUserId={String(userProfile?.id || 'guest')}
@@ -1109,8 +1171,32 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
                                                     </div>
                                                 )}
 
+                                                {/* Casa de salud: coordina el despacho de insumos con el médico o la clínica */}
+                                                {auctionStatus === 'ACTIVE' && viewerIsPharmacy && (
+                                                    <div className="pt-4 border-t border-slate-100 flex gap-3">
+                                                        {!!getBidDoctorId(bid) && (
+                                                            <Button
+                                                                onClick={() => openBidActorChat(bid, 'DOCTOR')}
+                                                                className="flex-1 bg-slate-100 text-slate-600 py-3 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-slate-200 transition-all border border-slate-200"
+                                                            >
+                                                                <MessageSquare className="w-4 h-4" />
+                                                                Chat con el Médico
+                                                            </Button>
+                                                        )}
+                                                        {!!(typeof (bid as any).clinic === 'object' ? (bid as any).clinic?.id : (bid as any).clinicId) && (
+                                                            <Button
+                                                                onClick={() => openBidActorChat(bid, 'CLINIC')}
+                                                                className="flex-1 bg-alteha-turquoise/10 text-alteha-turquoise py-3 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-alteha-turquoise/20 transition-all border border-alteha-turquoise/20"
+                                                            >
+                                                                <MessageSquare className="w-4 h-4" />
+                                                                Chat con la Clínica
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                )}
+
                                                 {/* Actions — chat del seguro para el DUEÑO de la oferta (médico o clínica) */}
-                                                {auctionStatus === 'ACTIVE' && (mode === 'insurance' || (() => {
+                                                {auctionStatus === 'ACTIVE' && !viewerIsPharmacy && (mode === 'insurance' || (() => {
                                                     if (!userProfile?.id) return false;
                                                     const isClinicBid2 = (bid as any).modality === 'SOLO_CLINICA' || bid.bidType === 'CLINIC_ONLY' || bid.bidType === 'BOTH';
                                                     const cId2 = typeof (bid as any).clinic === 'object' ? (bid as any).clinic?.id : (bid as any).clinicId;
