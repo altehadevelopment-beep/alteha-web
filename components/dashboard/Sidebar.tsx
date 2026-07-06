@@ -97,7 +97,7 @@ const providerItems = [
     { title: 'Mis Ofertas', icon: FileText, href: '/dashboard/provider/bids' },
     { title: 'Catálogo de Productos', icon: Package, href: '/dashboard/provider/catalog' },
     { title: 'Órdenes Recibidas', icon: FileText, href: '/dashboard/provider/orders' },
-    { title: 'Pagos', icon: CreditCard, href: '/dashboard/provider/payments' },
+    { title: 'Métodos de Cobro', icon: CreditCard, href: '/dashboard/provider/payments' },
     { title: 'Conversaciones', icon: MessageSquare, href: '/dashboard/provider/conversations' },
 ];
 
@@ -105,6 +105,8 @@ const approvalItems = [
     { title: 'Dashboard', icon: LayoutDashboard, href: '/dashboard/approval' },
     { title: 'Validación de Pagos', icon: CheckCircle2, href: '/dashboard/approval/payments' },
     { title: 'Liquidaciones', icon: Banknote, href: '/dashboard/approval/settlements' },
+    { title: 'Validación de Entregas', icon: CheckCircle2, href: '/dashboard/approval/deliveries' },
+    { title: 'Operaciones de Cambio', icon: Banknote, href: '/dashboard/approval/exchange' },
     { title: 'Validación de Médicos', icon: UserCheck, href: '/dashboard/approval/doctors' },
 ];
 

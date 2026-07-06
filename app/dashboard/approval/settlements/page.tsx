@@ -186,7 +186,7 @@ export default function SettlementsPage() {
     // Al abrir el modal (o cambiar el destinatario) trae solo los métodos registrados por ese destinatario
     useEffect(() => {
         const role = settlementForm.recipientRole;
-        if (!settlementAuction || (role !== 'DOCTOR' && role !== 'CLINIC')) {
+        if (!settlementAuction || (role !== 'DOCTOR' && role !== 'CLINIC' && role !== 'PHARMACY')) {
             setRecipientMethods([]);
             setSelectedMethodId(null);
             setSettlementForm(p => ({ ...p, paymentMethodType: '' }));
@@ -194,7 +194,7 @@ export default function SettlementsPage() {
         }
         let active = true;
         setMethodsLoading(true);
-        getWinnerPaymentMethods(settlementAuction.auctionNumber, role as 'DOCTOR' | 'CLINIC')
+        getWinnerPaymentMethods(settlementAuction.auctionNumber, role as any)
             .then(methods => {
                 if (!active) return;
                 const list = (methods || []).filter(m => m.active !== false);
