@@ -45,6 +45,12 @@ export default function SettlementsPage() {
     const [pkgRedemptions, setPkgRedemptions] = useState<PackageRedemptionItem[]>([]);
     // Operaciones de cambio GuiaPay activas de la subasta abierta
     const [exchangeOps, setExchangeOps] = useState<any[]>([]);
+    // Método de pago que corresponde a cada moneda destino de GuiaPay
+    const GUIAPAY_METHOD: Record<string, string> = { BS: 'BS_BANK_TRANSFER', USDT: 'BINANCE_PAY', USD: 'USD_ACH' };
+    // Última operación por rol (dedupe: /exchange/all viene ordenado por fecha desc)
+    const guiaPayByRole: Record<string, any> = {};
+    exchangeOps.forEach((o: any) => { if (!guiaPayByRole[o.actorRole]) guiaPayByRole[o.actorRole] = o; });
+    const guiaPayForRecipient = guiaPayByRole[settlementForm.recipientRole || ''] || null;
     const [settlingId, setSettlingId] = useState<number | null>(null);
 
     const loadPkgRedemptions = async () => {
@@ -131,12 +137,18 @@ export default function SettlementsPage() {
         return null;
     };
 
-    // Prefija el monto correcto cuando cambia el destinatario o cargan la oferta/dupla
+    // Prefija el monto correcto cuando cambia el destinatario o cargan la oferta/dupla.
+    // Con GuiaPay activo, el monto a liquidar es el NETO de la operación (ya descontados los gastos administrativos).
     useEffect(() => {
+        const gp = exchangeOps.find((o: any) => o.actorRole === settlementForm.recipientRole);
+        if (gp && Number(gp.amountTarget) > 0) {
+            setSettlementForm(p => ({ ...p, amount: Number(gp.amountTarget) }));
+            return;
+        }
         const amt = suggestedAmount(settlementForm.recipientRole);
         if (amt != null) setSettlementForm(p => ({ ...p, amount: amt }));
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [winningBid, dupla, settlementForm.recipientRole]);
+    }, [winningBid, dupla, settlementForm.recipientRole, exchangeOps]);
 
     // Al abrir el modal (o cambiar el destinatario) trae solo los métodos registrados por ese destinatario
     useEffect(() => {
@@ -161,12 +173,17 @@ export default function SettlementsPage() {
                     : null;
                 const first = chosen || list[0] || null;
                 setSelectedMethodId(first?.id ?? null);
-                setSettlementForm(p => ({ ...p, paymentMethodType: first?.methodType || '' }));
+                const gp = exchangeOps.find((o: any) => o.actorRole === role);
+                setSettlementForm(p => ({ ...p, paymentMethodType: (gp ? GUIAPAY_METHOD[gp.toCurrency] : null) || first?.methodType || '' }));
             })
-            .catch(() => { if (active) { setRecipientMethods([]); setSelectedMethodId(null); setSettlementForm(p => ({ ...p, paymentMethodType: '' })); } })
+            .catch(() => { if (active) {
+                setRecipientMethods([]); setSelectedMethodId(null);
+                const gp = exchangeOps.find((o: any) => o.actorRole === role);
+                setSettlementForm(p => ({ ...p, paymentMethodType: (gp ? GUIAPAY_METHOD[gp.toCurrency] : null) || '' }));
+            } })
             .finally(() => { if (active) setMethodsLoading(false); });
         return () => { active = false; };
-    }, [settlementAuction, settlementForm.recipientRole]);
+    }, [settlementAuction, settlementForm.recipientRole, exchangeOps]);
 
     useEffect(() => {
         const fetch = async () => {
@@ -433,7 +450,7 @@ export default function SettlementsPage() {
                                 </div>
 
                                 {/* GuiaPay: el destinatario pidió cobrar en otra moneda — el pago debe ejecutarse en esa moneda */}
-                                {exchangeOps.map((op: any) => {
+                                {Object.values(guiaPayByRole).map((op: any) => {
                                     const roleLabel = op.actorRole === 'CLINIC' ? 'La clínica' : op.actorRole === 'PHARMACY' ? 'La casa de salud' : 'El médico';
                                     const cur = (c: string) => c === 'BS' ? 'Bs' : c;
                                     const money = (n: any, c: string) => `${c === 'BS' ? 'Bs ' : c === 'USDT' ? '₮ ' : '$'}${Number(n || 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`;
@@ -477,6 +494,18 @@ export default function SettlementsPage() {
                                         {methodsLoading ? (
                                             <div className="w-full bg-slate-50 rounded-xl px-4 py-3 text-sm font-bold text-slate-400 flex items-center gap-2">
                                                 <Loader2 className="w-4 h-4 animate-spin" /> Cargando métodos...
+                                            </div>
+                                        ) : guiaPayForRecipient ? (
+                                            <div className="w-full bg-indigo-950 rounded-xl px-4 py-3 flex items-center justify-between gap-2">
+                                                <span className="inline-flex items-center gap-1">
+                                                    <span className="w-2 h-2 rounded-full bg-[#2e86c1] inline-block translate-y-[1px]" />
+                                                    <span className="text-sm font-light lowercase tracking-tight leading-none">
+                                                        <span className="text-white">guia</span><span className="text-[#2e86c1]">pay</span>
+                                                    </span>
+                                                </span>
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-amber-400">
+                                                    Pagar en {guiaPayForRecipient.toCurrency === 'BS' ? 'Bs' : guiaPayForRecipient.toCurrency}
+                                                </span>
                                             </div>
                                         ) : recipientMethods.length === 0 ? (
                                             <div className="w-full bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs font-bold text-amber-700 flex items-center gap-2">
