@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { ArrowRightLeft, Loader2, Inbox, Save, Percent, CalendarClock, CheckCircle2, XCircle } from 'lucide-react';
+import { GuiaPayLogo } from '@/components/payments/GuiaPayExchange';
 
 const STATUS_ES: Record<string, { label: string; cls: string }> = {
     REQUESTED: { label: 'Solicitada', cls: 'bg-amber-50 text-amber-600' },
@@ -91,8 +92,9 @@ export default function AdminExchangePage() {
     return (
         <div className="space-y-8 font-outfit max-w-5xl mx-auto pb-20">
             <header className="space-y-1">
-                <h1 className="text-4xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-                    <ArrowRightLeft className="w-8 h-8 text-indigo-500" /> Operaciones de Cambio · Guía Pay
+                <h1 className="text-4xl font-black text-slate-900 tracking-tight flex items-center gap-4 flex-wrap">
+                    <ArrowRightLeft className="w-8 h-8 text-indigo-500" /> Operaciones de Cambio
+                    <GuiaPayLogo dark={false} size="text-3xl" />
                 </h1>
                 <p className="text-slate-400 text-sm font-medium max-w-2xl">
                     Solicitudes de conversión de moneda (Bs / USD / USDT) de médicos, clínicas y casas de salud.

@@ -298,6 +298,24 @@ export const WinnerSettlementSection: React.FC<WinnerSettlementSectionProps> = (
                         </div>
                     )}
                 </div>
+
+                {/* Acceso directo a la operación de cambio de Guía Pay */}
+                <button
+                    type="button"
+                    onClick={() => window.dispatchEvent(new CustomEvent('guiapay:open'))}
+                    className="w-full flex items-center justify-between gap-3 bg-slate-900 hover:bg-slate-800 transition-colors rounded-2xl px-6 py-4 group"
+                >
+                    <span className="text-left">
+                        <span className="block text-sm font-black text-white">¿Prefieres recibir en otra moneda?</span>
+                        <span className="block text-[11px] font-bold text-slate-400 mt-0.5">Convierte tus fondos a Bs, USD o USDT con la tasa BCV</span>
+                    </span>
+                    <span className="inline-flex items-center gap-1 shrink-0">
+                        <span className="w-2.5 h-2.5 rounded-full bg-[#2e86c1] inline-block translate-y-[1px]" />
+                        <span className="text-xl font-light lowercase tracking-tight leading-none">
+                            <span className="text-white">guia</span><span className="text-[#2e86c1]">pay</span>
+                        </span>
+                    </span>
+                </button>
             </div>
 
             {/* Completion / Settlement Upload Section */}
@@ -394,7 +412,7 @@ export const WinnerSettlementSection: React.FC<WinnerSettlementSectionProps> = (
                 role={role}
                 auctionNumber={auction.auctionNumber}
                 defaultAmount={role === 'DOCTOR' ? (wbAmount || null) : (clinicSep ?? null)}
-                methodType={paymentMethods[0]?.methodType || null}
+                methodType={paymentMethods[0]?.methodType || (auction as any).methodType || (auction as any).allowedPaymentMethods?.[0] || null}
             />
         </div>
     );

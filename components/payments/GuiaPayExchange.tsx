@@ -6,6 +6,16 @@ import Link from 'next/link';
 
 const CUR_LABEL: Record<string, string> = { BS: 'Bolívares (Bs)', USD: 'Dólares (USD)', USDT: 'USDT (cripto)' };
 
+/** Marca de GuiaPay: punto azul + "guia" (claro) + "pay" (azul), tipografía redondeada ligera. */
+export const GuiaPayLogo = ({ dark = true, size = 'text-3xl', className = '' }: { dark?: boolean; size?: string; className?: string }) => (
+    <span className={`inline-flex items-center gap-1 select-none ${className}`}>
+        <span className="w-3 h-3 rounded-full bg-[#2e86c1] inline-block translate-y-[1px]" />
+        <span className={`${size} font-light lowercase tracking-tight leading-none font-outfit`}>
+            <span className={dark ? 'text-white' : 'text-slate-800'}>guia</span><span className="text-[#2e86c1]">pay</span>
+        </span>
+    </span>
+);
+
 /**
  * Guía Pay — operación de cambio de moneda al recibir los fondos.
  * La moneda de origen depende del método de cobro (Pago Móvil/Transferencia → Bs,
@@ -29,6 +39,16 @@ export default function GuiaPayExchange({ role, auctionNumber, defaultAmount, me
     const [error, setError] = useState<string | null>(null);
     const [showUpgrade, setShowUpgrade] = useState(false);
     const [myOps, setMyOps] = useState<any[]>([]);
+
+    // Otras tarjetas (p. ej. Mis Métodos de Pago) pueden abrir Guía Pay con un evento global
+    useEffect(() => {
+        const openIt = () => {
+            setOpen(true);
+            setTimeout(() => document.getElementById('guia-pay')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
+        };
+        window.addEventListener('guiapay:open', openIt);
+        return () => window.removeEventListener('guiapay:open', openIt);
+    }, []);
 
     // El monto por defecto (lo que cobra el ganador) llega asíncrono: precargarlo si el campo está vacío
     useEffect(() => {
@@ -107,13 +127,16 @@ export default function GuiaPayExchange({ role, auctionNumber, defaultAmount, me
     };
 
     return (
-        <div className="bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-900 rounded-[3rem] p-8 md:p-10 text-white relative overflow-hidden shadow-2xl">
+        <div id="guia-pay" className="bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-900 rounded-[3rem] p-8 md:p-10 text-white relative overflow-hidden shadow-2xl scroll-mt-24">
             <div className="absolute top-0 right-0 w-72 h-72 bg-indigo-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
             <div className="relative z-10 space-y-6">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="space-y-2">
-                        <div className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-500/20 text-indigo-300 rounded-full text-[10px] font-black uppercase tracking-widest">
-                            <ArrowRightLeft className="w-3 h-3" /> Guía Pay · Operación de cambio
+                        <div className="flex items-center gap-4 flex-wrap">
+                            <GuiaPayLogo />
+                            <div className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-500/20 text-indigo-300 rounded-full text-[10px] font-black uppercase tracking-widest">
+                                <ArrowRightLeft className="w-3 h-3" /> Operación de cambio
+                            </div>
                         </div>
                         <h3 className="text-2xl font-black">¿Prefieres recibir tus fondos en otra moneda?</h3>
                         <p className="text-slate-300 text-sm font-medium leading-relaxed max-w-xl">
