@@ -110,7 +110,7 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
         import('@/lib/api').then(({ getCommissionRate }) => getCommissionRate().then(setCommissionRate).catch(() => {}));
     }, [mode]);
     const [selectedBidId, setSelectedBidId] = useState<number | null>(null);
-    const [awardSummary, setAwardSummary] = useState<{ doctorName: string; clinicName: string | null; amount: any } | null>(null);
+    const [awardSummary, setAwardSummary] = useState<{ doctorName: string; doctorPhoto?: string | null; clinicName: string | null; clinicLogo?: string | null; amount: any } | null>(null);
     const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(null);
     const [isDoctorModalOpen, setIsDoctorModalOpen] = useState(false);
     const [activeChat, setActiveChat] = useState<{
@@ -265,16 +265,30 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
             if (res.code === '00' || (res as any).id) {
                 const wonBid: any = bids.find(b => b.id === selectedBidId);
                 const dId = wonBid ? getBidDoctorId(wonBid) : null;
-                const doctorName =
+                let doctorName =
                     wonBid?.doctor?.fullName ||
                     (wonBid?.doctor?.firstName ? `${wonBid.doctor.firstName} ${wonBid.doctor.lastName}` : null) ||
                     (dId ? doctorProfiles[dId]?.fullName : null) ||
                     wonBid?.doctorName ||
-                    'Médico';
-                const clinicName = wonBid?.clinic?.name || duplaMap[selectedBidId!]?.clinicName || null;
+                    null;
+                let doctorPhoto = wonBid?.doctor?.profileImageUrl || (dId ? doctorProfiles[dId]?.profileImageUrl : null) || null;
+                // La oferta puede traer solo el id: hidratar nombre y foto reales del médico
+                if (dId && (!doctorName || !doctorPhoto)) {
+                    try {
+                        const info: any = ((await getDoctorById(Number(dId))) as any);
+                        const d = info?.data ?? info;
+                        if (d?.id) {
+                            doctorName = doctorName || d.fullName || (d.firstName ? `${d.firstName} ${d.lastName}` : null);
+                            doctorPhoto = doctorPhoto || d.profileImageUrl || null;
+                        }
+                    } catch { /* usa lo disponible */ }
+                }
+                const cId = typeof wonBid?.clinic === 'object' ? wonBid?.clinic?.id : (wonBid as any)?.clinicId;
+                const clinicName = wonBid?.clinic?.name || duplaMap[selectedBidId!]?.clinicName || (cId ? clinicProfiles[cId]?.name : null) || null;
+                const clinicLogo = wonBid?.clinic?.logoUrl || (cId ? clinicProfiles[cId]?.logoUrl : null) || duplaMap[selectedBidId!]?.clinicLogoUrl || null;
                 const amount = duplaMap[selectedBidId!]?.total ?? wonBid?.bidAmount ?? null;
                 setAwardModalOpen(false);
-                setAwardSummary({ doctorName, clinicName, amount });
+                setAwardSummary({ doctorName: doctorName || 'Médico', doctorPhoto, clinicName, clinicLogo, amount });
             } else {
                 alert(res.message || 'Error al adjudicar subasta');
             }
@@ -1489,9 +1503,13 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
 
                     <div className="bg-slate-50 rounded-2xl p-5 space-y-3 text-left">
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-alteha-violet/10 flex items-center justify-center shrink-0">
-                                <Stethoscope className="w-5 h-5 text-alteha-violet" />
-                            </div>
+                            {awardSummary?.doctorPhoto ? (
+                                <img src={awardSummary.doctorPhoto} alt="" className="w-12 h-12 rounded-xl object-cover border-2 border-white shadow-sm shrink-0" />
+                            ) : (
+                                <div className="w-12 h-12 rounded-xl bg-alteha-violet/10 flex items-center justify-center shrink-0">
+                                    <Stethoscope className="w-5 h-5 text-alteha-violet" />
+                                </div>
+                            )}
                             <div className="min-w-0">
                                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Médico</p>
                                 <p className="font-black text-slate-900 truncate">{awardSummary?.doctorName}</p>
@@ -1499,9 +1517,13 @@ export default function AuctionBidsList({ auctionId, auctionNumber, auctionStatu
                         </div>
                         {awardSummary?.clinicName && (
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-alteha-turquoise/10 flex items-center justify-center shrink-0">
-                                    <Building2 className="w-5 h-5 text-alteha-turquoise" />
-                                </div>
+                                {awardSummary?.clinicLogo ? (
+                                    <img src={awardSummary.clinicLogo} alt="" className="w-12 h-12 rounded-xl object-contain bg-white border-2 border-white shadow-sm shrink-0" />
+                                ) : (
+                                    <div className="w-12 h-12 rounded-xl bg-alteha-turquoise/10 flex items-center justify-center shrink-0">
+                                        <Building2 className="w-5 h-5 text-alteha-turquoise" />
+                                    </div>
+                                )}
                                 <div className="min-w-0">
                                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Clínica</p>
                                     <p className="font-black text-slate-900 truncate">{awardSummary.clinicName}</p>
