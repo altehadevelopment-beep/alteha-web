@@ -5,6 +5,9 @@
 FROM node:20-alpine
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
+# El backend QA usa un certificado que no valida por hostname (igual que el
+# package.json: NODE_TLS_REJECT_UNAUTHORIZED=0 en build/start)
+ENV NODE_TLS_REJECT_UNAUTHORIZED=0
 COPY package*.json ./
 RUN npm ci
 COPY . .
