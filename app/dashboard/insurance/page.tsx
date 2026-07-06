@@ -815,8 +815,16 @@ function StatCard({ label, value, icon: Icon, trend, color }: any) {
     );
 }
 
+const AUCTION_STATUS_ES: Record<string, string> = {
+    DRAFT: 'Borrador', PUBLISHED: 'Publicada', ACTIVE: 'Activa', CLOSED: 'Cerrada',
+    AWARDED: 'Adjudicada', PAYMENT_REPORTED: 'Pago reportado', PAYMENT_VALIDATION: 'En validación de pago',
+    PAID: 'Pagada', PENDING_SETTLEMENT: 'Por liquidar', SETTLED: 'Liquidada',
+    COMPLETED: 'Finalizada', CANCELLED: 'Cancelada', EXPIRED: 'Expirada',
+};
+
 function AuctionItem({ id, title, status, bids, timeLeft, savings, bidsSummary }: any) {
     const isAwarded = status === 'AWARDED';
+    const inPaymentValidation = status === 'PAYMENT_VALIDATION';
     const router = useRouter();
     return (
         <div onClick={() => router.push(`/dashboard/insurance/auctions/${id}`)} className={`group cursor-pointer flex items-center justify-between p-6 rounded-[2.5rem] border transition-all duration-300 ${isAwarded 
@@ -835,9 +843,15 @@ function AuctionItem({ id, title, status, bids, timeLeft, savings, bidsSummary }
                                 Adjudicada
                             </span>
                         )}
+                        {inPaymentValidation && (
+                            <span className="px-3 py-1 bg-amber-400 text-amber-950 text-[9px] font-black uppercase tracking-widest rounded-full shadow-sm shadow-amber-200 animate-pulse inline-flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-800" />
+                                En validación de pago
+                            </span>
+                        )}
                     </div>
                     <div className="flex items-center gap-3 mt-1">
-                        <span className={`text-[10px] font-black uppercase tracking-widest ${isAwarded ? 'text-alteha-violet' : 'text-slate-400'}`}>{status}</span>
+                        <span className={`text-[10px] font-black uppercase tracking-widest ${isAwarded ? 'text-alteha-violet' : (inPaymentValidation ? 'text-amber-600' : 'text-slate-400')}`}>{AUCTION_STATUS_ES[status] || String(status || '').replace(/_/g, ' ')}</span>
                         <span className="w-1 h-1 rounded-full bg-slate-200" />
                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{id}</span>
                         <span className="w-1 h-1 rounded-full bg-slate-200" />

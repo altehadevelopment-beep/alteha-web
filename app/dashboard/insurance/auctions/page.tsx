@@ -25,6 +25,11 @@ const STATUS_CONFIG: Record<string, { label: string, color: string, icon: any }>
     'PUBLISHED': { label: 'Publicada', color: 'bg-blue-50 text-blue-600', icon: Clock },
     'ACTIVE': { label: 'Activa', color: 'bg-emerald-50 text-emerald-600', icon: Gavel },
     'AWARDED': { label: 'Adjudicada', color: 'bg-alteha-violet/10 text-alteha-violet', icon: CheckCircle2 },
+    'PAYMENT_REPORTED': { label: 'Pago Reportado', color: 'bg-amber-50 text-amber-600', icon: Clock },
+    'PAYMENT_VALIDATION': { label: 'En Validación de Pago', color: 'bg-amber-100 text-amber-700', icon: Clock },
+    'PAID': { label: 'Pagada', color: 'bg-emerald-50 text-emerald-600', icon: CheckCircle2 },
+    'PENDING_SETTLEMENT': { label: 'Por Liquidar', color: 'bg-blue-50 text-blue-600', icon: Clock },
+    'SETTLED': { label: 'Liquidada', color: 'bg-slate-900 text-white', icon: CheckCircle2 },
     'CANCELLED': { label: 'Cancelada', color: 'bg-red-50 text-red-600', icon: AlertCircle },
     'COMPLETED': { label: 'Finalizada', color: 'bg-slate-900 text-white', icon: CheckCircle2 }
 };
@@ -197,7 +202,7 @@ function FilterButton({ active, onClick, label }: { active: boolean, onClick: ()
 }
 
 function AuctionCard({ auction, index }: { auction: Auction, index: number }) {
-    const config = STATUS_CONFIG[auction.status] || STATUS_CONFIG['DRAFT'];
+    const config = STATUS_CONFIG[auction.status] || { label: String(auction.status || '').replace(/_/g, ' '), color: 'bg-slate-100 text-slate-600', icon: FileText };
     const StatusIcon = config.icon;
     const router = useRouter();
 
