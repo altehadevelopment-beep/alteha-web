@@ -70,6 +70,14 @@ export const WinnerSettlementSection: React.FC<WinnerSettlementSectionProps> = (
                 setGuiaPayOp(op || null);
             })
             .catch(() => setGuiaPayOp(null));
+
+        // La tarjeta GuiaPay anuncia la operación recién creada: desbloquear el finiquito al instante
+        const onRequested = (e: any) => {
+            const op = e?.detail;
+            if (op && op.auctionNumber === auction.auctionNumber) setGuiaPayOp(op);
+        };
+        window.addEventListener('guiapay:requested', onRequested);
+        return () => window.removeEventListener('guiapay:requested', onRequested);
     }, [auction.auctionNumber, role]);
 
     // Load the winning bid (modality + amount) and, for SOLO_MEDICO, the clinic's separate fee (dupla).

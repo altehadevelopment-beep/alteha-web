@@ -121,6 +121,8 @@ export default function GuiaPayExchange({ role, auctionNumber, defaultAmount, me
             if (data?.code === '00') {
                 setDone(data.data);
                 setMyOps(prev => [data.data, ...prev]);
+                // Avisar a la sección de liquidación para desbloquear el finiquito sin refrescar
+                window.dispatchEvent(new CustomEvent('guiapay:requested', { detail: data.data }));
             } else if (msg.includes('PLAN_LIMIT')) {
                 setShowUpgrade(true);
             } else if (msg.includes('METODO_COBRO')) {
