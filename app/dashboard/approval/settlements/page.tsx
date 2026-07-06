@@ -236,7 +236,7 @@ export default function SettlementsPage() {
                     const dispatches = await window.fetch('/api/dispatch-orders/all', { headers: { 'X-Alteha-Token': token || '' } }).then(r => r.json());
                     const approvedNums = new Set(
                         (Array.isArray(dispatches) ? dispatches : [])
-                            .filter((d: any) => d.status === 'APPROVED')
+                            .filter((d: any) => d.status === 'APPROVED' || d.status === 'DELIVERY_REPORTED')
                             .map((d: any) => d.auctionNumber)
                     );
                     const missing = [...approvedNums].filter(n => !list.some((a: any) => a.auctionNumber === n));

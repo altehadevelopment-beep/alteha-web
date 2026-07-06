@@ -578,6 +578,12 @@ def main():
         check('L10', 'Casa de salud carga la orden de entrega (en validación)',
               unwrap(r).get('status') == 'DELIVERY_REPORTED', str(r)[:140])
 
+        # Al adjuntar el recibo queda marcada AUTOMÁTICAMENTE la liquidación pendiente de la casa
+        st, r = http('GET', f'{FRONT}/api/commissions/auction/{a3_no}/settlements')
+        so = [o for o in (r if isinstance(r, list) else []) if o.get('payeeRole') == 'PHARMACY']
+        check('L10b', 'El recibo adjunto marca la liquidación pendiente de la casa',
+              bool(so) and so[0].get('status') == 'PENDING', str(so)[:120])
+
         # Alteha aprueba la entrega → se libera la liquidación PENDIENTE de la casa
         tok_admD = actor_login('test.admin@alteha.com', 'Test2026*', 'ADMIN')
         st, r = http('POST', f'{FRONT}/api/dispatch-orders/{dsp["id"]}/review',

@@ -63,7 +63,7 @@ export default function ProviderProfilePage() {
         }
     }, [userProfile]);
 
-    const handleLogoSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleLogoSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
         if (!file.type.startsWith('image/')) {
@@ -72,6 +72,21 @@ export default function ProviderProfilePage() {
         }
         setLogoFile(file);
         setLogoPreview(URL.createObjectURL(file));
+        // Subida inmediata: no hace falta presionar Guardar para cambiar el logo
+        try {
+            toast.loading('Subiendo logo...', { id: 'logo-up' });
+            const res = await updatePharmacyProfile({}, file);
+            const code = res?.code ?? res?.data?.code;
+            if (code === '00' || res?.data?.id || res?.id) {
+                toast.success('Logo actualizado', { id: 'logo-up' });
+                setLogoFile(null);
+                setTimeout(() => window.location.reload(), 800);
+            } else {
+                toast.error(res?.message || 'No se pudo subir el logo', { id: 'logo-up' });
+            }
+        } catch {
+            toast.error('Error al subir el logo', { id: 'logo-up' });
+        }
     };
 
     const handleSave = async (e: React.FormEvent) => {

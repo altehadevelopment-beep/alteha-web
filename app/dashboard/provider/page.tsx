@@ -21,6 +21,8 @@ import {
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import AuctionCountdown from '@/components/auctions/AuctionCountdown';
+import { updatePharmacyProfile } from '@/lib/api';
+import { toast } from 'sonner';
 
 const relTime = (d: string | undefined) => {
     if (!d) return '';
@@ -35,6 +37,27 @@ const relTime = (d: string | undefined) => {
 
 export default function ProviderDashboard() {
     const { userProfile, isLoadingProfile } = useAuth();
+    const logoInputRef = React.useRef<HTMLInputElement>(null);
+
+    // Cambiar el logo directo desde el home: clic en la foto → seleccionar → sube al instante
+    const onLogoSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (!file.type.startsWith('image/')) { toast.error('El logo debe ser una imagen'); return; }
+        try {
+            toast.loading('Subiendo logo...', { id: 'logo-home' });
+            const res = await updatePharmacyProfile({}, file);
+            const code = res?.code ?? res?.data?.code;
+            if (code === '00' || res?.data?.id || res?.id) {
+                toast.success('Logo actualizado', { id: 'logo-home' });
+                setTimeout(() => window.location.reload(), 800);
+            } else {
+                toast.error(res?.message || 'No se pudo subir el logo', { id: 'logo-home' });
+            }
+        } catch {
+            toast.error('Error al subir el logo', { id: 'logo-home' });
+        }
+    };
     const [openAuctions, setOpenAuctions] = useState<any[]>([]);
     const [myBids, setMyBids] = useState<any[]>([]);
     const [payments, setPayments] = useState<any[]>([]);
@@ -123,13 +146,22 @@ export default function ProviderDashboard() {
             {/* Header section with company summary */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-indigo-50/50 p-10 rounded-[3rem] border border-indigo-100/50">
                 <div className="flex items-center gap-6">
-                    <div className="w-24 h-24 rounded-3xl overflow-hidden border-4 border-white shadow-xl bg-white p-3 flex items-center justify-center">
+                    <button
+                        type="button"
+                        onClick={() => logoInputRef.current?.click()}
+                        title="Cambiar logo"
+                        className="w-24 h-24 rounded-3xl overflow-hidden border-4 border-white shadow-xl bg-white p-3 flex items-center justify-center cursor-pointer hover:ring-4 hover:ring-indigo-200 transition-all relative group/logo"
+                    >
                         {logoOk ? (
                             <img src={displayProfile.logoUrl} alt="Logo" className="w-full h-full object-contain" />
                         ) : (
                             <Truck className="w-full h-full text-indigo-600 opacity-20" />
                         )}
-                    </div>
+                        <span className="absolute inset-0 bg-slate-900/50 opacity-0 group-hover/logo:opacity-100 transition-opacity flex items-center justify-center">
+                            <Edit3 className="w-6 h-6 text-white" />
+                        </span>
+                    </button>
+                    <input ref={logoInputRef} type="file" accept="image/*" className="hidden" onChange={onLogoSelected} />
                     <div>
                         <div className="flex items-center gap-3">
                             <h2 className="text-3xl font-black text-slate-900 tracking-tight">
