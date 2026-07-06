@@ -21,7 +21,9 @@ import {
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import AuctionCountdown from '@/components/auctions/AuctionCountdown';
-import { updatePharmacyProfile } from '@/lib/api';
+import { updatePharmacyProfile, validateSettlementReceipt } from '@/lib/api';
+import { ActorRatingCard } from '@/components/payments/WinnerSettlementSection';
+import { Modal } from '@/components/ui/Modal';
 import { toast } from 'sonner';
 
 const relTime = (d: string | undefined) => {
@@ -58,6 +60,47 @@ export default function ProviderDashboard() {
             toast.error('Error al subir el logo', { id: 'logo-home' });
         }
     };
+    // Pago liquidado por Alteha que la casa aún no confirma (alerta al cargar el dashboard)
+    const [pendingConfirm, setPendingConfirm] = useState<any[]>([]);
+    const [confirmOpen, setConfirmOpen] = useState<any>(null); // pago abierto en el modal
+    const [confirming, setConfirming] = useState(false);
+    const [confirmedNow, setConfirmedNow] = useState(false);
+    const [actorNames, setActorNames] = useState<any>(null);
+
+    const confirmKey = (p: any) => `alteha_pharm_confirmed_${p.receiptNumber || p.id}`;
+
+    const openConfirm = async (p: any) => {
+        setConfirmOpen(p);
+        setConfirmedNow(!!localStorage.getItem(confirmKey(p)));
+        setActorNames(null);
+        if (p.auctionNumber) {
+            try {
+                const d = await fetch(`/api/commissions/auction/${p.auctionNumber}`).then(r => r.json());
+                setActorNames(d || null);
+            } catch { /* etiquetas genéricas */ }
+        }
+    };
+
+    const confirmReception = async () => {
+        if (!confirmOpen?.auctionNumber) return;
+        setConfirming(true);
+        try {
+            const res = await validateSettlementReceipt({ auctionNumber: confirmOpen.auctionNumber, isReceived: true });
+            if (res.code === '00' || (res as any).id || (res as any).auctionNumber) {
+                localStorage.setItem(confirmKey(confirmOpen), '1');
+                setConfirmedNow(true);
+                setPendingConfirm(prev => prev.filter(x => x !== confirmOpen && (x.receiptNumber || x.id) !== (confirmOpen.receiptNumber || confirmOpen.id)));
+                toast.success('Recepción del pago confirmada');
+            } else {
+                toast.error((res as any).message || 'No se pudo confirmar la recepción');
+            }
+        } catch {
+            toast.error('Error de conexión');
+        } finally {
+            setConfirming(false);
+        }
+    };
+
     const [openAuctions, setOpenAuctions] = useState<any[]>([]);
     const [myBids, setMyBids] = useState<any[]>([]);
     const [payments, setPayments] = useState<any[]>([]);
@@ -74,6 +117,12 @@ export default function ProviderDashboard() {
             setOpenAuctions(Array.isArray(a) ? a : []);
             setMyBids(Array.isArray(b) ? b : []);
             setPayments(Array.isArray(p) ? p : []);
+            const pend = (Array.isArray(p) ? p : []).filter((x: any) =>
+                x.direction === 'RECIBIDO' && x.status === 'PAID' &&
+                String(x.concept || '').startsWith('Liquidación') && x.auctionNumber &&
+                !localStorage.getItem(`alteha_pharm_confirmed_${x.receiptNumber || x.id}`)
+            );
+            setPendingConfirm(pend);
         }).finally(() => setLoadingData(false));
     }, []);
 
@@ -144,6 +193,33 @@ export default function ProviderDashboard() {
 
     return (
         <div className="space-y-10 font-outfit pb-20">
+            {/* Alerta: pagos liquidados por Alteha pendientes de confirmar */}
+            {pendingConfirm.length > 0 && (
+                <div className="bg-gradient-to-r from-emerald-600 to-teal-600 rounded-[2rem] p-6 text-white shadow-xl shadow-emerald-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center shrink-0">
+                            <DollarSign className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <p className="font-black text-lg">
+                                Tienes {pendingConfirm.length === 1 ? 'un pago por confirmar' : `${pendingConfirm.length} pagos por confirmar`}
+                            </p>
+                            <p className="text-sm text-emerald-100 font-medium">
+                                Alteha liquidó {pendingConfirm.length === 1
+                                    ? `$${Number(pendingConfirm[0].amount || 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })} (${pendingConfirm[0].auctionNumber})`
+                                    : 'tus insumos'}: confirma la recepción y valora a los actores.
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => openConfirm(pendingConfirm[0])}
+                        className="shrink-0 px-8 py-3.5 bg-white text-emerald-700 rounded-2xl font-black text-sm uppercase tracking-widest hover:scale-105 transition-all shadow-lg"
+                    >
+                        Confirmar y valorar
+                    </button>
+                </div>
+            )}
+
             {/* Header section with company summary */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-indigo-50/50 p-10 rounded-[3rem] border border-indigo-100/50">
                 <div className="flex items-center gap-6">
@@ -262,6 +338,70 @@ export default function ProviderDashboard() {
                     </div>
                 </div>
             </div>
+            {/* Modal: confirmar recepción del pago + valorar médico, clínica y seguro */}
+            <Modal
+                isOpen={!!confirmOpen}
+                onClose={() => setConfirmOpen(null)}
+                title="Confirmar Pago Recibido"
+                maxWidth="max-w-lg"
+            >
+                {confirmOpen && (
+                    <div className="bg-slate-900 rounded-[2rem] p-6 space-y-5 -m-2">
+                        <div className="text-center space-y-2">
+                            <p className="text-[10px] font-black text-alteha-turquoise uppercase tracking-widest">
+                                Liquidación de insumos · {confirmOpen.auctionNumber}
+                            </p>
+                            <p className="text-4xl font-black text-white">
+                                ${Number(confirmOpen.amount || 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                            </p>
+                            <p className="text-xs text-slate-400 font-medium">
+                                Pagado por Alteha{confirmOpen.reference ? ` · Ref. ${confirmOpen.reference}` : ''}
+                            </p>
+                        </div>
+
+                        {confirmedNow ? (
+                            <div className="bg-emerald-500/10 border border-emerald-400/20 rounded-2xl p-4 text-center">
+                                <p className="text-sm font-black text-emerald-300 flex items-center justify-center gap-2">
+                                    <CheckCircle className="w-4 h-4" /> Recepción confirmada
+                                </p>
+                            </div>
+                        ) : (
+                            <button
+                                onClick={confirmReception}
+                                disabled={confirming}
+                                className="w-full py-4 bg-alteha-turquoise text-slate-900 rounded-2xl font-black text-sm uppercase tracking-widest hover:scale-[1.01] transition-all disabled:opacity-50"
+                            >
+                                {confirming ? 'Confirmando…' : 'Sí, recibí este pago'}
+                            </button>
+                        )}
+
+                        {/* Valoraciones: médico, clínica y seguro de la subasta */}
+                        <div className="space-y-3 pt-2 border-t border-white/10">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Valora tu experiencia</p>
+                            <ActorRatingCard
+                                auctionNumber={confirmOpen.auctionNumber}
+                                targetRole="DOCTOR"
+                                label="Médico"
+                                sublabel={actorNames?.doctorName || null}
+                            />
+                            {actorNames?.clinicName && (
+                                <ActorRatingCard
+                                    auctionNumber={confirmOpen.auctionNumber}
+                                    targetRole="CLINIC"
+                                    label="Clínica"
+                                    sublabel={actorNames?.clinicName || null}
+                                />
+                            )}
+                            <ActorRatingCard
+                                auctionNumber={confirmOpen.auctionNumber}
+                                targetRole="INSURANCE"
+                                label="Compañía de Seguros"
+                                sublabel="Quien lanzó la subasta"
+                            />
+                        </div>
+                    </div>
+                )}
+            </Modal>
         </div>
     );
 }

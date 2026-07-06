@@ -532,7 +532,7 @@ export function StarPicker({ value, onChange, disabled }: { value: number; onCha
 
 export function ActorRatingCard({ auctionNumber, targetRole, label, sublabel, onSaved }: {
     auctionNumber: string;
-    targetRole: 'INSURANCE' | 'ALTEHA' | 'CLINIC';
+    targetRole: 'INSURANCE' | 'ALTEHA' | 'CLINIC' | 'DOCTOR';
     label: string;
     sublabel?: string | null;
     onSaved?: () => void;

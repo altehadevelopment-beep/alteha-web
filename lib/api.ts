@@ -2351,7 +2351,7 @@ export async function validateSettlementReceipt(payload: {
 // El backend resuelve las cuentas reviewer/reviewee a partir del token y la subasta.
 export async function rateAuctionActor(
     auctionNumber: string,
-    payload: { targetRole: 'INSURANCE' | 'ALTEHA' | 'CLINIC'; rating: number; comment?: string }
+    payload: { targetRole: 'INSURANCE' | 'ALTEHA' | 'CLINIC' | 'DOCTOR'; rating: number; comment?: string }
 ): Promise<ApiResponse<any>> {
     const token = getStoredToken();
     if (!token) throw new Error('No token found');
