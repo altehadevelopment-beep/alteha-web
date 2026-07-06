@@ -475,6 +475,44 @@ export default function SettlementsPage() {
                                             <p className={`text-[11px] font-medium ${matchesRecipient ? 'text-indigo-200' : 'text-slate-400'}`}>
                                                 Tasa BCV {Number(op.bcvRate || 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })} · gastos administrativos {op.marginRate}% (ganancia Alteha {money(op.altehaGain, op.toCurrency)}) · estado: {op.status === 'SCHEDULED' ? 'programada' : 'solicitada'}
                                             </p>
+
+                                            {/* Cuenta destino: dónde debe transferir el operador */}
+                                            {op.receivingMethod ? (() => {
+                                                const rm = op.receivingMethod;
+                                                const ba = rm.bankAccount || {};
+                                                const rows: { label: string; value: string }[] = [];
+                                                if (ba.holderFullName) rows.push({ label: 'Titular', value: `${ba.holderFullName}${ba.holderDocument ? ` (${ba.holderDocument})` : ''}` });
+                                                if (ba.bankName) rows.push({ label: 'Banco', value: `${ba.bankName}${ba.bankCountry ? ` · ${ba.bankCountry}` : ''}` });
+                                                if (ba.accountNumber) rows.push({ label: 'Cuenta', value: ba.accountNumber });
+                                                if (ba.iban) rows.push({ label: 'IBAN', value: ba.iban });
+                                                if (ba.swiftCode) rows.push({ label: 'SWIFT', value: ba.swiftCode });
+                                                if (ba.abaRoutingNumber) rows.push({ label: 'ABA/Routing', value: ba.abaRoutingNumber });
+                                                if (ba.phone) rows.push({ label: 'Teléfono', value: ba.phone });
+                                                if (rm.binancePayId) rows.push({ label: 'Binance Pay ID', value: rm.binancePayId });
+                                                if (rm.binanceUserIdentifier) rows.push({ label: 'Usuario Binance', value: rm.binanceUserIdentifier });
+                                                if (rm.cryptoWalletAddress) rows.push({ label: 'Wallet', value: `${rm.cryptoWalletAddress}${rm.cryptoNetwork ? ` (${rm.cryptoNetwork})` : ''}` });
+                                                if (!rows.length && rm.maskedAccount) rows.push({ label: 'Cuenta', value: rm.maskedAccount });
+                                                return (
+                                                    <div className={`rounded-xl p-4 space-y-1.5 ${matchesRecipient ? 'bg-white/10' : 'bg-white'} border ${matchesRecipient ? 'border-white/10' : 'border-indigo-100'}`}>
+                                                        <p className={`text-[9px] font-black uppercase tracking-widest ${matchesRecipient ? 'text-indigo-300' : 'text-indigo-500'}`}>
+                                                            Transferir a — {METHOD_LABELS[rm.methodType] || rm.methodType}{rm.displayName ? ` · ${rm.displayName}` : ''}
+                                                        </p>
+                                                        {rows.map((row, i) => (
+                                                            <div key={i} className="flex justify-between gap-3 text-xs">
+                                                                <span className={`font-bold ${matchesRecipient ? 'text-slate-300' : 'text-slate-400'}`}>{row.label}</span>
+                                                                <span className={`font-black text-right break-all ${matchesRecipient ? 'text-white' : 'text-slate-800'}`}>{row.value}</span>
+                                                            </div>
+                                                        ))}
+                                                        {rm.instructions && (
+                                                            <p className={`text-[10px] font-medium pt-1 ${matchesRecipient ? 'text-slate-300' : 'text-slate-500'}`}>{rm.instructions}</p>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })() : (
+                                                <p className={`text-[10px] font-bold ${matchesRecipient ? 'text-amber-300' : 'text-amber-600'}`}>
+                                                    El beneficiario aún no tiene un método de cobro activo en {cur(op.toCurrency)}: pídele configurarlo antes de ejecutar el pago.
+                                                </p>
+                                            )}
                                         </div>
                                     );
                                 })}

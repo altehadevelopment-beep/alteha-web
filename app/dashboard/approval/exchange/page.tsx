@@ -171,6 +171,41 @@ export default function AdminExchangePage() {
                                     <span className={`shrink-0 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${st.cls}`}>{st.label}</span>
                                 </div>
 
+                                {/* Cuenta destino del beneficiario (a dónde transferir) */}
+                                {op.receivingMethod ? (() => {
+                                    const rm = op.receivingMethod;
+                                    const ba = rm.bankAccount || {};
+                                    const rows: { label: string; value: string }[] = [];
+                                    if (ba.holderFullName) rows.push({ label: 'Titular', value: `${ba.holderFullName}${ba.holderDocument ? ` (${ba.holderDocument})` : ''}` });
+                                    if (ba.bankName) rows.push({ label: 'Banco', value: `${ba.bankName}${ba.bankCountry ? ` · ${ba.bankCountry}` : ''}` });
+                                    if (ba.accountNumber) rows.push({ label: 'Cuenta', value: ba.accountNumber });
+                                    if (ba.iban) rows.push({ label: 'IBAN', value: ba.iban });
+                                    if (ba.swiftCode) rows.push({ label: 'SWIFT', value: ba.swiftCode });
+                                    if (ba.abaRoutingNumber) rows.push({ label: 'ABA/Routing', value: ba.abaRoutingNumber });
+                                    if (ba.phone) rows.push({ label: 'Teléfono', value: ba.phone });
+                                    if (rm.binancePayId) rows.push({ label: 'Binance Pay ID', value: rm.binancePayId });
+                                    if (rm.binanceUserIdentifier) rows.push({ label: 'Usuario Binance', value: rm.binanceUserIdentifier });
+                                    if (rm.cryptoWalletAddress) rows.push({ label: 'Wallet', value: `${rm.cryptoWalletAddress}${rm.cryptoNetwork ? ` (${rm.cryptoNetwork})` : ''}` });
+                                    if (!rows.length && rm.maskedAccount) rows.push({ label: 'Cuenta', value: rm.maskedAccount });
+                                    return (
+                                        <div className="bg-indigo-50/60 border border-indigo-100 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5">
+                                            <p className="sm:col-span-2 text-[9px] font-black uppercase tracking-widest text-indigo-500">
+                                                Transferir a — {rm.methodType}{rm.displayName ? ` · ${rm.displayName}` : ''}
+                                            </p>
+                                            {rows.map((row, i) => (
+                                                <div key={i} className="flex justify-between gap-3 text-xs">
+                                                    <span className="font-bold text-slate-400">{row.label}</span>
+                                                    <span className="font-black text-slate-800 text-right break-all">{row.value}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    );
+                                })() : (op.status === 'REQUESTED' || op.status === 'SCHEDULED') ? (
+                                    <p className="text-[11px] font-bold text-amber-600">
+                                        El beneficiario aún no tiene un método de cobro activo en {op.toCurrency}: no ejecutes el pago hasta que lo configure.
+                                    </p>
+                                ) : null}
+
                                 {(op.status === 'REQUESTED' || op.status === 'SCHEDULED') && (
                                     <div className="flex items-center gap-2 flex-wrap border-t border-slate-50 pt-4">
                                         {scheduleFor === op.id ? (
