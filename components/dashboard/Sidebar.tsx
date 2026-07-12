@@ -27,7 +27,8 @@ import {
     History,
     Wrench,
     Crown,
-    ChevronDown
+    ChevronDown,
+    ShieldBan,
 } from 'lucide-react';
 import { Logo } from '@/components/ui/Logo';
 import { cn } from '@/lib/utils';
@@ -84,6 +85,7 @@ const insuranceItems = [
     { title: 'Dashboard', icon: LayoutDashboard, href: '/dashboard/insurance' },
     { title: 'Crear Subasta', icon: Plus, href: '/dashboard/insurance/auctions/new' },
     { title: 'Mis Subastas', icon: Gavel, href: '/dashboard/insurance/auctions' },
+    { title: 'Listas de Exclusión', icon: ShieldBan, href: '/dashboard/insurance/exclusions' },
     { title: 'Paquetes Médicos', icon: Package, href: '/dashboard/insurance/packages' },
     { title: 'Métodos de Pago', icon: CreditCard, href: '/dashboard/insurance/payments' },
     { title: 'Mis Pagos', icon: Banknote, href: '/dashboard/insurance/my-payments' },

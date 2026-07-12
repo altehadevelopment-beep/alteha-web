@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { Input } from '@/components/ui/Input';
+import { PhoneField } from '@/components/ui/PhoneField';
 import { Button } from '@/components/ui/Button';
 import { Logo } from '@/components/ui/Logo';
 import { PuzzleCaptcha } from '@/components/ui/PuzzleCaptcha';
@@ -795,20 +796,14 @@ export default function InsuranceRegistrationPage() {
 
                                 {!phoneVerified && (
                                     <div className="space-y-4">
-                                        <Input
-                                            label="Teléfono Celular"
+                                        <PhoneField
                                             value={formData.phone}
-                                            onChange={(e) => {
-                                                updateFormData('phone', e.target.value.replace(/\D/g, ''));
-                                                setPhoneCheckError(''); // clear error on change
-                                            }}
+                                            onChange={(v) => { updateFormData('phone', v); setPhoneCheckError(''); }}
                                             onBlur={handleCheckPhone}
-                                            placeholder="58412..."
                                             disabled={smsSent}
-                                            tooltip="Número de celular para verificación vía SMS"
                                         />
                                         {formData.phone && !isValidPhone(formData.phone) && (
-                                            <p className="text-red-500 text-xs font-medium -mt-2">Ingresa un número válido</p>
+                                            <p className="text-red-500 text-xs font-medium">Completa los 7 dígitos del número.</p>
                                         )}
                                         {phoneCheckError && (
                                             <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-600 rounded-xl px-4 py-3 text-sm font-medium -mt-2">
@@ -1044,12 +1039,9 @@ export default function InsuranceRegistrationPage() {
                                                     onChange={(e) => updateAdditionalUser(index, 'email', e.target.value)}
                                                     placeholder="usuario@aseguradora.com"
                                                 />
-                                                <Input
-                                                    label="Teléfono Celular"
-                                                    type="tel"
+                                                <PhoneField
                                                     value={user.phone}
-                                                    onChange={(e) => updateAdditionalUser(index, 'phone', e.target.value)}
-                                                    placeholder="58412..."
+                                                    onChange={(v) => updateAdditionalUser(index, 'phone', v)}
                                                 />
                                             </div>
                                         </div>

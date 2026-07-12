@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { useLoadScript, GoogleMap, MarkerF, Autocomplete } from '@react-google-maps/api';
 import { Input } from '@/components/ui/Input';
+import { PhoneField } from '@/components/ui/PhoneField';
 import { Button } from '@/components/ui/Button';
 import { Logo } from '@/components/ui/Logo';
 import Link from 'next/link';
@@ -562,7 +563,7 @@ export default function PharmacyRegistrationPage() {
                                 {!phoneVerified && (
                                     <div className="space-y-4">
                                         <div className="flex items-end gap-2">
-                                            <div className="flex-1"><Input label="Teléfono Celular" value={formData.phone} onChange={e => updateFormData('phone', e.target.value.replace(/\D/g, ''))} placeholder="58412..." disabled={smsSent} /></div>
+                                            <div className="flex-1"><PhoneField value={formData.phone} onChange={(v) => updateFormData('phone', v)} disabled={smsSent} /></div>
                                             {!smsSent && <Button onClick={() => handleSendSmsToken()} disabled={loading || !formData.phone} className="mb-1 h-[54px] px-6 rounded-2xl bg-indigo-600 text-white font-bold">{loading ? <Loader size={20} /> : 'Enviar'}</Button>}
                                         </div>
                                         {smsSent && (

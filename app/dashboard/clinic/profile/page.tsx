@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { Input } from '@/components/ui/Input';
+import { PhoneField } from '@/components/ui/PhoneField';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthContext';
 import { Logo } from '@/components/ui/Logo';
@@ -237,11 +238,9 @@ export default function ClinicProfilePage() {
                                 icon={Mail}
                             />
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <Input
-                                    label="Teléfono Celular"
+                                <PhoneField
                                     value={formData.phone}
-                                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                                    icon={Phone}
+                                    onChange={(v) => setFormData({ ...formData, phone: v })}
                                 />
                                 <Input
                                     label="Sitio Web"

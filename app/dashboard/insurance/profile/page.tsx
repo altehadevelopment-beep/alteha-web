@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { Input } from '@/components/ui/Input';
+import { PhoneField } from '@/components/ui/PhoneField';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthContext';
 import { Logo } from '@/components/ui/Logo';
@@ -270,13 +271,10 @@ export default function InsuranceProfilePage() {
                                 />
                             </EditableFieldWrapper>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <EditableFieldWrapper label="Teléfono Celular">
-                                    <Input
-                                        value={formData.phone}
-                                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                                        icon={Phone}
-                                    />
-                                </EditableFieldWrapper>
+                                <PhoneField
+                                    value={formData.phone}
+                                    onChange={(v) => setFormData({ ...formData, phone: v })}
+                                />
                                 <EditableFieldWrapper label="Sitio Web">
                                     <Input
                                         value={formData.website}

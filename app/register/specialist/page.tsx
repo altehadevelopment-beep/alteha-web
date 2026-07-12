@@ -28,6 +28,7 @@ import { Button } from '@/components/ui/Button';
 import { Logo } from '@/components/ui/Logo';
 import { Select } from '@/components/ui/Select';
 import { Modal } from '@/components/ui/Modal';
+import { PhoneField } from '@/components/ui/PhoneField';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { PuzzleCaptcha } from '@/components/ui/PuzzleCaptcha';
@@ -97,6 +98,7 @@ export default function DoctorRegistrationPage() {
 
     // Lists from API
     const [specialties, setSpecialties] = useState<Specialty[]>([]);
+    const [specialtiesLoading, setSpecialtiesLoading] = useState(true);
     const [clinics, setClinics] = useState<Clinic[]>([]);
     const [stateFilter, setStateFilter] = useState('');
     const [cityFilter, setCityFilter] = useState('');
@@ -161,6 +163,7 @@ export default function DoctorRegistrationPage() {
     };
 
     const loadSpecialties = async () => {
+        setSpecialtiesLoading(true);
         try {
             const data = await getSpecialties();
             const list = Array.isArray(data) ? data : (data as any).content || [];
@@ -170,6 +173,8 @@ export default function DoctorRegistrationPage() {
             setSpecialties(sortedList);
         } catch (err) {
             console.error('Error loading specialties:', err);
+        } finally {
+            setSpecialtiesLoading(false);
         }
     };
 
@@ -569,7 +574,7 @@ export default function DoctorRegistrationPage() {
             setStep(4);
         } else if (step === 4) {
             if (formData.specialtyIds.length === 0) missingFields.push('Especialidad');
-            if (!formData.medicalLicenseNumber) missingFields.push('Número de Licencia Médica');
+            if (!formData.medicalLicenseNumber) missingFields.push('Número de registro del MPPS');
 
             if (missingFields.length > 0) {
                 setError(`Por favor completa: ${missingFields.join(', ')}`);
@@ -583,7 +588,7 @@ export default function DoctorRegistrationPage() {
             }
             setStep(6);
         } else if (step === 6) {
-            if (!profileImage) missingFields.push('Foto de Perfil');
+            // La foto de perfil es opcional (recomendada, no obligatoria).
             if (!medicalLicense) missingFields.push('Título/Licencia Médica');
             if (!termsAccepted) missingFields.push('Aceptar Términos y Condiciones');
 
@@ -600,7 +605,7 @@ export default function DoctorRegistrationPage() {
     const canProceedStep3 = isPasswordValid;
     const canProceedStep4 = formData.specialtyIds.length > 0 && formData.medicalLicenseNumber;
     const canProceedStep5 = formData.isIndependent || (formData.preferredClinicIds.length > 0);
-    const canProceedStep6 = profileImage !== null && medicalLicense !== null && termsAccepted;
+    const canProceedStep6 = medicalLicense !== null && termsAccepted;
 
     return (
         <div className="min-h-screen flex items-center justify-center p-4 bg-slate-50 relative overflow-hidden font-outfit">
@@ -913,18 +918,13 @@ export default function DoctorRegistrationPage() {
 
                                 {!phoneVerified && (
                                     <div className="space-y-4">
-                                        <Input
-                                            label="Teléfono Celular"
+                                        <PhoneField
                                             value={formData.phone}
-                                            onChange={(e) => updateFormData('phone', e.target.value.replace(/\D/g, ''))}
-                                            placeholder="584241934005"
+                                            onChange={(v) => updateFormData('phone', v)}
                                             disabled={smsSent}
                                         />
-                                        <p className="text-slate-400 text-xs -mt-2">
-                                            Código de país <span className="font-semibold text-slate-600">58</span> + operadora + número. Ej: <span className="font-semibold text-slate-600">58</span>4241934005
-                                        </p>
                                         {formData.phone && !isValidPhone(formData.phone) && (
-                                            <p className="text-red-500 text-xs font-medium -mt-2">El número debe comenzar con 58 y tener 12 dígitos en total. Ej: 584241934005</p>
+                                            <p className="text-red-500 text-xs font-medium">Completa los 7 dígitos del número.</p>
                                         )}
 
                                         {!smsSent ? (
@@ -1105,7 +1105,7 @@ export default function DoctorRegistrationPage() {
                             </div>
 
                             <Input
-                                label="Número de Licencia Médica"
+                                label="Número de registro del MPPS"
                                 value={formData.medicalLicenseNumber}
                                 onChange={(e) => updateFormData('medicalLicenseNumber', e.target.value.slice(0, 30))}
                                 placeholder="Ej: 112233"
@@ -1123,13 +1123,28 @@ export default function DoctorRegistrationPage() {
                                     <div>
                                         <p className="text-xs font-black text-alteha-turquoise">¿Por qué es importante esta selección?</p>
                                         <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
-                                            Las especialidades que elijas aquí determinarán las <span className="font-bold text-slate-700">intervenciones médicas disponibles</span> cuando los pacientes creen una subasta médica. Solo verás y podrás participar en subastas relacionadas con tus especialidades registradas.
+                                            Las especialidades que elijas aquí determinarán las <span className="font-bold text-slate-700">intervenciones médicas disponibles</span> cuando los pacientes creen una subasta médica. Podrás participar en subastas relacionadas con tus especialidades registradas.
                                         </p>
                                     </div>
                                 </div>
 
                                 <div className="flex flex-wrap gap-2 max-h-64 overflow-y-auto p-4 bg-slate-50/50 rounded-[2rem] border border-slate-100 scrollbar-thin scrollbar-thumb-slate-200">
-                                    {specialties.map((spec) => (
+                                    {specialtiesLoading ? (
+                                        <div className="w-full flex items-center justify-center gap-2 py-6 text-slate-400 font-bold text-sm">
+                                            <Loader2 className="w-4 h-4 animate-spin" /> Cargando especialidades…
+                                        </div>
+                                    ) : specialties.length === 0 ? (
+                                        <div className="w-full flex flex-col items-center gap-3 py-6 text-center">
+                                            <p className="text-slate-500 font-bold text-sm">No se pudieron cargar las especialidades.</p>
+                                            <button
+                                                type="button"
+                                                onClick={loadSpecialties}
+                                                className="px-5 py-2.5 rounded-xl bg-alteha-turquoise text-white font-black text-xs uppercase tracking-widest hover:scale-105 transition-all"
+                                            >
+                                                Reintentar
+                                            </button>
+                                        </div>
+                                    ) : specialties.map((spec) => (
                                         <button
                                             key={spec.id}
                                             type="button"
@@ -1345,7 +1360,7 @@ export default function DoctorRegistrationPage() {
                                         </div>
                                         <div className="flex-1">
                                             <h3 className="font-black text-slate-900">Foto de Perfil Profesional</h3>
-                                            <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mt-1">Obligatorio para el perfil</p>
+                                            <p className="text-xs text-slate-500 font-medium mt-1">Opcional. Te recomendamos subirla: le da mayor credibilidad a tu perfil dentro del ecosistema.</p>
                                         </div>
                                         <label className="cursor-pointer">
                                             <div className="px-5 py-2.5 bg-slate-900 text-white text-xs font-black rounded-xl hover:scale-105 transition-all shadow-md active:scale-95">

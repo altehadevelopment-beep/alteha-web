@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { Input } from '@/components/ui/Input';
+import { PhoneField } from '@/components/ui/PhoneField';
 import { Button } from '@/components/ui/Button';
 import { Logo } from '@/components/ui/Logo';
 import { PuzzleCaptcha } from '@/components/ui/PuzzleCaptcha';
@@ -618,11 +619,9 @@ export default function HealthFundRegistrationPage() {
 
                                 {!phoneVerified && (
                                     <div className="space-y-4">
-                                        <Input
-                                            label="Teléfono Celular"
+                                        <PhoneField
                                             value={formData.phone}
-                                            onChange={(e) => updateFormData('phone', e.target.value.replace(/\D/g, ''))}
-                                            placeholder="58412..."
+                                            onChange={(v) => updateFormData('phone', v)}
                                             disabled={smsSent}
                                         />
                                         {!smsSent ? (
@@ -798,11 +797,9 @@ export default function HealthFundRegistrationPage() {
                                                     value={user.email}
                                                     onChange={(e) => updateAdditionalUser(index, 'email', e.target.value)}
                                                 />
-                                                <Input
-                                                    label="Teléfono Celular"
-                                                    type="tel"
+                                                <PhoneField
                                                     value={user.phone}
-                                                    onChange={(e) => updateAdditionalUser(index, 'phone', e.target.value)}
+                                                    onChange={(v) => updateAdditionalUser(index, 'phone', v)}
                                                 />
                                             </div>
                                         </div>

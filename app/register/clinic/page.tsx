@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { useLoadScript, GoogleMap, MarkerF, Autocomplete } from '@react-google-maps/api';
 import { Input } from '@/components/ui/Input';
+import { PhoneField } from '@/components/ui/PhoneField';
 import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
 import { Logo } from '@/components/ui/Logo';
@@ -1073,16 +1074,13 @@ export default function ClinicRegistrationPage() {
 
                                 {!phoneVerified && (
                                     <div className="space-y-4">
-                                        <Input
-                                            label="Teléfono Celular"
+                                        <PhoneField
                                             value={formData.phone}
-                                            onChange={(e) => updateFormData('phone', e.target.value.replace(/\D/g, '').slice(0, 15))}
-                                            placeholder="584241234567"
+                                            onChange={(v) => updateFormData('phone', v)}
                                             disabled={smsSent}
-                                            maxLength={15}
                                         />
                                         {formData.phone && !isValidPhone(formData.phone) && (
-                                            <p className="text-red-500 text-xs font-medium -mt-2">Ingresa un número válido (10-15 dígitos)</p>
+                                            <p className="text-red-500 text-xs font-medium">Completa los 7 dígitos del número.</p>
                                         )}
 
                                         {!smsSent ? (

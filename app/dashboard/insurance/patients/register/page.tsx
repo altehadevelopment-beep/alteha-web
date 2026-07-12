@@ -22,6 +22,7 @@ import {
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
+import { PhoneField } from '@/components/ui/PhoneField';
 import { registerPatient, searchPatient, searchPatientByPhone, searchPatientByEmail, type PatientRegistration } from '@/lib/api';
 
 export default function RegisterPatientPage() {
@@ -404,27 +405,12 @@ export default function RegisterPatientPage() {
                                             {isEmailDuplicate && <p className="text-[9px] font-bold text-red-500 mt-1 ml-1 uppercase tracking-tight">¡Error! Email ya en uso</p>}
                                         </div>
                                         <div className="space-y-1">
-                                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Teléfono</label>
-                                            <div className="relative">
-                                                <input
-                                                    type="tel"
-                                                    className={`w-full p-4 bg-slate-50 border-2 rounded-2xl font-bold text-slate-900 transition-all outline-none ${isPhoneDuplicate ? 'border-red-500 bg-red-50' : 'border-transparent focus:border-alteha-violet focus:bg-white'}`}
-                                                    placeholder="+58-xxx-xxxxxxx"
-                                                    value={formData.phone}
-                                                    onChange={(e) => handleInputChange('phone', e.target.value)}
-                                                    required
-                                                />
-                                                {checkingPhone && (
-                                                    <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                                                        <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
-                                                    </div>
-                                                )}
-                                                {isPhoneDuplicate && (
-                                                    <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                                                        <AlertCircle className="w-4 h-4 text-red-500" />
-                                                    </div>
-                                                )}
-                                            </div>
+                                            <PhoneField
+                                                label="Teléfono"
+                                                value={formData.phone}
+                                                onChange={(v) => handleInputChange('phone', v)}
+                                            />
+                                            {checkingPhone && <p className="text-[9px] font-bold text-slate-400 mt-1 ml-1 uppercase tracking-tight">Verificando…</p>}
                                             {isPhoneDuplicate && <p className="text-[9px] font-bold text-red-500 mt-1 ml-1 uppercase tracking-tight">¡Error! Teléfono ya en uso</p>}
                                         </div>
                                         <div className="space-y-1">

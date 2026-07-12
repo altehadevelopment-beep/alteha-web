@@ -17,6 +17,7 @@ import {
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
+import { PhoneField } from '@/components/ui/PhoneField';
 import { updatePatient, getPatient, type PatientRegistration, type Patient } from '@/lib/api';
 
 export default function EditPatientPage() {
@@ -227,7 +228,7 @@ export default function EditPatientPage() {
                             <h3 className="text-xl font-black text-slate-900 border-b pb-4">Información de Contacto</h3>
                             <div className="space-y-4">
                                 <FormInput label="Email" type="email" value={formData.email} onChange={(v: string) => handleInputChange('email', v)} />
-                                <FormInput label="Teléfono Celular" value={formData.phone} onChange={(v: string) => handleInputChange('phone', v)} />
+                                <PhoneField value={formData.phone} onChange={(v: string) => handleInputChange('phone', v)} />
                                 <div className="space-y-1">
                                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Dirección</label>
                                     <textarea

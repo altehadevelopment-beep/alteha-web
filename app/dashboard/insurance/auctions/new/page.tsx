@@ -10,6 +10,7 @@ import {
     Stethoscope,
     Calendar,
     DollarSign,
+    Sparkles,
     FileText,
     CheckCircle2,
     AlertCircle,
@@ -28,7 +29,8 @@ import {
     HelpCircle,
     UserPlus,
     CreditCard,
-    Plus
+    Plus,
+    ShieldBan
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -119,6 +121,9 @@ export default function NewAuctionPage() {
     });
 
     const [medicalReport, setMedicalReport] = useState<File | null>(null);
+    const [analyzingReport, setAnalyzingReport] = useState(false);
+    const [analyzeError, setAnalyzeError] = useState<string>('');
+    const [exclusionCounts, setExclusionCounts] = useState<Record<string, number>>({ DOCTOR: 0, CLINIC: 0, PHARMACY: 0 });
     const [specialties, setSpecialties] = useState<Specialty[]>([]);
     const [clinics, setClinics] = useState<Clinic[]>([]);
     const [doctors, setDoctors] = useState<ActorProfile[]>([]);
@@ -195,6 +200,53 @@ export default function NewAuctionPage() {
             next.delete(field);
             return next;
         });
+    };
+
+    // Conteos de las listas de exclusión (para el paso "¿Quién podrá participar?").
+    useEffect(() => {
+        const token = getStoredToken();
+        if (!token) return;
+        fetch('/api/exclusion-lists', { headers: { 'X-Alteha-Token': token } })
+            .then((r) => r.json())
+            .then((d) => setExclusionCounts({
+                DOCTOR: (d.DOCTOR || []).length,
+                CLINIC: (d.CLINIC || []).length,
+                PHARMACY: (d.PHARMACY || []).length,
+            }))
+            .catch(() => {});
+    }, [step]);
+
+    // Al subir el informe médico: OCR + resumen automático de los antecedentes (editable).
+    const handleMedicalReportUpload = async (file: File | null) => {
+        setMedicalReport(file);
+        setAnalyzeError('');
+        if (!file) return;
+        setAnalyzingReport(true);
+        try {
+            const base64 = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+            const res = await fetch('/api/teha/analyze-report', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ fileBase64: base64, mimeType: file.type }),
+            });
+            const data = await res.json();
+            if (!res.ok || !data.summary) {
+                setAnalyzeError(data.error || 'No se pudo generar el resumen automático. Puedes escribir los antecedentes manualmente.');
+                return;
+            }
+            // Rellena los antecedentes con el resumen (queda editable y marcado como autollenado).
+            setFormData(prev => ({ ...prev, medicalHistory: data.summary }));
+            setPrefilledFields(prev => new Set(prev).add('medicalHistory'));
+        } catch (err: any) {
+            setAnalyzeError('No se pudo analizar el informe. Puedes escribir los antecedentes manualmente.');
+        } finally {
+            setAnalyzingReport(false);
+        }
     };
 
     // Load templates when procedure type changes
@@ -400,11 +452,16 @@ export default function NewAuctionPage() {
             return;
         }
 
-        const finalPayload: AuctionPayload = { 
-            ...formData, 
+        const finalPayload: AuctionPayload = {
+            ...formData,
             status: finalStatus,
-            allowedPaymentMethods: formData.allowedPaymentMethods && formData.allowedPaymentMethods.length > 0 
-                ? formData.allowedPaymentMethods 
+            // Modelo de exclusión: la subasta es pública para todos (menos las listas de
+            // exclusión del seguro), por lo que ya no se envían invitados específicos.
+            invitedDoctorIds: [],
+            invitedClinicIds: [],
+            invitedPharmacyIds: [],
+            allowedPaymentMethods: formData.allowedPaymentMethods && formData.allowedPaymentMethods.length > 0
+                ? formData.allowedPaymentMethods
                 : ['BS_BANK_TRANSFER']
         };
 
@@ -643,18 +700,8 @@ export default function NewAuctionPage() {
                                             transition={{ duration: 0.5, ease: "easeOut" }}
                                             className="space-y-12"
                                         >
-                                            <div className="space-y-4 pt-8 border-t">
-                                                <h3 className="text-lg font-black text-slate-900 border-b pb-3 uppercase tracking-wider italic">2. Antecedentes</h3>
-                                                <textarea
-                                                    className={`w-full p-4 border-2 border-transparent focus:border-alteha-violet focus:bg-white rounded-xl font-bold text-slate-900 transition-all outline-none min-h-[100px] text-sm ${prefilledFields.has('medicalHistory') ? 'bg-violet-50/50 border-alteha-violet/10' : 'bg-slate-50'}`}
-                                                    placeholder="Historia médica relevante..."
-                                                    value={formData.medicalHistory}
-                                                    onChange={(e) => handleManualChange('medicalHistory', e.target.value)}
-                                                />
-                                            </div>
-
-                                            <div className="relative mt-8 pt-8 border-t">
-                                                <h3 className="text-lg font-black text-slate-900 border-b pb-3 uppercase tracking-wider italic">3. ¿Qué intervención vamos a subastar?</h3>
+                                            <div className="relative pt-8 border-t">
+                                                <h3 className="text-lg font-black text-slate-900 border-b pb-3 uppercase tracking-wider italic">2. ¿Qué intervención vamos a subastar?</h3>
                                                     <div className="flex gap-3">
                                                 <div className="flex-1 relative group">
                                                     <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
@@ -782,7 +829,7 @@ export default function NewAuctionPage() {
                                             >
                                                 {/* SECCIÓN 4: DETALLES Y LOGÍSTICA */}
                                                 <div className="space-y-6 pt-8 border-t mt-8">
-                                                    <h3 className="text-lg font-black text-slate-900 border-b pb-3 uppercase tracking-wider italic">4. Detalles y Logística</h3>
+                                                    <h3 className="text-lg font-black text-slate-900 border-b pb-3 uppercase tracking-wider italic">3. Detalles y Logística</h3>
                                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                                         <div className="space-y-4">
                                                             <FormInput 
@@ -897,20 +944,46 @@ export default function NewAuctionPage() {
                                                                 />
                                                             </div>
                                                             <div className="p-5 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50 hover:border-alteha-violet transition-all group">
-                                                                <input type="file" id="medical-report-final" className="hidden" onChange={(e) => setMedicalReport(e.target.files?.[0] || null)} />
+                                                                <input type="file" id="medical-report-final" accept=".pdf,image/*" className="hidden" onChange={(e) => handleMedicalReportUpload(e.target.files?.[0] || null)} />
                                                                 <label htmlFor="medical-report-final" className="flex flex-col items-center gap-2 cursor-pointer">
-                                                                    <Upload className="w-5 h-5 text-slate-300" />
-                                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{medicalReport ? medicalReport.name : 'Subir Informe Médico'}</span>
+                                                                    {analyzingReport ? <Loader2 className="w-5 h-5 text-alteha-violet animate-spin" /> : <Upload className="w-5 h-5 text-slate-300" />}
+                                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">{analyzingReport ? 'Analizando informe…' : (medicalReport ? medicalReport.name : 'Subir Informe Médico')}</span>
                                                                 </label>
                                                             </div>
                                                         </div>
+                                                    </div>
+
+                                                    {/* Antecedentes: resumen del informe médico (OCR + IA), editable */}
+                                                    <div className="space-y-3 pt-2">
+                                                        <div className="flex items-center justify-between">
+                                                            <label className="block text-xs font-black text-slate-500 uppercase tracking-widest">Antecedentes / Historia médica</label>
+                                                            {prefilledFields.has('medicalHistory') && (
+                                                                <span className="text-[9px] font-black text-alteha-violet uppercase tracking-widest flex items-center gap-1">
+                                                                    <Sparkles className="w-3 h-3" /> Resumen del informe · editable
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <div className="relative">
+                                                            <textarea
+                                                                className={`w-full p-4 border-2 border-transparent focus:border-alteha-violet focus:bg-white rounded-xl font-bold text-slate-900 transition-all outline-none min-h-[120px] text-sm ${prefilledFields.has('medicalHistory') ? 'bg-violet-50/50 border-alteha-violet/10' : 'bg-slate-50'}`}
+                                                                placeholder={analyzingReport ? 'Analizando el informe médico para resumir los antecedentes…' : 'Sube el informe médico arriba para generar un resumen automático de los antecedentes, o escríbelos aquí.'}
+                                                                value={formData.medicalHistory}
+                                                                onChange={(e) => handleManualChange('medicalHistory', e.target.value)}
+                                                            />
+                                                            {analyzingReport && (
+                                                                <div className="absolute inset-0 flex items-center justify-center gap-2 bg-white/60 rounded-xl backdrop-blur-[1px] text-alteha-violet font-black text-xs">
+                                                                    <Loader2 className="w-4 h-4 animate-spin" /> Resumiendo el informe médico…
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        {analyzeError && <p className="text-[11px] font-bold text-amber-600">{analyzeError}</p>}
                                                     </div>
                                                 </div>
 
                                                 {/* SECCIÓN 5: INSUMOS */}
                                                 <div className="space-y-4 pt-8 border-t mt-8">
                                                     <div className="flex justify-between items-center border-b pb-3">
-                                                        <h3 className="text-lg font-black text-slate-900 uppercase tracking-wider italic">5. Insumos Especiales</h3>
+                                                        <h3 className="text-lg font-black text-slate-900 uppercase tracking-wider italic">4. Insumos Especiales</h3>
                                                         <button type="button" onClick={() => setFormData({ ...formData, requiredSupplies: [...(formData.requiredSupplies || []), { itemName: '', description: '', quantity: 1, referenceAmount: 0 }] })} className="text-alteha-violet font-black text-[10px] uppercase tracking-widest hover:underline">+ Agregar</button>
                                                     </div>
                                                     <div className="grid grid-cols-1 gap-4 max-h-[400px] overflow-y-auto pr-2">
@@ -940,7 +1013,7 @@ export default function NewAuctionPage() {
                                                 {/* SECCIÓN 6: CONFIGURACIÓN FINANCIERA */}
                                                 <div className="space-y-6 pt-8 border-t mt-8 bg-slate-900 p-8 rounded-[2.5rem] text-white">
                                                     <div className="flex justify-between items-center border-b border-white/10 pb-4">
-                                                        <h3 className="text-lg font-black uppercase tracking-wider italic">6. Configuración del Presupuesto</h3>
+                                                        <h3 className="text-lg font-black uppercase tracking-wider italic">5. Configuración del Presupuesto</h3>
                                                         {formData.requiredSupplies && formData.requiredSupplies.length > 0 && (
                                                             <span className="bg-alteha-violet px-4 py-1 rounded-full text-[10px] font-black tracking-widest uppercase">Incluye {formData.requiredSupplies.length} Insumos</span>
                                                         )}
@@ -1005,118 +1078,42 @@ export default function NewAuctionPage() {
                                 className="space-y-8"
                             >
                                 <div className="space-y-6">
-                                    <div className="flex justify-between items-end border-b pb-4">
-                                        <h3 className="text-2xl font-black text-slate-900">Invitados a la Subasta</h3>
-                                        <div className="text-right">
-                                            <p className="text-[10px] font-black text-alteha-violet uppercase tracking-widest">{formData.invitedClinicIds?.length || 0} Clínicas</p>
-                                            <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">{formData.invitedDoctorIds?.length || 0} Médicos</p>
-                                        </div>
+                                    <div className="border-b pb-4">
+                                        <h3 className="text-lg font-black text-slate-900 uppercase tracking-wider italic">¿Quién podrá participar?</h3>
+                                        <p className="text-sm text-slate-500 font-medium mt-1">Esta subasta será visible para <b>todos</b> los médicos, clínicas y casas de salud —incluidos los recién registrados—, excepto quienes tengas en tus <b>listas de exclusión</b>.</p>
                                     </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                        <div className="space-y-4">
-                                            <div className="flex items-center justify-between">
-                                                <h4 className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                                                    <Building2 className="w-4 h-4" /> Clínicas
-                                                </h4>
-                                                <button
-                                                    type="button"
-                                                    onClick={handleSelectAllClinics}
-                                                    className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-xl transition-all ${
-                                                        allClinicsSelected
-                                                            ? 'bg-alteha-violet text-white'
-                                                            : 'bg-slate-100 text-slate-500 hover:bg-alteha-violet/10 hover:text-alteha-violet'
-                                                    }`}
-                                                >
-                                                    {allClinicsSelected ? '✓ Todas Selec.' : 'Todas las Clínicas'}
-                                                </button>
+                                    <div className="bg-gradient-to-br from-alteha-turquoise/5 to-alteha-violet/5 border border-alteha-violet/10 rounded-3xl p-6 space-y-5">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center shadow-sm">
+                                                <ShieldBan className="w-6 h-6 text-alteha-violet" />
                                             </div>
-                                            <div className="relative">
-                                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
-                                                <input 
-                                                    type="text" 
-                                                    placeholder="Nombre, ciudad o estado…" 
-                                                    value={clinicSearch}
-                                                    onChange={(e) => setClinicSearch(e.target.value)}
-                                                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border-2 border-transparent focus:border-alteha-violet focus:bg-white rounded-xl text-xs font-bold text-slate-900 transition-all outline-none"
-                                                />
-                                            </div>
-                                            <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-                                                {(Array.isArray(clinics) ? clinics : [])
-                                                    .filter(c => smartMatch(clinicSearch, c.name, (c as any).legalName, (c as any).cityName, (c as any).stateProvinceName, (c as any).address, (c as any).preferredLocation))
-                                                    .map(clinic => (
-                                                    <div
-                                                        key={clinic.id}
-                                                        onClick={() => {
-                                                            const ids = formData.invitedClinicIds || [];
-                                                            if (ids.includes(clinic.id)) {
-                                                                const newIds = ids.filter(id => id !== clinic.id);
-                                                                const remainingDocs = doctors.filter(d => d.preferredClinics?.some(pc => newIds.includes(pc.id))).map(d => d.id);
-                                                                setFormData({ ...formData, invitedClinicIds: newIds, invitedDoctorIds: formData.invitedDoctorIds?.filter(id => remainingDocs.includes(id)) || [] });
-                                                            } else {
-                                                                setFormData({ ...formData, invitedClinicIds: [...ids, clinic.id] });
-                                                            }
-                                                        }}
-                                                        className={`p-4 rounded-2xl border-2 transition-all flex items-center gap-3 cursor-pointer ${formData.invitedClinicIds?.includes(clinic.id) ? 'border-alteha-violet bg-violet-50' : 'border-slate-100 hover:border-slate-200'}`}
-                                                    >
-                                                        <div className="w-10 h-10 bg-white rounded-lg border flex items-center justify-center p-1 shadow-sm">
-                                                            {clinic.logoUrl ? <img src={clinic.logoUrl} className="w-full h-full object-contain" /> : <Building2 className="w-6 h-6 text-slate-200" />}
-                                                        </div>
-                                                        <span className="text-sm font-black text-slate-900 truncate">{clinic.name}</span>
-                                                        {formData.invitedClinicIds?.includes(clinic.id) && <CheckCircle2 className="w-5 h-5 text-alteha-violet ml-auto" />}
-                                                    </div>
-                                                ))}
+                                            <div>
+                                                <p className="font-black text-slate-900">Listas de exclusión aplicadas</p>
+                                                <p className="text-xs text-slate-500 font-semibold">Se usan tus listas actuales al publicar</p>
                                             </div>
                                         </div>
 
-                                        <div className="space-y-4">
-                                            <div className="flex items-center justify-between">
-                                                <h4 className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                                                    <Users className="w-4 h-4" /> Médicos
-                                                </h4>
-                                                <button
-                                                    type="button"
-                                                    onClick={handleSelectAllDoctors}
-                                                    className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-xl transition-all ${
-                                                        allDoctorsSelected
-                                                            ? 'bg-emerald-500 text-white'
-                                                            : 'bg-slate-100 text-slate-500 hover:bg-emerald-50 hover:text-emerald-600'
-                                                    }`}
-                                                >
-                                                    {allDoctorsSelected ? '✓ Todos Selec.' : 'Todos los Médicos'}
-                                                </button>
-                                            </div>
-                                            <div className="relative">
-                                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
-                                                <input 
-                                                    type="text" 
-                                                    placeholder="Nombre, especialidad o ciudad…" 
-                                                    value={doctorSearch}
-                                                    onChange={(e) => setDoctorSearch(e.target.value)}
-                                                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border-2 border-transparent focus:border-alteha-violet focus:bg-white rounded-xl text-xs font-bold text-slate-900 transition-all outline-none"
-                                                />
-                                            </div>
-                                            <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-                                                {filteredDoctors
-                                                    .filter(d => smartMatch(doctorSearch, d.firstName, d.lastName, (d as any).fullName, (d as any).cityName, (d as any).stateProvinceName, (d as any).address, ((d as any).specialties || []).map((sp: any) => sp.name).join(' ')))
-                                                    .map(doctor => (
-                                                    <div
-                                                        key={doctor.id}
-                                                        onClick={() => {
-                                                            const ids = formData.invitedDoctorIds || [];
-                                                            setFormData({ ...formData, invitedDoctorIds: ids.includes(doctor.id) ? ids.filter(id => id !== doctor.id) : [...ids, doctor.id] });
-                                                        }}
-                                                        className={`p-4 rounded-2xl border-2 transition-all flex items-center gap-3 cursor-pointer ${formData.invitedDoctorIds?.includes(doctor.id) ? 'border-emerald-500 bg-emerald-50' : 'border-slate-100 hover:border-slate-200'}`}
-                                                    >
-                                                        <div className="w-10 h-10 bg-white rounded-full border overflow-hidden shadow-sm">
-                                                            {doctor.profileImageUrl ? <img src={doctor.profileImageUrl} className="w-full h-full object-cover" /> : <User className="w-6 h-6 text-slate-200" />}
-                                                        </div>
-                                                        <span className="text-sm font-black text-slate-900 truncate">{doctor.firstName} {doctor.lastName}</span>
-                                                        {formData.invitedDoctorIds?.includes(doctor.id) && <CheckCircle2 className="w-5 h-5 text-emerald-500 ml-auto" />}
-                                                    </div>
-                                                ))}
-                                            </div>
+                                        <div className="grid grid-cols-3 gap-3">
+                                            {[
+                                                { k: 'DOCTOR', label: 'Médicos' },
+                                                { k: 'CLINIC', label: 'Clínicas' },
+                                                { k: 'PHARMACY', label: 'Casas de Salud' },
+                                            ].map((t) => (
+                                                <div key={t.k} className="bg-white rounded-2xl p-4 text-center border border-slate-100">
+                                                    <p className="text-3xl font-black text-slate-900">{exclusionCounts[t.k] ?? 0}</p>
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">{t.label} excluidos</p>
+                                                </div>
+                                            ))}
                                         </div>
+
+                                        <a href="/dashboard/insurance/exclusions" target="_blank" rel="noreferrer"
+                                            className="flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl bg-slate-900 text-white font-black text-sm hover:scale-[1.01] transition-all">
+                                            <ShieldBan className="w-4 h-4" /> Administrar Listas de Exclusión
+                                        </a>
+                                        <p className="text-[11px] text-slate-400 font-medium text-center">
+                                            ¿No quieres excluir a nadie? Continúa: la subasta saldrá visible para todos.
+                                        </p>
                                     </div>
                                 </div>
                             </motion.div>
@@ -1270,7 +1267,7 @@ export default function NewAuctionPage() {
                             <Button
                                 type="button"
                                 onClick={handleNext}
-                                disabled={(step === 1 && (!selectedPatient || !medicalReport)) || (step === 2 && (!formData.invitedClinicIds || formData.invitedClinicIds.length === 0))}
+                                disabled={(step === 1 && (!selectedPatient || !medicalReport))}
                                 className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black hover:bg-slate-800 transition-all flex items-center gap-2 border-2 border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 Siguiente
