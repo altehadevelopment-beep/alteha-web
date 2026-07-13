@@ -1195,7 +1195,27 @@ export async function submitIdentityCompliance(
         },
         body: formData
     });
-    return response.json();
+
+    // 413 = el proxy/servidor rechazó el cuerpo por tamaño (video demasiado grande).
+    if (response.status === 413) {
+        throw new Error('PAYLOAD_TOO_LARGE');
+    }
+
+    // La respuesta de error puede venir como HTML (nginx/gateway) en vez de JSON:
+    // parsear defensivamente para no lanzar un error genérico que oculte la causa.
+    const raw = await response.text();
+    let data: any;
+    try {
+        data = raw ? JSON.parse(raw) : {};
+    } catch {
+        data = {
+            code: String(response.status),
+            message: response.ok
+                ? 'Respuesta inesperada del servidor.'
+                : 'El servidor no pudo procesar la verificación en este momento. Intenta de nuevo en unos segundos.'
+        };
+    }
+    return data;
 }
 
 // Get Identity Compliance Status (Secure Lookup)

@@ -162,7 +162,11 @@ export default function SpecialistVerifyPage() {
             mimeType = 'video/webm';
         }
 
-        const recorder = new MediaRecorder(stream, { mimeType });
+        // Acota el peso del clip: la prueba de vida puede durar varios segundos y a 720p
+        // sin límite de bitrate el archivo crece a decenas de MB, lo que hace que la subida
+        // falle o sea muy lenta. ~2 Mbps mantiene calidad suficiente para el rostro y un
+        // archivo pequeño y confiable de subir.
+        const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 2_000_000 });
         recorder.ondataavailable = (e) => {
             if (e.data.size > 0) chunksRef.current.push(e.data);
         };
@@ -249,12 +253,15 @@ export default function SpecialistVerifyPage() {
             if (result.code === '00') {
                 setStep('success');
             } else {
-                alert(`Error: ${result.message}`);
+                alert(result.message || 'No se pudo enviar la verificación. Intenta de nuevo.');
                 setStep('liveness');
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error('Error submitting compliance:', err);
-            alert('Error al enviar la verificación');
+            const msg = err?.message === 'PAYLOAD_TOO_LARGE'
+                ? 'El video de verificación resultó demasiado grande. Repite la prueba de vida con un movimiento más breve e inténtalo de nuevo.'
+                : 'No se pudo enviar la verificación. Revisa tu conexión e inténtalo nuevamente.';
+            alert(msg);
             setStep('liveness');
         }
     };
