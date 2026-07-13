@@ -51,7 +51,8 @@ import {
     getProcedureTypes,
     getProcedureTemplates,
     type ProcedureTemplate,
-    type ProcedureType
+    type ProcedureType,
+    getStoredToken
 } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 

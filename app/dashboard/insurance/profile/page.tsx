@@ -16,7 +16,10 @@ import {
     CheckCircle2,
     Loader2,
     Lock,
-    Pencil
+    Pencil,
+    Plus,
+    Trash2,
+    Users
 } from 'lucide-react';
 import Link from 'next/link';
 import { Input } from '@/components/ui/Input';
@@ -287,38 +290,8 @@ export default function InsuranceProfilePage() {
                     </div>
                 </div>
 
-                {/* Contact Person Details */}
-                <section className="bg-white p-10 rounded-[3rem] shadow-sm border border-slate-100 space-y-8">
-                    <h3 className="text-xl font-black text-slate-900 flex items-center gap-3">
-                        <div className="p-2 bg-blue-50 text-blue-500 rounded-xl">
-                            <User className="w-5 h-5" />
-                        </div>
-                        Persona de Contacto / Administrador
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <EditableFieldWrapper label="Nombre Completo">
-                            <Input
-                                value={formData.contactPersonName}
-                                onChange={(e) => setFormData({ ...formData, contactPersonName: e.target.value })}
-                                placeholder="Nombre del responsable"
-                            />
-                        </EditableFieldWrapper>
-                        <EditableFieldWrapper label="Email de Contacto">
-                            <Input
-                                value={formData.contactPersonEmail}
-                                onChange={(e) => setFormData({ ...formData, contactPersonEmail: e.target.value })}
-                                placeholder="email@ejemplo.com"
-                            />
-                        </EditableFieldWrapper>
-                        <EditableFieldWrapper label="Teléfono de Contacto">
-                            <Input
-                                value={formData.contactPersonPhone}
-                                onChange={(e) => setFormData({ ...formData, contactPersonPhone: e.target.value })}
-                                placeholder="+58 ..."
-                            />
-                        </EditableFieldWrapper>
-                    </div>
-                </section>
+                {/* Personas de Contacto / Administradores (varias) */}
+                <ContactManager />
 
                 {/* Action Bar */}
                 <div className="flex items-center justify-end gap-4 bg-slate-900/5 p-6 rounded-[2.5rem] border border-slate-100">
@@ -339,6 +312,133 @@ export default function InsuranceProfilePage() {
                     </Button>
                 </div>
             </form>
+        </div>
+    );
+}
+
+// ─────────────────────────── Personas de contacto (varias) ───────────────────────────
+type Contact = { id?: number; name: string; email: string; phone: string };
+
+async function contactsApi(path: string, opts: RequestInit = {}) {
+    const token = getStoredToken();
+    const res = await fetch(`/api/insurance-contacts${path}`, {
+        ...opts,
+        headers: { 'Content-Type': 'application/json', 'X-Alteha-Token': token || '', ...(opts.headers || {}) },
+    });
+    return res.json().catch(() => ({}));
+}
+
+function ContactManager() {
+    const [contacts, setContacts] = useState<Contact[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [draft, setDraft] = useState<Contact | null>(null);
+    const [busy, setBusy] = useState(false);
+
+    const load = async () => {
+        setLoading(true);
+        const data = await contactsApi('');
+        setContacts(Array.isArray(data) ? data : []);
+        setLoading(false);
+    };
+    useEffect(() => { void load(); }, []);
+
+    const saveContact = async (c: Contact) => {
+        if (!c.name?.trim()) { toast.error('El nombre del contacto es obligatorio'); return; }
+        setBusy(true);
+        const body = JSON.stringify({ name: c.name, email: c.email, phone: c.phone });
+        const r = c.id
+            ? await contactsApi(`/${c.id}`, { method: 'PUT', body })
+            : await contactsApi('', { method: 'POST', body });
+        setBusy(false);
+        if (r?.code === '00') {
+            toast.success(c.id ? 'Contacto actualizado' : 'Contacto agregado');
+            setDraft(null);
+            void load();
+        } else {
+            toast.error(r?.message || 'No se pudo guardar');
+        }
+    };
+
+    const removeContact = async (id?: number) => {
+        if (!id) { setDraft(null); return; }
+        setBusy(true);
+        const r = await contactsApi(`/${id}`, { method: 'DELETE' });
+        setBusy(false);
+        if (r?.code === '00') { toast.success('Contacto eliminado'); void load(); }
+    };
+
+    return (
+        <section className="bg-white p-10 rounded-[3rem] shadow-sm border border-slate-100 space-y-6">
+            <div className="flex items-center justify-between">
+                <h3 className="text-xl font-black text-slate-900 flex items-center gap-3">
+                    <div className="p-2 bg-blue-50 text-blue-500 rounded-xl"><Users className="w-5 h-5" /></div>
+                    Personas de Contacto / Administradores
+                </h3>
+                {!draft && (
+                    <button
+                        type="button"
+                        onClick={() => setDraft({ name: '', email: '', phone: '' })}
+                        className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-gradient-to-r from-alteha-turquoise to-alteha-violet text-white font-black text-xs uppercase tracking-widest">
+                        <Plus className="w-4 h-4" /> Agregar contacto
+                    </button>
+                )}
+            </div>
+
+            {loading ? (
+                <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 text-alteha-violet animate-spin" /></div>
+            ) : (
+                <div className="space-y-4">
+                    {contacts.length === 0 && !draft && (
+                        <p className="text-slate-400 font-medium text-sm text-center py-6">Aún no hay personas de contacto. Usa “Agregar contacto”.</p>
+                    )}
+
+                    {contacts.map((c) => (
+                        <ContactRow key={c.id} contact={c} busy={busy} onSave={saveContact} onRemove={removeContact} />
+                    ))}
+
+                    {draft && (
+                        <ContactRow contact={draft} isNew busy={busy} onSave={saveContact} onRemove={() => setDraft(null)} />
+                    )}
+                </div>
+            )}
+        </section>
+    );
+}
+
+function ContactRow({ contact, isNew, busy, onSave, onRemove }: { contact: Contact; isNew?: boolean; busy: boolean; onSave: (c: Contact) => void; onRemove: (id?: number) => void; }) {
+    const [c, setC] = useState<Contact>(contact);
+    useEffect(() => { setC(contact); }, [contact.id]); // eslint-disable-line
+    const dirty = c.name !== contact.name || c.email !== contact.email || c.phone !== contact.phone;
+
+    return (
+        <div className="grid grid-cols-1 md:grid-cols-[1.2fr_1.4fr_1fr_auto] gap-3 items-end bg-slate-50/60 rounded-2xl p-4">
+            <div className="space-y-1">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nombre completo</label>
+                <input value={c.name} onChange={(e) => setC({ ...c, name: e.target.value })} placeholder="Nombre del responsable"
+                    className="w-full p-3 bg-white border-2 border-transparent focus:border-alteha-violet rounded-xl font-bold text-sm text-slate-900 outline-none" />
+            </div>
+            <div className="space-y-1">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Email de contacto</label>
+                <input value={c.email || ''} onChange={(e) => setC({ ...c, email: e.target.value })} placeholder="email@ejemplo.com"
+                    className="w-full p-3 bg-white border-2 border-transparent focus:border-alteha-violet rounded-xl font-bold text-sm text-slate-900 outline-none" />
+            </div>
+            <div className="space-y-1">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Teléfono de contacto</label>
+                <input value={c.phone || ''} onChange={(e) => setC({ ...c, phone: e.target.value })} placeholder="0424..."
+                    className="w-full p-3 bg-white border-2 border-transparent focus:border-alteha-violet rounded-xl font-bold text-sm text-slate-900 outline-none" />
+            </div>
+            <div className="flex gap-2">
+                {(isNew || dirty) && (
+                    <button type="button" disabled={busy} onClick={() => onSave(c)}
+                        className="p-3 rounded-xl bg-alteha-violet text-white disabled:opacity-50" title="Guardar">
+                        {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                    </button>
+                )}
+                <button type="button" disabled={busy} onClick={() => onRemove(c.id)}
+                    className="p-3 rounded-xl bg-red-50 text-red-500 hover:bg-red-100 disabled:opacity-50" title={isNew ? 'Cancelar' : 'Eliminar'}>
+                    <Trash2 className="w-4 h-4" />
+                </button>
+            </div>
         </div>
     );
 }

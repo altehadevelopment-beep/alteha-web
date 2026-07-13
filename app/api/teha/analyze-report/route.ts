@@ -33,7 +33,7 @@ export async function POST(req: Request) {
         }
 
         const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`,
+            `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-pro:generateContent?key=${apiKey}`,
             {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -44,7 +44,9 @@ export async function POST(req: Request) {
                             { inline_data: { mime_type: mimeType, data: fileBase64 } },
                         ],
                     }],
-                    generationConfig: { maxOutputTokens: 800, temperature: 0.2 },
+                    // gemini-2.5-pro razona internamente y consume tokens de salida (thoughtsTokenCount);
+                    // hay que dejar margen suficiente para que además emita el texto del resumen.
+                    generationConfig: { maxOutputTokens: 4096, temperature: 0.2 },
                 }),
             }
         );
