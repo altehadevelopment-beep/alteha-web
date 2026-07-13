@@ -258,9 +258,12 @@ export default function SpecialistVerifyPage() {
             }
         } catch (err: any) {
             console.error('Error submitting compliance:', err);
-            const msg = err?.message === 'PAYLOAD_TOO_LARGE'
-                ? 'El video de verificación resultó demasiado grande. Repite la prueba de vida con un movimiento más breve e inténtalo de nuevo.'
-                : 'No se pudo enviar la verificación. Revisa tu conexión e inténtalo nuevamente.';
+            let msg = 'No se pudo enviar la verificación. Revisa tu conexión e inténtalo nuevamente.';
+            if (err?.message === 'PAYLOAD_TOO_LARGE') {
+                msg = 'El video de verificación resultó demasiado grande. Repite la prueba de vida con un movimiento más breve e inténtalo de nuevo.';
+            } else if (err?.message === 'TIMEOUT') {
+                msg = 'La conexión está lenta y el envío tardó demasiado. No cierres la app, verifica tu señal e intenta enviar de nuevo.';
+            }
             alert(msg);
             setStep('liveness');
         }

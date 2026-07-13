@@ -1188,13 +1188,27 @@ export async function submitIdentityCompliance(
     const token = getStoredToken();
     if (!token) throw new Error('No token found');
 
-    const response = await fetch(`/api/identity-compliances/submit?actorRole=${actorRole}&documentType=${documentType}&matchPercentage=${matchPercentage}`, {
-        method: 'POST',
-        headers: {
-            'X-Alteha-Token': token
-        },
-        body: formData
-    });
+    // Timeout amplio (5 min) para tolerar conexiones lentas sin cortar la subida a mitad
+    // de camino; si de verdad se queda atascado, abortamos con un mensaje claro en vez de
+    // dejar el spinner colgado indefinidamente.
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 300000);
+    let response: Response;
+    try {
+        response = await fetch(`/api/identity-compliances/submit?actorRole=${actorRole}&documentType=${documentType}&matchPercentage=${matchPercentage}`, {
+            method: 'POST',
+            headers: {
+                'X-Alteha-Token': token
+            },
+            body: formData,
+            signal: controller.signal
+        });
+    } catch (err: any) {
+        if (err?.name === 'AbortError') throw new Error('TIMEOUT');
+        throw err;
+    } finally {
+        clearTimeout(timeout);
+    }
 
     // 413 = el proxy/servidor rechazó el cuerpo por tamaño (video demasiado grande).
     if (response.status === 413) {
