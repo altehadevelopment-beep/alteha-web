@@ -1,38 +1,62 @@
 "use client";
 
-// Detalle de una auditoría médica IA: evaluación auditable con la marca Alteha
-// (folio, CPT, precios de referencia, hallazgos, riesgo) + PDF imprimible.
+// Detalle de una auditoría médica de Alteha: evaluación auditable con la marca
+// (folio, CPT, precios de referencia, hallazgos, riesgo) + descarga en PDF.
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import {
-    ArrowLeft, Loader2, Printer, FileText, Receipt, ShieldAlert, ShieldCheck, Shield,
+    ArrowLeft, Loader2, Download, FileText, Receipt, ShieldAlert, ShieldCheck, Shield,
     ExternalLink, BadgeCheck, AlertTriangle, ListChecks, BrainCircuit,
 } from 'lucide-react';
 import { getStoredToken } from '@/lib/api';
 
 const RISK: any = {
-    BAJO: { label: 'RIESGO BAJO', color: '#10b981', soft: '#ecfdf5', Icon: ShieldCheck },
-    MEDIO: { label: 'RIESGO MEDIO', color: '#f59e0b', soft: '#fffbeb', Icon: Shield },
-    ALTO: { label: 'RIESGO ALTO', color: '#ef4444', soft: '#fef2f2', Icon: ShieldAlert },
+    BAJO: { label: 'RIESGO BAJO', color: [16, 185, 129], soft: [236, 253, 245], Icon: ShieldCheck },
+    MEDIO: { label: 'RIESGO MEDIO', color: [245, 158, 11], soft: [255, 251, 235], Icon: Shield },
+    ALTO: { label: 'RIESGO ALTO', color: [239, 68, 68], soft: [254, 242, 242], Icon: ShieldAlert },
 };
 const VERDICT: any = {
-    DENTRO_DE_RANGO: { label: 'Dentro de rango', color: '#10b981' },
-    SOBRE_RANGO: { label: 'Sobre el rango', color: '#ef4444' },
-    BAJO_RANGO: { label: 'Bajo el rango', color: '#0ea5e9' },
-    NO_VERIFICABLE: { label: 'No verificable', color: '#94a3b8' },
+    DENTRO_DE_RANGO: { label: 'Dentro de rango', color: [16, 185, 129] },
+    SOBRE_RANGO: { label: 'Sobre el rango', color: [239, 68, 68] },
+    BAJO_RANGO: { label: 'Bajo el rango', color: [14, 165, 233] },
+    NO_VERIFICABLE: { label: 'No verificable', color: [148, 163, 184] },
 };
-const SEV: any = { ALTA: '#ef4444', MEDIA: '#f59e0b', BAJA: '#94a3b8' };
+const SEV: any = { ALTA: [239, 68, 68], MEDIA: [245, 158, 11], BAJA: [148, 163, 184] };
+
+const TURQUOISE = [46, 207, 191] as const;
+const VIOLET = [123, 91, 255] as const;
+const GRAY = [44, 46, 51] as const;
 
 const fmtDate = (v?: string) => (v ? new Date(v).toLocaleString('es-VE', { dateStyle: 'long', timeStyle: 'short' }) : '—');
 const money = (v?: number | null) =>
     v == null ? '—' : `$${Number(v).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const esc = (s: any) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+// El logo es SVG: lo rasterizamos a PNG con un canvas para poder incrustarlo en el PDF.
+async function logoPng(): Promise<string | null> {
+    try {
+        const svgText = await fetch('/logoalteha.svg').then((r) => r.text());
+        const blob = new Blob([svgText], { type: 'image/svg+xml' });
+        const url = URL.createObjectURL(blob);
+        const img = new Image();
+        await new Promise((ok, err) => { img.onload = ok; img.onerror = err; img.src = url; });
+        const canvas = document.createElement('canvas');
+        const w = img.width || 300, h = img.height || 100;
+        canvas.width = w * 3; canvas.height = h * 3;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(url);
+        return canvas.toDataURL('image/png');
+    } catch { return null; }
+}
 
 export default function AuditDetailPage() {
     const { id } = useParams<{ id: string }>();
     const router = useRouter();
     const [audit, setAudit] = useState<any | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [pdfBusy, setPdfBusy] = useState(false);
 
     useEffect(() => {
         const token = getStoredToken();
@@ -52,146 +76,225 @@ export default function AuditDetailPage() {
     const findings: any[] = Array.isArray(result.findings) ? result.findings : [];
     const recs: string[] = Array.isArray(result.recommendations) ? result.recommendations : [];
 
-    // ══════════ PDF con manual de marca Alteha (ventana de impresión) ══════════
-    const printReport = () => {
-        const rows = items.map((it) => {
-            const v = VERDICT[it.verdict] || VERDICT.NO_VERIFICABLE;
-            const range = it.marketLow != null && it.marketHigh != null ? `${money(it.marketLow)} – ${money(it.marketHigh)}` : '—';
-            return `<tr>
-                <td class="cpt">${esc(it.cpt || 'N/A')}</td>
-                <td>${esc(it.description || it.invoicedDescription || '')}${it.note ? `<div class="note">${esc(it.note)}</div>` : ''}</td>
-                <td class="num">${it.quantity ?? 1}</td>
-                <td class="num">${money(it.invoicedAmount)}</td>
-                <td class="num">${range}</td>
-                <td><span class="chip" style="color:${v.color};border-color:${v.color}">${v.label}</span></td>
-            </tr>`;
-        }).join('');
+    // ══════════ PDF con el manual de marca Alteha ══════════
+    const downloadPdf = async () => {
+        setPdfBusy(true);
+        try {
+            const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+            const W = doc.internal.pageSize.getWidth();
+            const H = doc.internal.pageSize.getHeight();
+            const M = 40;
+            let y = M;
 
-        const findingsHtml = findings.map((f) => `
-            <div class="finding">
-                <span class="sev" style="background:${SEV[f.severity] || SEV.BAJA}">${esc(f.severity || 'BAJA')}</span>
-                <div><b>${esc(f.title)}</b><p>${esc(f.detail)}</p></div>
-            </div>`).join('') || '<p class="muted">Sin hallazgos relevantes: la cuenta es consistente con el informe médico.</p>';
+            const ensure = (need: number) => {
+                if (y + need > H - 60) { doc.addPage(); y = M; }
+            };
+            const section = (title: string) => {
+                ensure(40);
+                doc.setFont('helvetica', 'bold').setFontSize(9.5).setTextColor(...VIOLET);
+                doc.text(title.toUpperCase(), M, y);
+                y += 12;
+            };
 
-        const recsHtml = recs.map((r) => `<li>${esc(r)}</li>`).join('');
+            // ── Cabecera de marca ──
+            doc.setFillColor(...GRAY);
+            doc.roundedRect(M, y, W - M * 2, 74, 14, 14, 'F');
+            const logo = await logoPng();
+            if (logo) doc.addImage(logo, 'PNG', M + 20, y + 19, 90, 36);
+            doc.setFont('helvetica', 'bold').setFontSize(15).setTextColor(255, 255, 255);
+            doc.text('Informe de Auditoría Médica', M + 124, y + 32);
+            doc.setFont('helvetica', 'normal').setFontSize(8.5).setTextColor(166, 173, 187);
+            doc.text('Auditoría de cuentas médicas · Alteha', M + 124, y + 46);
+            doc.setFont('helvetica', 'bold').setFontSize(11).setTextColor(...TURQUOISE);
+            doc.text(String(audit.auditNumber || ''), W - M - 20, y + 32, { align: 'right' });
+            doc.setFont('helvetica', 'normal').setFontSize(7.5).setTextColor(166, 173, 187);
+            doc.text(fmtDate(audit.createdAt), W - M - 20, y + 46, { align: 'right' });
+            y += 86;
 
-        const html = `<!DOCTYPE html>
-<html lang="es"><head><meta charset="utf-8"><title>${esc(audit.auditNumber)} · Auditoría Médica Alteha</title>
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-<style>
-  :root { --turquoise:#2ECFBF; --violet:#7B5BFF; --gray:#2C2E33; }
-  * { box-sizing:border-box; margin:0; padding:0; }
-  body { font-family:'Outfit',sans-serif; color:var(--gray); background:#fff; font-size:12px; }
-  .page { max-width:820px; margin:0 auto; padding:36px 40px; }
-  header { display:flex; align-items:center; justify-content:space-between; background:var(--gray); color:#fff; border-radius:20px; padding:22px 28px; }
-  header .brand { display:flex; align-items:center; gap:14px; }
-  header img { height:40px; }
-  header h1 { font-size:19px; font-weight:900; letter-spacing:-0.02em; }
-  header .sub { color:#A6ADBB; font-size:10.5px; font-weight:600; margin-top:2px; }
-  header .folio { text-align:right; }
-  header .folio b { display:block; font-size:14px; font-weight:900; color:var(--turquoise); }
-  header .folio span { font-size:10px; color:#A6ADBB; font-weight:600; }
-  .band { height:5px; border-radius:99px; background:linear-gradient(135deg,var(--turquoise),var(--violet)); margin:14px 0 22px; }
-  h2 { font-size:12px; font-weight:900; text-transform:uppercase; letter-spacing:0.14em; color:var(--violet); margin:24px 0 10px; }
-  .grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
-  .card { background:#f8fafc; border-radius:14px; padding:12px 14px; }
-  .card .k { font-size:9px; font-weight:900; text-transform:uppercase; letter-spacing:0.12em; color:#94a3b8; }
-  .card .v { font-size:12.5px; font-weight:800; margin-top:3px; }
-  .riskbox { display:flex; align-items:center; gap:16px; border:2px solid ${risk.color}; background:${risk.soft}; border-radius:16px; padding:16px 20px; margin-top:6px; }
-  .riskbox .badge { font-size:15px; font-weight:900; color:${risk.color}; letter-spacing:0.06em; white-space:nowrap; }
-  .riskbox p { font-size:11.5px; font-weight:600; color:#475569; }
-  table { width:100%; border-collapse:collapse; margin-top:6px; }
-  th { text-align:left; font-size:9px; font-weight:900; text-transform:uppercase; letter-spacing:0.1em; color:#94a3b8; padding:8px 8px; border-bottom:2px solid #e2e8f0; }
-  td { padding:8px; border-bottom:1px solid #f1f5f9; font-weight:600; font-size:11px; vertical-align:top; }
-  td.cpt { font-weight:900; color:var(--violet); white-space:nowrap; }
-  td.num { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
-  th.num { text-align:right; }
-  .note { font-size:9.5px; color:#94a3b8; font-weight:600; margin-top:2px; }
-  .chip { display:inline-block; border:1.5px solid; border-radius:99px; padding:2px 8px; font-size:9px; font-weight:900; white-space:nowrap; }
-  .totals { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:12px; }
-  .totals .t { border-radius:14px; padding:14px; text-align:center; }
-  .totals .t .k { font-size:9px; font-weight:900; text-transform:uppercase; letter-spacing:0.12em; }
-  .totals .t .v { font-size:17px; font-weight:900; margin-top:4px; }
-  .finding { display:flex; gap:10px; align-items:flex-start; background:#f8fafc; border-radius:14px; padding:12px 14px; margin-bottom:8px; }
-  .finding .sev { color:#fff; font-size:8.5px; font-weight:900; border-radius:99px; padding:3px 9px; letter-spacing:0.08em; margin-top:1px; }
-  .finding b { font-size:11.5px; font-weight:900; }
-  .finding p { font-size:10.5px; color:#64748b; font-weight:600; margin-top:2px; }
-  .conclusion { background:#f8fafc; border-left:4px solid var(--turquoise); border-radius:0 14px 14px 0; padding:14px 18px; font-size:11.5px; font-weight:600; color:#334155; }
-  ul { margin:6px 0 0 18px; }
-  li { font-size:11px; font-weight:600; color:#334155; margin-bottom:5px; }
-  .muted { color:#94a3b8; font-weight:600; font-size:11px; }
-  footer { margin-top:28px; border-top:2px solid #e2e8f0; padding-top:14px; display:flex; justify-content:space-between; align-items:flex-start; gap:20px; }
-  footer .l { font-size:9px; color:#94a3b8; font-weight:600; max-width:520px; line-height:1.5; }
-  footer .r { text-align:right; font-size:9.5px; font-weight:900; color:var(--violet); white-space:nowrap; }
-  @media print { html, body { margin:0; padding:0; } .page { padding:20px 28px; } }
-</style></head>
-<body><div class="page">
-  <header>
-    <div class="brand">
-      <img src="${location.origin}/logoalteha.svg" alt="Alteha" />
-      <div>
-        <h1>Informe de Auditoría Médica</h1>
-        <div class="sub">Evaluación asistida por inteligencia artificial · Alteha</div>
-      </div>
-    </div>
-    <div class="folio"><b>${esc(audit.auditNumber)}</b><span>${esc(fmtDate(audit.createdAt))}</span></div>
-  </header>
-  <div class="band"></div>
+            // Banda degradada turquesa → violeta
+            const segs = 40, bw = (W - M * 2) / segs;
+            for (let i = 0; i < segs; i++) {
+                const t = i / (segs - 1);
+                doc.setFillColor(
+                    Math.round(TURQUOISE[0] + (VIOLET[0] - TURQUOISE[0]) * t),
+                    Math.round(TURQUOISE[1] + (VIOLET[1] - TURQUOISE[1]) * t),
+                    Math.round(TURQUOISE[2] + (VIOLET[2] - TURQUOISE[2]) * t),
+                );
+                doc.rect(M + i * bw, y, bw + 0.5, 4, 'F');
+            }
+            y += 22;
 
-  <h2>Datos de la intervención</h2>
-  <div class="grid">
-    <div class="card"><div class="k">Paciente</div><div class="v">${esc(result.patientName || audit.patientName || '—')}</div></div>
-    <div class="card"><div class="k">Prestador</div><div class="v">${esc(result.providerName || '—')}</div></div>
-    <div class="card"><div class="k">Fecha del procedimiento</div><div class="v">${esc(result.procedureDate || '—')}</div></div>
-    <div class="card"><div class="k">Solicitante</div><div class="v">${esc(audit.insurance?.name || '—')}</div></div>
-  </div>
-  <div class="grid" style="grid-template-columns:1fr 1fr; margin-top:10px;">
-    <div class="card"><div class="k">Diagnóstico</div><div class="v">${esc(result.diagnosis || '—')}</div></div>
-    <div class="card"><div class="k">Intervención auditada</div><div class="v">${esc(result.procedureSummary || audit.procedureSummary || '—')}</div></div>
-  </div>
+            // ── Datos de la intervención ──
+            section('Datos de la intervención');
+            autoTable(doc, {
+                startY: y, margin: { left: M, right: M }, theme: 'plain',
+                styles: { font: 'helvetica', fontSize: 8.5, cellPadding: { top: 3, bottom: 3, left: 0, right: 10 }, textColor: [51, 65, 85] },
+                columnStyles: { 0: { fontStyle: 'bold', textColor: [100, 116, 139], cellWidth: 120 } },
+                body: [
+                    ['Paciente', result.patientName || audit.patientName || '—'],
+                    ['Prestador', result.providerName || '—'],
+                    ['Fecha del procedimiento', result.procedureDate || '—'],
+                    ['Diagnóstico', result.diagnosis || '—'],
+                    ['Intervención auditada', result.procedureSummary || audit.procedureSummary || '—'],
+                    ['Solicitante', audit.insurance?.name || '—'],
+                ],
+            });
+            y = (doc as any).lastAutoTable.finalY + 16;
 
-  <h2>Dictamen de riesgo</h2>
-  <div class="riskbox">
-    <div class="badge">■ ${risk.label}</div>
-    <p>${esc(result.riskJustification || '')}</p>
-  </div>
+            // ── Dictamen de riesgo ──
+            section('Dictamen de riesgo');
+            const just = doc.splitTextToSize(String(result.riskJustification || ''), W - M * 2 - 150);
+            const rh = Math.max(44, 22 + just.length * 11);
+            ensure(rh + 10);
+            doc.setFillColor(risk.soft[0], risk.soft[1], risk.soft[2]);
+            doc.setDrawColor(risk.color[0], risk.color[1], risk.color[2]);
+            doc.setLineWidth(1.5);
+            doc.roundedRect(M, y, W - M * 2, rh, 10, 10, 'FD');
+            doc.setFont('helvetica', 'bold').setFontSize(12).setTextColor(risk.color[0], risk.color[1], risk.color[2]);
+            doc.text(risk.label, M + 16, y + rh / 2 + 4);
+            doc.setFont('helvetica', 'normal').setFontSize(8.5).setTextColor(71, 85, 105);
+            doc.text(just, M + 130, y + 16);
+            y += rh + 18;
 
-  <h2>Análisis por procedimiento (CPT · precios de referencia)</h2>
-  <table>
-    <thead><tr><th>CPT</th><th>Procedimiento</th><th class="num">Cant.</th><th class="num">Facturado</th><th class="num">Rango mercado</th><th>Veredicto</th></tr></thead>
-    <tbody>${rows || '<tr><td colspan="6" class="muted">No se identificaron renglones facturables.</td></tr>'}</tbody>
-  </table>
-  <div class="totals">
-    <div class="t" style="background:#f8fafc;"><div class="k" style="color:#94a3b8">Total facturado</div><div class="v">${money(result.totalInvoiced ?? audit.totalInvoiced)}</div></div>
-    <div class="t" style="background:rgba(46,207,191,0.10);"><div class="k" style="color:#0d9488">Referencia mercado (min)</div><div class="v" style="color:#0d9488">${money(result.totalReferenceLow)}</div></div>
-    <div class="t" style="background:rgba(123,91,255,0.10);"><div class="k" style="color:var(--violet)">Referencia mercado (max)</div><div class="v" style="color:var(--violet)">${money(result.totalReferenceHigh)}</div></div>
-  </div>
+            // ── Tabla CPT ──
+            section('Análisis por procedimiento (CPT · precios de referencia)');
+            autoTable(doc, {
+                startY: y, margin: { left: M, right: M },
+                headStyles: { fillColor: [248, 250, 252], textColor: [100, 116, 139], fontStyle: 'bold', fontSize: 7.5 },
+                styles: { font: 'helvetica', fontSize: 8, cellPadding: 5, textColor: [51, 65, 85] },
+                columnStyles: {
+                    0: { fontStyle: 'bold', textColor: [VIOLET[0], VIOLET[1], VIOLET[2]], cellWidth: 52 },
+                    2: { halign: 'right', cellWidth: 34 },
+                    3: { halign: 'right', cellWidth: 66 },
+                    4: { halign: 'right', cellWidth: 90 },
+                    5: { cellWidth: 78 },
+                },
+                head: [['CPT', 'Procedimiento', 'Cant.', 'Facturado', 'Rango mercado', 'Veredicto']],
+                body: items.map((it) => [
+                    it.cpt || 'N/A',
+                    (it.description || it.invoicedDescription || '') + (it.note ? `\n${it.note}` : ''),
+                    String(it.quantity ?? 1),
+                    money(it.invoicedAmount),
+                    it.marketLow != null ? `${money(it.marketLow)} – ${money(it.marketHigh)}` : '—',
+                    (VERDICT[it.verdict] || VERDICT.NO_VERIFICABLE).label,
+                ]),
+                didParseCell: (d) => {
+                    if (d.section === 'body' && d.column.index === 5) {
+                        const v = VERDICT[items[d.row.index]?.verdict] || VERDICT.NO_VERIFICABLE;
+                        d.cell.styles.textColor = v.color;
+                        d.cell.styles.fontStyle = 'bold';
+                    }
+                },
+            });
+            y = (doc as any).lastAutoTable.finalY + 10;
 
-  <h2>Hallazgos de auditoría</h2>
-  ${findingsHtml}
+            // ── Totales ──
+            autoTable(doc, {
+                startY: y, margin: { left: M, right: M }, theme: 'plain',
+                styles: { font: 'helvetica', fontSize: 9, fontStyle: 'bold', cellPadding: 8, halign: 'center' },
+                body: [[
+                    `Total facturado\n${money(result.totalInvoiced ?? audit.totalInvoiced)}`,
+                    `Referencia mercado (mín)\n${money(result.totalReferenceLow)}`,
+                    `Referencia mercado (máx)\n${money(result.totalReferenceHigh)}`,
+                ]],
+                didParseCell: (d) => {
+                    const fills = [[248, 250, 252], [231, 249, 247], [240, 235, 255]];
+                    const texts = [[51, 65, 85], [13, 148, 136], [VIOLET[0], VIOLET[1], VIOLET[2]]];
+                    d.cell.styles.fillColor = fills[d.column.index] as any;
+                    d.cell.styles.textColor = texts[d.column.index] as any;
+                },
+            });
+            y = (doc as any).lastAutoTable.finalY + 18;
 
-  <h2>Conclusión</h2>
-  <div class="conclusion">${esc(result.conclusion || '—')}</div>
+            // ── Hallazgos ──
+            section('Hallazgos de auditoría');
+            if (!findings.length) {
+                ensure(20);
+                doc.setFont('helvetica', 'normal').setFontSize(8.5).setTextColor(16, 185, 129);
+                doc.text('Sin hallazgos relevantes: la cuenta es consistente con el informe médico.', M, y + 4);
+                y += 20;
+            }
+            for (const f of findings) {
+                const detail = doc.splitTextToSize(String(f.detail || ''), W - M * 2 - 70);
+                const bh = 26 + detail.length * 10;
+                ensure(bh + 8);
+                doc.setFillColor(248, 250, 252);
+                doc.roundedRect(M, y, W - M * 2, bh, 8, 8, 'F');
+                const sc = SEV[f.severity] || SEV.BAJA;
+                doc.setFillColor(sc[0], sc[1], sc[2]);
+                doc.roundedRect(M + 12, y + 9, 38, 12, 6, 6, 'F');
+                doc.setFont('helvetica', 'bold').setFontSize(6.5).setTextColor(255, 255, 255);
+                doc.text(String(f.severity || 'BAJA'), M + 31, y + 17.5, { align: 'center' });
+                doc.setFont('helvetica', 'bold').setFontSize(9).setTextColor(...GRAY);
+                doc.text(String(f.title || ''), M + 58, y + 18);
+                doc.setFont('helvetica', 'normal').setFontSize(8).setTextColor(100, 116, 139);
+                doc.text(detail, M + 58, y + 30);
+                y += bh + 8;
+            }
+            y += 10;
 
-  ${recsHtml ? `<h2>Recomendaciones</h2><ul>${recsHtml}</ul>` : ''}
+            // ── Conclusión ──
+            section('Conclusión');
+            const conc = doc.splitTextToSize(String(result.conclusion || '—'), W - M * 2 - 24);
+            const ch = 16 + conc.length * 11;
+            ensure(ch + 10);
+            doc.setFillColor(248, 250, 252);
+            doc.roundedRect(M, y, W - M * 2, ch, 8, 8, 'F');
+            doc.setFillColor(...TURQUOISE);
+            doc.rect(M, y + 4, 3.5, ch - 8, 'F');
+            doc.setFont('helvetica', 'normal').setFontSize(8.5).setTextColor(51, 65, 85);
+            doc.text(conc, M + 16, y + 15);
+            y += ch + 16;
 
-  <footer>
-    <div class="l">
-      <b>Metodología:</b> OCR multimodal del informe médico y la factura; codificación CPT; comparación contra rangos de precio
-      de mercado de salud privada (Venezuela/Latam) estimados por IA; cruce informe-factura para detección de inconsistencias.
-      Confiabilidad documental estimada: ${esc(result.confidence != null ? `${result.confidence}%` : 'n/d')}.<br/>
-      Los precios de referencia son estimaciones y no constituyen tarifas oficiales. Este informe es un apoyo a la decisión y
-      no sustituye el juicio del auditor médico humano. Documento confidencial para uso exclusivo de ${esc(audit.insurance?.name || 'la aseguradora solicitante')}.
-    </div>
-    <div class="r">alteha.com<br/>Folio verificable: ${esc(audit.auditNumber)}</div>
-  </footer>
-</div>
-<script>window.onload = () => setTimeout(() => window.print(), 400);</script>
-</body></html>`;
+            // ── Recomendaciones ──
+            if (recs.length) {
+                section('Recomendaciones');
+                for (const r of recs) {
+                    const lines = doc.splitTextToSize(String(r), W - M * 2 - 20);
+                    ensure(lines.length * 11 + 6);
+                    doc.setFillColor(...VIOLET);
+                    doc.circle(M + 4, y + 3.2, 2, 'F');
+                    doc.setFont('helvetica', 'normal').setFontSize(8.5).setTextColor(51, 65, 85);
+                    doc.text(lines, M + 14, y + 6);
+                    y += lines.length * 11 + 6;
+                }
+                y += 8;
+            }
 
-        const w = window.open('', '_blank');
-        if (w) { w.document.write(html); w.document.close(); }
+            // ── Pie: metodología + confidencialidad ──
+            const foot =
+                `Metodología: lectura documental del informe médico y la factura; codificación CPT; comparación contra rangos de precio de mercado ` +
+                `de salud privada (Venezuela/Latam) estimados por Alteha; cruce informe-factura para detección de inconsistencias. ` +
+                `Confiabilidad documental estimada: ${result.confidence != null ? `${result.confidence}%` : 'n/d'}. ` +
+                `Los precios de referencia son estimaciones y no constituyen tarifas oficiales. Este informe es un apoyo a la decisión y no sustituye ` +
+                `el juicio del auditor médico. Documento confidencial para uso exclusivo de ${audit.insurance?.name || 'la aseguradora solicitante'}.`;
+            const flines = doc.splitTextToSize(foot, W - M * 2 - 110);
+            ensure(flines.length * 9 + 30);
+            doc.setDrawColor(226, 232, 240).setLineWidth(1);
+            doc.line(M, y, W - M, y);
+            y += 14;
+            doc.setFont('helvetica', 'normal').setFontSize(6.8).setTextColor(148, 163, 184);
+            doc.text(flines, M, y);
+            doc.setFont('helvetica', 'bold').setFontSize(7.5).setTextColor(...VIOLET);
+            doc.text('alteha.com', W - M, y, { align: 'right' });
+            doc.text(`Folio verificable: ${audit.auditNumber}`, W - M, y + 11, { align: 'right' });
+
+            // Numeración de páginas
+            const pages = doc.getNumberOfPages();
+            for (let i = 1; i <= pages; i++) {
+                doc.setPage(i);
+                doc.setFont('helvetica', 'normal').setFontSize(7).setTextColor(148, 163, 184);
+                doc.text(`${audit.auditNumber} · Página ${i} de ${pages}`, W / 2, H - 24, { align: 'center' });
+            }
+
+            doc.save(`${audit.auditNumber}.pdf`);
+        } finally {
+            setPdfBusy(false);
+        }
     };
+
+    const riskColor = `rgb(${risk.color.join(',')})`;
+    const riskSoft = `rgb(${risk.soft.join(',')})`;
 
     // ══════════ Vista en pantalla ══════════
     return (
@@ -219,8 +322,9 @@ export default function AuditDetailPage() {
                             <Receipt className="w-4 h-4" /> Factura <ExternalLink className="w-3 h-3" />
                         </a>
                     )}
-                    <button onClick={printReport} className="px-5 py-2.5 rounded-xl font-black text-white bg-alteha-gradient flex items-center gap-2">
-                        <Printer className="w-4 h-4" /> Imprimir / PDF
+                    <button onClick={downloadPdf} disabled={pdfBusy}
+                        className="px-5 py-2.5 rounded-xl font-black text-white bg-alteha-gradient flex items-center gap-2 disabled:opacity-60">
+                        {pdfBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Descargar PDF
                     </button>
                 </div>
             </header>
@@ -235,9 +339,9 @@ export default function AuditDetailPage() {
                         {result.procedureDate ? ` · ${result.procedureDate}` : ''}
                     </p>
                 </div>
-                <div className="text-center px-5 py-3 rounded-2xl" style={{ background: risk.soft }}>
-                    <risk.Icon className="w-7 h-7 mx-auto" style={{ color: risk.color }} />
-                    <p className="font-black text-sm mt-1" style={{ color: risk.color }}>{risk.label}</p>
+                <div className="text-center px-5 py-3 rounded-2xl" style={{ background: riskSoft }}>
+                    <risk.Icon className="w-7 h-7 mx-auto" style={{ color: riskColor }} />
+                    <p className="font-black text-sm mt-1" style={{ color: riskColor }}>{risk.label}</p>
                 </div>
                 <div className="text-right">
                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total facturado</p>
@@ -267,6 +371,7 @@ export default function AuditDetailPage() {
                         <tbody>
                             {items.map((it, i) => {
                                 const v = VERDICT[it.verdict] || VERDICT.NO_VERIFICABLE;
+                                const vc = `rgb(${v.color.join(',')})`;
                                 return (
                                     <tr key={i} className="border-t border-slate-50 align-top">
                                         <td className="px-5 py-3 font-black text-alteha-violet whitespace-nowrap">{it.cpt || 'N/A'}</td>
@@ -280,7 +385,7 @@ export default function AuditDetailPage() {
                                             {it.marketLow != null ? `${money(it.marketLow)} – ${money(it.marketHigh)}` : '—'}
                                         </td>
                                         <td className="px-5 py-3">
-                                            <span className="text-[10px] font-black px-2.5 py-1 rounded-full border-2 whitespace-nowrap" style={{ color: v.color, borderColor: v.color }}>
+                                            <span className="text-[10px] font-black px-2.5 py-1 rounded-full border-2 whitespace-nowrap" style={{ color: vc, borderColor: vc }}>
                                                 {v.label}
                                             </span>
                                         </td>
@@ -302,7 +407,7 @@ export default function AuditDetailPage() {
                     </p>
                 ) : findings.map((f, i) => (
                     <div key={i} className="flex items-start gap-3 bg-slate-50 rounded-2xl p-4">
-                        <span className="text-[9px] font-black text-white rounded-full px-2.5 py-1 mt-0.5" style={{ background: SEV[f.severity] || SEV.BAJA }}>{f.severity}</span>
+                        <span className="text-[9px] font-black text-white rounded-full px-2.5 py-1 mt-0.5" style={{ background: `rgb(${(SEV[f.severity] || SEV.BAJA).join(',')})` }}>{f.severity}</span>
                         <div>
                             <p className="font-black text-sm">{f.title}</p>
                             <p className="text-xs text-slate-500 font-semibold mt-0.5">{f.detail}</p>
@@ -330,8 +435,8 @@ export default function AuditDetailPage() {
                     </div>
                 )}
                 <p className="text-[10px] text-slate-400 font-semibold border-t border-slate-100 pt-3">
-                    Los precios de referencia son estimaciones de mercado generadas por IA y no constituyen tarifas oficiales.
-                    Este informe es un apoyo a la decisión y no sustituye el juicio del auditor médico humano.
+                    Los precios de referencia son estimaciones de mercado de Alteha y no constituyen tarifas oficiales.
+                    Este informe es un apoyo a la decisión y no sustituye el juicio del auditor médico.
                     Confiabilidad documental estimada: {result.confidence != null ? `${result.confidence}%` : 'n/d'}.
                 </p>
             </div>

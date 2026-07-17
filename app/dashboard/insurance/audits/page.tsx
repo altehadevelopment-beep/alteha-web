@@ -1,6 +1,6 @@
 "use client";
 
-// Auditoría Médica IA: el seguro sube el informe médico + la factura de una
+// Auditoría Médica de Alteha: el seguro sube el informe médico + la factura de una
 // intervención y Alteha entrega una evaluación auditable (CPT, precios de
 // referencia de mercado, hallazgos y nivel de riesgo) con folio propio.
 import React, { useEffect, useRef, useState } from 'react';
@@ -85,8 +85,8 @@ export default function AuditsPage() {
         if (!report || !invoice) return;
         setError(null);
         try {
-            // 1) Análisis con IA (Gemini lee ambos documentos)
-            setBusy('Analizando informe y factura con IA… esto puede tardar 1-2 minutos');
+            // 1) Análisis de Alteha (el motor lee ambos documentos)
+            setBusy('Alteha está analizando el informe y la factura… esto puede tardar 1-2 minutos');
             const [reportBase64, invoiceBase64] = await Promise.all([toBase64(report), toBase64(invoice)]);
             const res = await fetch('/api/insurance/audit-analyze', {
                 method: 'POST',
@@ -130,7 +130,7 @@ export default function AuditsPage() {
             <header className="flex items-end justify-between flex-wrap gap-3">
                 <div>
                     <h1 className="text-3xl font-black tracking-tight flex items-center gap-3">
-                        <BrainCircuit className="w-8 h-8 text-alteha-violet" /> Auditoría Médica IA
+                        <BrainCircuit className="w-8 h-8 text-alteha-violet" /> Auditoría Médica
                     </h1>
                     <p className="text-slate-400 font-medium mt-1 max-w-2xl">
                         Sube el informe médico y la factura de una intervención: Alteha genera una evaluación auditable
@@ -147,11 +147,12 @@ export default function AuditsPage() {
             {loading ? (
                 <div className="flex justify-center py-24"><Loader2 className="w-8 h-8 text-alteha-turquoise animate-spin" /></div>
             ) : items.length === 0 ? (
-                <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-14 text-center space-y-3">
-                    <Sparkles className="w-10 h-10 text-alteha-violet/40 mx-auto" />
+                <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-14 text-center space-y-4">
+                    <img src="/backgrounds/specialist.png" alt="Auditoría médica Alteha"
+                        className="w-44 h-44 object-cover rounded-3xl mx-auto shadow-lg shadow-alteha-violet/10" />
                     <p className="font-black text-lg">Aún no has realizado auditorías</p>
                     <p className="text-sm text-slate-400 font-medium max-w-md mx-auto">
-                        Con una auditoría IA sabrás en minutos si lo facturado corresponde a lo realizado y a los precios del mercado.
+                        Con una auditoría de Alteha sabrás en minutos si lo facturado corresponde a lo realizado y a los precios del mercado.
                     </p>
                 </div>
             ) : (
@@ -191,7 +192,7 @@ export default function AuditsPage() {
                         className="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-7 space-y-5">
                         <div className="flex items-start justify-between">
                             <div>
-                                <h2 className="text-xl font-black flex items-center gap-2"><BrainCircuit className="w-5 h-5 text-alteha-violet" /> Nueva auditoría IA</h2>
+                                <h2 className="text-xl font-black flex items-center gap-2"><BrainCircuit className="w-5 h-5 text-alteha-violet" /> Nueva auditoría</h2>
                                 <p className="text-xs text-slate-400 font-semibold mt-1">Ambos documentos de la misma intervención.</p>
                             </div>
                             {!busy && (
@@ -213,13 +214,13 @@ export default function AuditsPage() {
                         ) : (
                             <button onClick={run} disabled={!report || !invoice}
                                 className="w-full py-4 rounded-2xl font-black text-white bg-alteha-gradient disabled:opacity-40 flex items-center justify-center gap-2">
-                                <Sparkles className="w-5 h-5" /> Auditar con IA
+                                <Sparkles className="w-5 h-5" /> Auditar con Alteha
                             </button>
                         )}
 
                         <p className="text-[10px] text-slate-400 font-semibold flex items-start gap-1.5">
                             <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                            Los precios de referencia son estimaciones de mercado generadas por IA y no constituyen tarifas oficiales.
+                            Los precios de referencia son estimaciones de mercado de Alteha y no constituyen tarifas oficiales.
                             La evaluación es un apoyo a la decisión del auditor humano.
                         </p>
                     </motion.div>
