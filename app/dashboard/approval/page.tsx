@@ -7,22 +7,24 @@ import {
     UserCheck, Stethoscope, ArrowRight, Activity,
     FileCheck, TrendingUp, Users
 } from 'lucide-react';
-import { getAllAuctions, getDoctors } from '@/lib/api';
+import { getAllAuctions, getDoctors, getStoredToken } from '@/lib/api';
 
 export default function ApprovalDashboardPage() {
     const [paymentStats, setPaymentStats] = useState({ pending: 0, paid: 0, total: 0 });
     const [settlementStats, setSettlementStats] = useState({ completed: 0, pendingSettlement: 0, total: 0 });
     const [doctorStats, setDoctorStats] = useState({ pending: 0, active: 0, total: 0 });
+    const [insuranceStats, setInsuranceStats] = useState({ pending: 0, active: 0, total: 0 });
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
         const fetchAll = async () => {
             setIsLoading(true);
             try {
-                const [paymentsRes, settlementsRes, doctorsRes] = await Promise.allSettled([
+                const [paymentsRes, settlementsRes, doctorsRes, insurancesRes] = await Promise.allSettled([
                     getAllAuctions('PAYMENT_VALIDATION,PAID', 0, 200, 'updatedAt,desc'),
                     getAllAuctions('COMPLETED,PENDING_SETTLEMENT', 0, 200, 'updatedAt,desc'),
-                    getDoctors(0, 200)
+                    getDoctors(0, 200),
+                    fetch('/api/insurance-approvals', { headers: { 'X-Alteha-Token': getStoredToken() || '' } }).then((r) => r.json())
                 ]);
 
                 if (paymentsRes.status === 'fulfilled' && paymentsRes.value.code === '00') {
@@ -43,6 +45,11 @@ export default function ApprovalDashboardPage() {
                         pendingSettlement: list.filter((a: any) => a.status === 'PENDING_SETTLEMENT').length,
                         total: list.length
                     });
+                }
+
+                if (insurancesRes.status === 'fulfilled' && insurancesRes.value?.code === '00') {
+                    const st = insurancesRes.value?.data?.stats || {};
+                    setInsuranceStats({ pending: st.pending ?? 0, active: st.active ?? 0, total: st.total ?? 0 });
                 }
 
                 if (doctorsRes.status === 'fulfilled') {
@@ -114,6 +121,18 @@ export default function ApprovalDashboardPage() {
                 { label: 'Pendientes', value: doctorStats.pending, color: 'text-amber-600' },
                 { label: 'Activos', value: doctorStats.active, color: 'text-emerald-600' },
                 { label: 'Total', value: doctorStats.total, color: 'text-slate-600' }
+            ]
+        },
+        {
+            title: 'Validación de Seguros',
+            description: 'Revisa RIF y registro mercantil y aprueba a las aseguradoras.',
+            href: '/dashboard/approval/insurances',
+            icon: Users,
+            accent: 'amber',
+            metrics: [
+                { label: 'Pendientes', value: insuranceStats.pending, color: 'text-amber-600' },
+                { label: 'Activas', value: insuranceStats.active, color: 'text-emerald-600' },
+                { label: 'Total', value: insuranceStats.total, color: 'text-slate-600' }
             ]
         }
     ];
