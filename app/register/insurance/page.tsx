@@ -61,8 +61,12 @@ const IDENTIFICATION_TYPES = [
 
 // --- Interfaces ---
 interface AdditionalUser {
+    name: string;
+    lastName: string;
     email: string;
     phone: string;
+    position: string;
+    department: string;
     permisoIds: number[];
 }
 
@@ -80,6 +84,8 @@ interface FormData {
 
     // Contact Person (Main User)
     contactPersonName: string;
+    contactPosition: string;
+    contactUnit: string;
     password: string;
     confirmPassword: string;
 
@@ -107,6 +113,8 @@ export default function InsuranceRegistrationPage() {
         insuranceLicenseNumber: '',
         website: '',
         contactPersonName: '',
+        contactPosition: '',
+        contactUnit: '',
         password: '',
         confirmPassword: '',
         hasAdditionalUsers: false,
@@ -114,6 +122,20 @@ export default function InsuranceRegistrationPage() {
     });
 
     // Verification State
+    // Permisología asignable a los usuarios complementarios (Informe QA Nº6)
+    const [permisosCatalog, setPermisosCatalog] = useState<{ id: number; nombre: string; descripcion?: string }[]>([]);
+    useEffect(() => {
+        fetch('/api/actor-register/permisos?role=INSURANCE_COMPANY')
+            .then((r) => r.json())
+            .then((r) => setPermisosCatalog(Array.isArray(r?.data) ? r.data : []))
+            .catch(() => setPermisosCatalog([]));
+    }, []);
+    const toggleUserPermiso = (index: number, permisoId: number) => {
+        const current = formData.additionalUsers[index]?.permisoIds || [];
+        const next = current.includes(permisoId) ? current.filter((x) => x !== permisoId) : [...current, permisoId];
+        updateAdditionalUser(index, 'permisoIds', next);
+    };
+
     const [emailVerified, setEmailVerified] = useState(false);
     const [phoneVerified, setPhoneVerified] = useState(false);
     const [emailToken, setEmailToken] = useState('');
@@ -160,7 +182,7 @@ export default function InsuranceRegistrationPage() {
     const addAdditionalUser = () => {
         setFormData(prev => ({
             ...prev,
-            additionalUsers: [...prev.additionalUsers, { email: '', phone: '', permisoIds: [1, 4, 5] }]
+            additionalUsers: [...prev.additionalUsers, { name: '', lastName: '', email: '', phone: '', position: '', department: '', permisoIds: permisosCatalog.map(p => p.id) }]
         }));
     };
 
@@ -203,7 +225,7 @@ export default function InsuranceRegistrationPage() {
         { num: 1, title: 'Empresa' },
         { num: 2, title: 'Contacto' },
         { num: 3, title: 'Contraseña' },
-        { num: 4, title: 'Usuarios' },
+        { num: 4, title: 'Complementarios' },
         { num: 5, title: 'Documentos' }
     ];
 
@@ -442,6 +464,8 @@ export default function InsuranceRegistrationPage() {
                 identificationNumber: `${formData.nationality}${formData.identificationNumber}`,
                 insuranceLicenseNumber: formData.insuranceLicenseNumber,
                 contactPersonName: formData.contactPersonName,
+                contactPosition: formData.contactPosition,
+                contactUnit: formData.contactUnit,
                 // Only include additional users if toggle is on
                 additionalUsers: formData.hasAdditionalUsers ? formData.additionalUsers : []
             };
@@ -577,7 +601,7 @@ export default function InsuranceRegistrationPage() {
                                         </div>
                                         <div className="flex-1 relative">
                                             <Input
-                                                label="Número de Identificación"
+                                                label="Registro de Información Fiscal (RIF)"
                                                 placeholder="408573427"
                                                 value={formData.identificationNumber}
                                                 onChange={(e) => updateFormData('identificationNumber', e.target.value)}
@@ -698,6 +722,23 @@ export default function InsuranceRegistrationPage() {
                                 tooltip="Nombre y apellido del representante o administrador de la cuenta"
                             />
 
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <Input
+                                    label="Cargo Desempeñado"
+                                    placeholder="Ej. Gerente de Operaciones"
+                                    value={formData.contactPosition}
+                                    onChange={(e) => updateFormData('contactPosition', e.target.value)}
+                                    tooltip="Cargo que desempeña dentro de la organización"
+                                />
+                                <Input
+                                    label="Unidad Administrativa de Adscripción"
+                                    placeholder="Ej. Gerencia de Salud"
+                                    value={formData.contactUnit}
+                                    onChange={(e) => updateFormData('contactUnit', e.target.value)}
+                                    tooltip="Unidad o departamento al que está adscrito"
+                                />
+                            </div>
+
                             {/* Email Verification Component */}
                             <div className={`p-6 rounded-[2rem] border-2 transition-all ${emailVerified ? 'bg-alteha-turquoise/5 border-alteha-turquoise/40' : 'bg-white border-slate-100'}`}>
                                 <div className="flex items-center gap-3 mb-4">
@@ -705,6 +746,18 @@ export default function InsuranceRegistrationPage() {
                                     <span className="font-bold text-slate-900">Correo Electrónico</span>
                                     {emailVerified && <CheckCircle className="w-5 h-5 text-alteha-turquoise ml-auto" />}
                                 </div>
+
+                                {emailVerified && (
+                                    <div className="flex items-center justify-between gap-3">
+                                        <p className="text-sm font-bold text-slate-600 truncate">{formData.email}</p>
+                                        <button
+                                            onClick={() => { setEmailVerified(false); setEmailSent(false); setEmailToken(''); }}
+                                            className="text-sm font-black text-alteha-violet hover:underline shrink-0"
+                                        >
+                                            Cambiar correo
+                                        </button>
+                                    </div>
+                                )}
 
                                 {!emailVerified && (
                                     <div className="space-y-4">
@@ -732,7 +785,10 @@ export default function InsuranceRegistrationPage() {
                                             </Button>
                                         ) : (
                                             <div className="space-y-4">
-                                                <p className="text-sm text-slate-500">Ingresa el código enviado a <span className="font-bold">{formData.email}</span></p>
+                                                <p className="text-sm text-slate-500">
+                                                    Ingresa el código enviado a <span className="font-bold">{formData.email}</span>
+                                                    <button onClick={() => { setEmailSent(false); setEmailToken(''); }} className="ml-2 font-black text-alteha-violet hover:underline">Cambiar correo</button>
+                                                </p>
                                                 <div className="relative">
                                                     <input
                                                         type="text"
@@ -794,6 +850,18 @@ export default function InsuranceRegistrationPage() {
                                     {phoneVerified && <CheckCircle className="w-5 h-5 text-alteha-turquoise ml-auto" />}
                                 </div>
 
+                                {phoneVerified && (
+                                    <div className="flex items-center justify-between gap-3">
+                                        <p className="text-sm font-bold text-slate-600 truncate">{formData.phone}</p>
+                                        <button
+                                            onClick={() => { setPhoneVerified(false); setSmsSent(false); setPhoneToken(''); }}
+                                            className="text-sm font-black text-alteha-violet hover:underline shrink-0"
+                                        >
+                                            Cambiar teléfono
+                                        </button>
+                                    </div>
+                                )}
+
                                 {!phoneVerified && (
                                     <div className="space-y-4">
                                         <PhoneField
@@ -827,7 +895,10 @@ export default function InsuranceRegistrationPage() {
                                             </Button>
                                         ) : (
                                             <div className="space-y-4">
-                                                <p className="text-sm text-slate-500">Ingresa el código enviado a <span className="font-bold">{formData.phone}</span></p>
+                                                <p className="text-sm text-slate-500">
+                                                    Ingresa el código enviado a <span className="font-bold">{formData.phone}</span>
+                                                    <button onClick={() => { setSmsSent(false); setPhoneToken(''); }} className="ml-2 font-black text-alteha-violet hover:underline">Cambiar teléfono</button>
+                                                </p>
                                                 <div className="relative">
                                                     <input
                                                         type="text"
@@ -996,8 +1067,8 @@ export default function InsuranceRegistrationPage() {
                                     <Users className="w-6 h-6" />
                                 </div>
                                 <div>
-                                    <h2 className="text-xl font-black text-slate-900">Usuarios Adicionales</h2>
-                                    <p className="text-sm text-slate-500">Opcional: Agregue más usuarios a la cuenta</p>
+                                    <h2 className="text-xl font-black text-slate-900">Usuarios Complementarios</h2>
+                                    <p className="text-sm text-slate-500">Agregue los Usuarios Complementarios que le apoyarán en su gestión (opcional)</p>
                                 </div>
                             </div>
 
@@ -1015,7 +1086,7 @@ export default function InsuranceRegistrationPage() {
                                             }
                                         }}
                                     />
-                                    <span className="font-bold text-slate-700">¿Desea registrar usuarios adicionales?</span>
+                                    <span className="font-bold text-slate-700">¿Desea registrar usuarios complementarios?</span>
                                 </label>
                             </div>
 
@@ -1033,6 +1104,18 @@ export default function InsuranceRegistrationPage() {
                                             </div>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                 <Input
+                                                    label="Nombres"
+                                                    value={user.name}
+                                                    onChange={(e) => updateAdditionalUser(index, 'name', e.target.value)}
+                                                    placeholder="Nombres"
+                                                />
+                                                <Input
+                                                    label="Apellidos"
+                                                    value={user.lastName}
+                                                    onChange={(e) => updateAdditionalUser(index, 'lastName', e.target.value)}
+                                                    placeholder="Apellidos"
+                                                />
+                                                <Input
                                                     label="Correo Electrónico"
                                                     type="email"
                                                     value={user.email}
@@ -1043,7 +1126,39 @@ export default function InsuranceRegistrationPage() {
                                                     value={user.phone}
                                                     onChange={(v) => updateAdditionalUser(index, 'phone', v)}
                                                 />
+                                                <Input
+                                                    label="Cargo"
+                                                    value={user.position}
+                                                    onChange={(e) => updateAdditionalUser(index, 'position', e.target.value)}
+                                                    placeholder="Ej. Analista de Siniestros"
+                                                />
+                                                <Input
+                                                    label="Unidad Administrativa"
+                                                    value={user.department}
+                                                    onChange={(e) => updateAdditionalUser(index, 'department', e.target.value)}
+                                                    placeholder="Ej. Gerencia de Salud"
+                                                />
                                             </div>
+
+                                            {/* Rol y permisología asignada por el usuario principal */}
+                                            {permisosCatalog.length > 0 && (
+                                                <div className="pt-2">
+                                                    <p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Permisos del usuario</p>
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                                        {permisosCatalog.map((perm) => (
+                                                            <label key={perm.id} className="flex items-center gap-2 text-sm font-medium text-slate-600 cursor-pointer bg-slate-50 rounded-lg px-3 py-2 hover:bg-slate-100 transition-colors">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    className="w-4 h-4 rounded border-slate-300 text-purple-600 focus:ring-purple-500"
+                                                                    checked={(user.permisoIds || []).includes(perm.id)}
+                                                                    onChange={() => toggleUserPermiso(index, perm.id)}
+                                                                />
+                                                                <span className="truncate">{perm.nombre}</span>
+                                                            </label>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     ))}
 
@@ -1051,7 +1166,7 @@ export default function InsuranceRegistrationPage() {
                                         onClick={addAdditionalUser}
                                         className="w-full py-3 border-2 border-dashed border-slate-300 rounded-xl text-slate-500 font-bold hover:border-purple-500 hover:text-purple-500 transition-colors flex items-center justify-center gap-2"
                                     >
-                                        <Plus className="w-5 h-5" /> Agregar otro usuario
+                                        <Plus className="w-5 h-5" /> Agregar otro usuario complementario
                                     </button>
                                 </div>
                             )}
@@ -1091,8 +1206,8 @@ export default function InsuranceRegistrationPage() {
                                     <FileText className="w-6 h-6" />
                                 </div>
                                 <div>
-                                    <h2 className="text-xl font-black text-slate-900">Documentación</h2>
-                                    <p className="text-sm text-slate-500">Sube los archivos requeridos</p>
+                                    <h2 className="text-xl font-black text-slate-900">Documentos Probatorios</h2>
+                                    <p className="text-sm text-slate-500">Sube los archivos que acreditan a tu empresa</p>
                                 </div>
                             </div>
 

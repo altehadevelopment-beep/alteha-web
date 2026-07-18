@@ -24,7 +24,9 @@ export default function ApprovalDashboardPage() {
                     getAllAuctions('PAYMENT_VALIDATION,PAID', 0, 200, 'updatedAt,desc'),
                     getAllAuctions('COMPLETED,PENDING_SETTLEMENT', 0, 200, 'updatedAt,desc'),
                     getDoctors(0, 200),
-                    fetch('/api/insurance-approvals', { headers: { 'X-Alteha-Token': getStoredToken() || '' } }).then((r) => r.json())
+                    Promise.all(['INSURANCE', 'CLINIC', 'PHARMACY'].map((t) =>
+                        fetch(`/api/company-approvals?type=${t}`, { headers: { 'X-Alteha-Token': getStoredToken() || '' } }).then((r) => r.json()).catch(() => null)
+                    ))
                 ]);
 
                 if (paymentsRes.status === 'fulfilled' && paymentsRes.value.code === '00') {
@@ -47,9 +49,15 @@ export default function ApprovalDashboardPage() {
                     });
                 }
 
-                if (insurancesRes.status === 'fulfilled' && insurancesRes.value?.code === '00') {
-                    const st = insurancesRes.value?.data?.stats || {};
-                    setInsuranceStats({ pending: st.pending ?? 0, active: st.active ?? 0, total: st.total ?? 0 });
+                if (insurancesRes.status === 'fulfilled' && Array.isArray(insurancesRes.value)) {
+                    const agg = insurancesRes.value.reduce(
+                        (acc: any, r: any) => {
+                            const st = r?.data?.stats || {};
+                            return { pending: acc.pending + (st.pending ?? 0), active: acc.active + (st.active ?? 0), total: acc.total + (st.total ?? 0) };
+                        },
+                        { pending: 0, active: 0, total: 0 }
+                    );
+                    setInsuranceStats(agg);
                 }
 
                 if (doctorsRes.status === 'fulfilled') {
@@ -124,8 +132,8 @@ export default function ApprovalDashboardPage() {
             ]
         },
         {
-            title: 'Validación de Seguros',
-            description: 'Revisa RIF y registro mercantil y aprueba a las aseguradoras.',
+            title: 'Validación de Empresas',
+            description: 'Aprueba registros de aseguradoras, clínicas y casas de salud.',
             href: '/dashboard/approval/insurances',
             icon: Users,
             accent: 'amber',

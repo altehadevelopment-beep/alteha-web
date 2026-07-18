@@ -139,22 +139,55 @@ export function PuzzleCaptcha({ onVerify, className }: PuzzleCaptchaProps) {
         }
     };
 
+    // El deslizamiento se hace DIRECTAMENTE sobre la imagen (Informe QA Nº6):
+    // se arrastra la pieza del rompecabezas hasta encajarla en su hueco, sin
+    // barra deslizante separada.
     return (
         <div className={cn("p-4 bg-white/40 backdrop-blur-xl rounded-[1.5rem] shadow-2xl border border-white/60 w-fit select-none mx-auto", className)}>
-            <div className="relative mb-4 overflow-hidden rounded-xl bg-slate-200/50 shadow-inner" style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT }}>
+            <div className="relative overflow-hidden rounded-xl bg-slate-200/50 shadow-inner" style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT }}>
                 {isLoading && (
                     <div className="absolute inset-0 flex items-center justify-center bg-white/20 backdrop-blur-sm z-20">
                         <RotateCcw className="w-8 h-8 animate-spin text-alteha-violet/60" />
                     </div>
                 )}
                 <canvas ref={canvasRef} width={CANVAS_WIDTH} height={CANVAS_HEIGHT} className={cn("block transition-opacity duration-500", isLoading ? "opacity-0" : "opacity-100")} />
+                {/* La pieza es arrastrable sobre la propia imagen */}
                 <motion.canvas
                     ref={pieceRef}
                     width={CANVAS_WIDTH}
                     height={CANVAS_HEIGHT}
-                    style={{ x }}
-                    className={cn("absolute top-0 left-0 drop-shadow-[0_10px_15px_rgba(0,0,0,0.5)] z-10 transition-opacity duration-500", isLoading ? "opacity-0" : "opacity-100 pointer-events-none")}
+                    drag={isVerified || isLoading ? false : "x"}
+                    dragConstraints={{ left: 0, right: CANVAS_WIDTH - PUZZLE_SIZE - 10 }}
+                    dragElastic={0}
+                    dragMomentum={false}
+                    onDragEnd={handleDragEnd}
+                    animate={controls}
+                    style={{ x, touchAction: 'none' }}
+                    className={cn(
+                        "absolute top-0 left-0 drop-shadow-[0_10px_15px_rgba(0,0,0,0.5)] z-10 transition-opacity duration-500",
+                        isLoading ? "opacity-0" : "opacity-100",
+                        isVerified ? "cursor-default" : "cursor-grab active:cursor-grabbing"
+                    )}
                 />
+
+                {/* Instrucción sobre la imagen */}
+                {!isVerified && !isLoading && !isError && (
+                    <div className="absolute bottom-0 inset-x-0 z-20 pointer-events-none bg-gradient-to-t from-black/60 to-transparent px-3 pb-2 pt-6 text-center">
+                        <p className="text-white font-bold text-[11px] tracking-wide drop-shadow">
+                            Desliza la pieza sobre la imagen hasta encajarla
+                        </p>
+                    </div>
+                )}
+
+                {/* Botón para regenerar, sobre la imagen */}
+                <button
+                    onClick={generatePuzzle}
+                    disabled={isVerified || isLoading}
+                    className="absolute right-2 top-2 z-30 bg-white/85 backdrop-blur rounded-lg p-1.5 text-slate-500 hover:text-alteha-violet transition-all disabled:opacity-30 hover:rotate-180 duration-500 shadow"
+                    title="Actualizar"
+                >
+                    <RotateCcw className="w-4 h-4" />
+                </button>
 
                 {isError && !isLoading && (
                     <motion.div
@@ -179,49 +212,6 @@ export function PuzzleCaptcha({ onVerify, className }: PuzzleCaptchaProps) {
                         </div>
                     </motion.div>
                 )}
-            </div>
-
-            <div className="relative h-12 bg-slate-100/80 backdrop-blur-md rounded-xl border border-slate-200/50 shadow-inner overflow-hidden">
-                <div className="absolute inset-0 flex items-center justify-center text-slate-400 font-bold text-[9px] uppercase tracking-[0.2em] ml-8">
-                    {isVerified ? "Verificado" : isLoading ? "Cargando..." : "Deslizar para verificar"}
-                </div>
-
-                <motion.div
-                    style={{ width: x }}
-                    className={cn(
-                        "absolute top-0 left-0 h-full transition-colors",
-                        isError ? "bg-red-500/20" : 
-                        isVerified ? "bg-emerald-500/20" : 
-                        "bg-alteha-turquoise/20"
-                    )}
-                />
-
-                <motion.div
-                    drag={isVerified || isLoading ? false : "x"}
-                    dragConstraints={{ left: 0, right: CANVAS_WIDTH - 46 }}
-                    dragElastic={0}
-                    dragMomentum={false}
-                    onDragEnd={handleDragEnd}
-                    animate={controls}
-                    style={{ x }}
-                    className={cn(
-                        "absolute top-1 left-1 w-10 h-10 bg-white rounded-lg shadow-[0_4px_10px_rgba(0,0,0,0.1)] cursor-grab active:cursor-grabbing flex items-center justify-center z-10 transition-all duration-300",
-                        isVerified ? "text-emerald-500 cursor-default shadow-none border border-emerald-100" : "text-slate-400 hover:text-alteha-violet border border-slate-100 hover:scale-105",
-                        isError && "text-red-500 border-red-100 shadow-red-100",
-                        isLoading && "cursor-wait opacity-50"
-                    )}
-                >
-                    {isVerified ? <Check className="w-6 h-6" /> : isError ? <X className="w-6 h-6" /> : <ChevronRight className="w-6 h-6" />}
-                </motion.div>
-
-                <button
-                    onClick={generatePuzzle}
-                    disabled={isVerified || isLoading}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-alteha-violet transition-all p-2 disabled:opacity-30 hover:rotate-180 duration-500"
-                    title="Actualizar"
-                >
-                    <RotateCcw className="w-4 h-4" />
-                </button>
             </div>
         </div>
     );

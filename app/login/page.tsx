@@ -328,7 +328,7 @@ export default function LoginPage() {
                             </Link>
                         </p>
                     )}
-                    <div className="flex justify-center gap-4 text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                    <div className="flex justify-center gap-5 text-sm font-black text-slate-500 uppercase tracking-widest">
                         <Link href="/terms" className="hover:text-alteha-violet transition-colors">Términos</Link>
                         <span>•</span>
                         <Link href="/privacy" className="hover:text-alteha-turquoise transition-colors">Privacidad</Link>
@@ -338,7 +338,7 @@ export default function LoginPage() {
                 </div>
             </motion.div>
 
-            <div className="absolute bottom-6 text-slate-400 text-xs text-center w-full">
+            <div className="absolute bottom-6 text-slate-500 text-sm font-bold text-center w-full">
                 &copy; {new Date().getFullYear()} ALTEHA - Todos los derechos reservados
             </div>
         </div>

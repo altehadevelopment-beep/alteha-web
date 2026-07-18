@@ -112,7 +112,7 @@ const approvalItems = [
     { title: 'Validación de Entregas', icon: CheckCircle2, href: '/dashboard/approval/deliveries' },
     { title: 'Operaciones de Cambio', icon: Banknote, href: '/dashboard/approval/exchange' },
     { title: 'Validación de Médicos', icon: UserCheck, href: '/dashboard/approval/doctors' },
-    { title: 'Validación de Seguros', icon: ShieldBan, href: '/dashboard/approval/insurances' },
+    { title: 'Validación de Empresas', icon: ShieldBan, href: '/dashboard/approval/insurances' },
 ];
 
 export function DashboardSidebar() {

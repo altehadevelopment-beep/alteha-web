@@ -1,16 +1,23 @@
 "use client";
 
-// Validación de Seguros — módulo de aprobación: revisa RIF y registro mercantil
-// de las aseguradoras registradas y las aprueba (ACTIVE) o rechaza (SUSPENDED).
-// Hasta no ser aprobadas no pueden publicar subastas.
+// Validación de Empresas — módulo de aprobación (Informe QA Nº6: aprobaciones
+// concentradas): registros de aseguradoras, clínicas y casas de salud con sus
+// documentos probatorios. Aprobar → ACTIVA · Rechazar con motivo → SUSPENDIDA.
 import React, { useEffect, useState } from 'react';
 import {
     Building2, Loader2, RefreshCw, FileText, CheckCircle2, XCircle, Phone, Mail,
-    Award, Clock, User, ExternalLink, History, IdCard, ShieldCheck,
+    Award, Clock, User, ExternalLink, History, IdCard, ShieldCheck, Stethoscope, Cross,
 } from 'lucide-react';
 import { getStoredToken } from '@/lib/api';
 
 const fmtDate = (v?: string) => (v ? new Date(v).toLocaleString('es-VE', { dateStyle: 'medium', timeStyle: 'short' }) : '—');
+
+const TYPES = [
+    { key: 'INSURANCE', label: 'Seguros', singular: 'aseguradora', icon: Building2 },
+    { key: 'CLINIC', label: 'Clínicas', singular: 'clínica', icon: Stethoscope },
+    { key: 'PHARMACY', label: 'Casas de Salud', singular: 'casa de salud', icon: Cross },
+] as const;
+type CompanyType = (typeof TYPES)[number]['key'];
 
 const statusBadge = (s?: string) => {
     const v = String(s || '').toUpperCase();
@@ -24,18 +31,19 @@ const statusBadge = (s?: string) => {
     return <span className={`text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider ${cls}`}>{label[v] || v || '—'}</span>;
 };
 
-const DOC_LABEL: any = { RIF: 'RIF', REGISTRO_MERCATIL: 'Registro mercantil', REGISTRO_MERCANTIL: 'Registro mercantil' };
+const DOC_LABEL: any = { RIF: 'RIF', REGISTRO_MERCATIL: 'Registro mercantil', REGISTRO_MERCANTIL: 'Registro mercantil', LICENCIA_SANITARIA: 'Licencia sanitaria' };
 
 async function api(path: string, opts: RequestInit = {}) {
     const token = getStoredToken();
-    const res = await fetch(`/api/insurance-approvals${path}`, {
+    const res = await fetch(`/api/company-approvals${path}`, {
         ...opts,
         headers: { 'Content-Type': 'application/json', 'X-Alteha-Token': token || '', ...(opts.headers || {}) },
     });
     return res.json().catch(() => ({}));
 }
 
-export default function InsuranceApprovalPage() {
+export default function CompanyApprovalPage() {
+    const [entity, setEntity] = useState<CompanyType>('INSURANCE');
     const [pending, setPending] = useState<any[]>([]);
     const [history, setHistory] = useState<any[]>([]);
     const [selected, setSelected] = useState<any | null>(null);
@@ -46,9 +54,11 @@ export default function InsuranceApprovalPage() {
     const [reason, setReason] = useState('');
     const [tab, setTab] = useState<'pendientes' | 'historial'>('pendientes');
 
+    const meta = TYPES.find((t) => t.key === entity)!;
+
     const load = () => {
         setLoading(true);
-        api('')
+        api(`?type=${entity}`)
             .then((r) => {
                 const d = r?.data || {};
                 setPending(d.pending || []);
@@ -58,12 +68,12 @@ export default function InsuranceApprovalPage() {
             })
             .finally(() => setLoading(false));
     };
-    useEffect(load, []);
+    useEffect(() => { setSelected(null); setRejecting(false); setReason(''); setMsg(null); load(); }, [entity]);
 
     const review = async (approved: boolean) => {
         if (!selected) return;
         setBusy(true); setMsg(null);
-        const r = await api(`/${selected.id}/review`, {
+        const r = await api(`/${entity}/${selected.id}/review`, {
             method: 'POST',
             body: JSON.stringify({ approved, rejectionReason: reason }),
         });
@@ -79,13 +89,22 @@ export default function InsuranceApprovalPage() {
             <header className="flex items-end justify-between flex-wrap gap-3">
                 <div>
                     <h1 className="text-3xl md:text-4xl font-black tracking-tight flex items-center gap-3">
-                        <Building2 className="w-8 h-8 text-alteha-turquoise" /> Validación de Seguros
+                        <ShieldCheck className="w-8 h-8 text-alteha-turquoise" /> Validación de Empresas
                     </h1>
                     <p className="text-slate-400 font-medium mt-1">
-                        Revisa el RIF y el registro mercantil de las aseguradoras registradas. Hasta no ser aprobadas no pueden publicar subastas.
+                        Revisa los documentos probatorios y aprueba los registros. Hasta no ser aprobadas, las aseguradoras no pueden publicar subastas.
                     </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                    <div className="bg-white rounded-2xl border border-slate-100 p-1 flex">
+                        {TYPES.map((t) => (
+                            <button key={t.key} onClick={() => setEntity(t.key)}
+                                className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-1.5 ${
+                                    entity === t.key ? 'bg-alteha-turquoise text-white' : 'text-slate-400'}`}>
+                                <t.icon className="w-3.5 h-3.5" /> {t.label}
+                            </button>
+                        ))}
+                    </div>
                     <div className="bg-white rounded-2xl border border-slate-100 p-1 flex">
                         {(['pendientes', 'historial'] as const).map((t) => (
                             <button key={t} onClick={() => setTab(t)}
@@ -104,14 +123,14 @@ export default function InsuranceApprovalPage() {
                 <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
                     <table className="w-full text-sm">
                         <thead><tr className="bg-slate-50">
-                            {['Aseguradora', 'Resultado', 'Revisado por', 'Fecha', 'Motivo'].map((h) => (
+                            {['Empresa', 'Resultado', 'Revisado por', 'Fecha', 'Motivo'].map((h) => (
                                 <th key={h} className="text-left px-5 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">{h}</th>
                             ))}
                         </tr></thead>
                         <tbody>
                             {history.map((h: any) => (
                                 <tr key={h.id} className="border-t border-slate-50">
-                                    <td className="px-5 py-3 font-black">{h.insuranceName || '—'}</td>
+                                    <td className="px-5 py-3 font-black">{h.companyName || '—'}</td>
                                     <td className="px-5 py-3">{statusBadge(h.status)}</td>
                                     <td className="px-5 py-3 font-semibold text-slate-600">{h.approvedBy || '—'}</td>
                                     <td className="px-5 py-3 text-slate-500">{fmtDate(h.approvedAt)}</td>
@@ -129,8 +148,8 @@ export default function InsuranceApprovalPage() {
                         {pending.length === 0 && (
                             <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-10 text-center space-y-2">
                                 <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto" />
-                                <p className="font-black">Sin aseguradoras por aprobar</p>
-                                <p className="text-xs text-slate-400 font-medium">Cuando una aseguradora se registre con sus documentos aparecerá aquí.</p>
+                                <p className="font-black">Sin {meta.label.toLowerCase()} por aprobar</p>
+                                <p className="text-xs text-slate-400 font-medium">Cuando una {meta.singular} se registre con sus documentos aparecerá aquí.</p>
                             </div>
                         )}
                         {pending.map((i: any) => (
@@ -155,8 +174,8 @@ export default function InsuranceApprovalPage() {
                     <section className="flex-1 min-w-0 w-full">
                         {!selected ? (
                             <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-16 text-center text-slate-400 font-semibold">
-                                <Building2 className="w-12 h-12 mx-auto mb-3 text-slate-200" />
-                                Selecciona una aseguradora para revisar sus documentos y aprobarla.
+                                <meta.icon className="w-12 h-12 mx-auto mb-3 text-slate-200" />
+                                Selecciona una {meta.singular} para revisar sus documentos y aprobarla.
                             </div>
                         ) : (
                             <div className="space-y-4">
@@ -164,7 +183,7 @@ export default function InsuranceApprovalPage() {
                                 <div className="bg-slate-900 text-white rounded-3xl p-6 flex items-center gap-4 flex-wrap">
                                     {selected.logo
                                         ? <img src={selected.logo} alt="" className="w-16 h-16 rounded-2xl object-cover bg-white/10" />
-                                        : <div className="w-16 h-16 rounded-2xl bg-white/10 flex items-center justify-center"><Building2 className="w-7 h-7 text-alteha-turquoise" /></div>}
+                                        : <div className="w-16 h-16 rounded-2xl bg-white/10 flex items-center justify-center"><meta.icon className="w-7 h-7 text-alteha-turquoise" /></div>}
                                     <div className="flex-1 min-w-0">
                                         <h2 className="text-2xl font-black truncate">{selected.name || selected.email}</h2>
                                         <div className="flex flex-wrap gap-4 text-xs text-slate-300 font-semibold mt-1">
@@ -179,7 +198,7 @@ export default function InsuranceApprovalPage() {
 
                                 {/* Datos + documentos */}
                                 <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 space-y-5">
-                                    <h3 className="font-black text-lg flex items-center gap-2"><FileText className="w-5 h-5 text-alteha-violet" /> Documentos de la empresa</h3>
+                                    <h3 className="font-black text-lg flex items-center gap-2"><FileText className="w-5 h-5 text-alteha-violet" /> Documentos probatorios</h3>
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                         <div className="bg-slate-50 rounded-2xl p-4 text-center">
                                             <p className="font-black pt-1 truncate">{selected.legalName || '—'}</p>
@@ -191,7 +210,7 @@ export default function InsuranceApprovalPage() {
                                         </div>
                                         <div className="bg-slate-50 rounded-2xl p-4 text-center">
                                             <p className="font-black pt-1">{selected.license || '—'}</p>
-                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2">Licencia de seguros</p>
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2">Licencia</p>
                                         </div>
                                         <div className="bg-slate-50 rounded-2xl p-4 text-center">
                                             <p className="font-black pt-1 flex items-center justify-center gap-1"><Clock className="w-4 h-4 text-slate-300" />{fmtDate(selected.createdAt).split(',')[0]}</p>
@@ -199,11 +218,16 @@ export default function InsuranceApprovalPage() {
                                         </div>
                                     </div>
                                     {selected.contactPerson && (
-                                        <p className="text-sm font-semibold text-slate-500 flex items-center gap-2"><User className="w-4 h-4 text-slate-300" /> Persona de contacto: <span className="font-black text-slate-700">{selected.contactPerson}</span></p>
+                                        <p className="text-sm font-semibold text-slate-500 flex items-center gap-2 flex-wrap">
+                                            <User className="w-4 h-4 text-slate-300" /> Contacto principal:
+                                            <span className="font-black text-slate-700">{selected.contactPerson}</span>
+                                            {selected.contactPosition && <span className="text-slate-400">· {selected.contactPosition}</span>}
+                                            {selected.contactUnit && <span className="text-slate-400">· {selected.contactUnit}</span>}
+                                        </p>
                                     )}
                                     {(selected.documents || []).length === 0 ? (
                                         <p className="text-sm font-semibold bg-amber-50 text-amber-600 rounded-2xl p-4">
-                                            Esta aseguradora no adjuntó documentos en el registro. Solicítalos por correo antes de aprobarla, o apruébala si ya los validaste por otra vía.
+                                            Esta {meta.singular} no adjuntó documentos en el registro. Solicítalos por correo antes de aprobarla, o apruébala si ya los validaste por otra vía.
                                         </p>
                                     ) : (
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -235,7 +259,7 @@ export default function InsuranceApprovalPage() {
                                         <div className="flex flex-col sm:flex-row gap-3">
                                             <button onClick={() => review(true)} disabled={busy}
                                                 className="flex-1 py-4 rounded-2xl font-black text-white bg-gradient-to-r from-emerald-500 to-alteha-turquoise flex items-center justify-center gap-2 disabled:opacity-50">
-                                                {busy ? <Loader2 className="w-5 h-5 animate-spin" /> : <ShieldCheck className="w-5 h-5" />} Aprobar aseguradora
+                                                {busy ? <Loader2 className="w-5 h-5 animate-spin" /> : <ShieldCheck className="w-5 h-5" />} Aprobar {meta.singular}
                                             </button>
                                             <button onClick={() => setRejecting(true)} disabled={busy}
                                                 className="flex-1 py-4 rounded-2xl font-black text-red-500 bg-red-50 hover:bg-red-100 flex items-center justify-center gap-2 disabled:opacity-50">
@@ -259,7 +283,7 @@ export default function InsuranceApprovalPage() {
                                     )}
                                     <p className="text-[11px] text-slate-400 font-semibold flex items-center gap-1.5">
                                         <History className="w-3.5 h-3.5" />
-                                        Al aprobar, la aseguradora queda ACTIVA y puede publicar subastas; al rechazar queda SUSPENDIDA y no puede publicar.
+                                        Al aprobar, el registro queda ACTIVO; al rechazar queda SUSPENDIDO. La revisión se guarda en el historial con quién y cuándo.
                                     </p>
                                 </div>
                             </div>
