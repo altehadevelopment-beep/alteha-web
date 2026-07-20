@@ -9,9 +9,10 @@ export default function GoogleAuthBridge() {
     const [target, setTarget] = useState('');
 
     useEffect(() => {
-        const frag = window.location.hash
-            || (window.location.search ? '#' + window.location.search.slice(1) : '');
-        const t = 'alteha://google-auth' + frag;
+        // El token llega en el fragmento (#id_token=…) pero lo reenviamos como
+        // query (?id_token=…): el enrutador de la app no conserva fragmentos.
+        const frag = window.location.hash ? window.location.hash.slice(1) : window.location.search.slice(1);
+        const t = 'alteha://google-auth' + (frag ? '?' + frag : '');
         setTarget(t);
         window.location.replace(t);
     }, []);
