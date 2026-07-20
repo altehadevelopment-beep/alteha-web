@@ -144,6 +144,8 @@ export default function LoginPage() {
             if (result.code === '00' && result.data?.id_token) {
                 // Success - redirect to dashboard
                 setFailedAttempts(0);
+                // Geolocalización del ingreso (pide permiso al navegador; no bloquea)
+                reportLoginLocationWeb();
 
                 const destination = role ? `/dashboard/${role}` : '/dashboard/specialist';
                 router.push(destination);

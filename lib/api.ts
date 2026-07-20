@@ -1692,6 +1692,35 @@ export async function getInsuranceCompanyById(id: number | string): Promise<ApiR
 }
 
 // Helper to get stored token
+/**
+ * Reporta la geolocalización del inicio de sesión (igual que la app móvil).
+ * En segundo plano y a prueba de fallos: si el usuario niega el permiso o el
+ * navegador no soporta geolocalización, el login sigue normal.
+ */
+export function reportLoginLocationWeb(): void {
+    try {
+        if (typeof navigator === 'undefined' || !navigator.geolocation) return;
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                const token = getStoredToken();
+                if (!token) return;
+                fetch('/api/actor/login-location', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Alteha-Token': token },
+                    body: JSON.stringify({
+                        latitude: pos.coords.latitude,
+                        longitude: pos.coords.longitude,
+                        accuracy: pos.coords.accuracy ?? undefined,
+                        platform: 'WEB',
+                    }),
+                }).catch(() => {});
+            },
+            () => {}, // permiso negado: no interrumpe nada
+            { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
+        );
+    } catch {}
+}
+
 export function getStoredToken(): string | null {
     if (typeof window !== 'undefined') {
         return localStorage.getItem('id_token');
