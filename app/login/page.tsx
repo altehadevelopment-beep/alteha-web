@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { Logo } from '@/components/ui/Logo';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
+import { reportLoginLocationWeb } from '@/lib/api';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { PuzzleCaptcha } from '@/components/ui/PuzzleCaptcha';
 import { app } from '@/lib/firebase';
