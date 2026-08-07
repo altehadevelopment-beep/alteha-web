@@ -1,54 +1,46 @@
 "use client";
 
-// Detalle de una auditoría médica de Alteha: evaluación auditable con la marca
-// (folio, CPT, precios de referencia, hallazgos, riesgo) + descarga en PDF.
-import React, { useEffect, useState } from 'react';
+// Expediente de una auditoría médica de Alteha. De un único análisis salen los
+// dos entregables de la Fase 4 de la metodología: el informe ejecutivo (corto,
+// para Junta) y el técnico-operativo (largo, el que va a la mesa con el
+// prestador). Ambos se descargan desde aquí.
+import React, { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import {
-    ArrowLeft, Loader2, Download, FileText, Receipt, ShieldAlert, ShieldCheck, Shield,
-    ExternalLink, BadgeCheck, AlertTriangle, ListChecks, BrainCircuit,
+    ArrowLeft, Loader2, FileText, ShieldAlert, ShieldCheck, Shield, ExternalLink,
+    BadgeCheck, AlertTriangle, ListChecks, BrainCircuit, FileBarChart, FileSpreadsheet,
+    Stethoscope, Coins, Handshake, RefreshCw,
 } from 'lucide-react';
 import { getStoredToken } from '@/lib/api';
+import { informeEjecutivo, informeTecnico, CANALES, ESCALA_RECHAZO, confianza } from '@/lib/auditPdf';
 
 const RISK: any = {
-    BAJO: { label: 'RIESGO BAJO', color: [16, 185, 129], soft: [236, 253, 245], Icon: ShieldCheck },
-    MEDIO: { label: 'RIESGO MEDIO', color: [245, 158, 11], soft: [255, 251, 235], Icon: Shield },
-    ALTO: { label: 'RIESGO ALTO', color: [239, 68, 68], soft: [254, 242, 242], Icon: ShieldAlert },
+    BAJO: { label: 'RIESGO BAJO', color: '#10b981', soft: '#ecfdf5', Icon: ShieldCheck },
+    MEDIO: { label: 'RIESGO MEDIO', color: '#f59e0b', soft: '#fffbeb', Icon: Shield },
+    ALTO: { label: 'RIESGO ALTO', color: '#ef4444', soft: '#fef2f2', Icon: ShieldAlert },
 };
-const VERDICT: any = {
-    DENTRO_DE_RANGO: { label: 'Dentro de rango', color: [16, 185, 129] },
-    SOBRE_RANGO: { label: 'Sobre el rango', color: [239, 68, 68] },
-    BAJO_RANGO: { label: 'Bajo el rango', color: [14, 165, 233] },
-    NO_VERIFICABLE: { label: 'No verificable', color: [148, 163, 184] },
+const RESULTADO_EJE: any = {
+    CONFORME: 'text-emerald-600 bg-emerald-50',
+    OBSERVADO: 'text-amber-600 bg-amber-50',
+    NO_SUSTENTADO: 'text-red-500 bg-red-50',
+    NO_VERIFICABLE: 'text-slate-400 bg-slate-100',
 };
-const SEV: any = { ALTA: [239, 68, 68], MEDIA: [245, 158, 11], BAJA: [148, 163, 184] };
-
-const TURQUOISE = [46, 207, 191] as const;
-const VIOLET = [123, 91, 255] as const;
-const GRAY = [44, 46, 51] as const;
 
 const fmtDate = (v?: string) => (v ? new Date(v).toLocaleString('es-VE', { dateStyle: 'long', timeStyle: 'short' }) : '—');
-const money = (v?: number | null) =>
-    v == null ? '—' : `$${Number(v).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const money = (v?: number | null, cur = 'USD') =>
+    v == null || isNaN(Number(v))
+        ? '—'
+        : `${cur === 'USD' ? '$' : ''}${Number(v).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-// El logo es SVG: lo rasterizamos a PNG con un canvas para poder incrustarlo en el PDF.
-async function logoPng(): Promise<string | null> {
-    try {
-        const svgText = await fetch('/logoalteha.svg').then((r) => r.text());
-        const blob = new Blob([svgText], { type: 'image/svg+xml' });
-        const url = URL.createObjectURL(blob);
-        const img = new Image();
-        await new Promise((ok, err) => { img.onload = ok; img.onerror = err; img.src = url; });
-        const canvas = document.createElement('canvas');
-        const w = img.width || 300, h = img.height || 100;
-        canvas.width = w * 3; canvas.height = h * 3;
-        const ctx = canvas.getContext('2d')!;
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        URL.revokeObjectURL(url);
-        return canvas.toDataURL('image/png');
-    } catch { return null; }
+function Card({ title, icon: Icon, children }: any) {
+    return (
+        <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+            <div className="px-6 pt-5 pb-3 font-black flex items-center gap-2">
+                <Icon className="w-5 h-5 text-alteha-violet" /> {title}
+            </div>
+            {children}
+        </div>
+    );
 }
 
 export default function AuditDetailPage() {
@@ -56,249 +48,96 @@ export default function AuditDetailPage() {
     const router = useRouter();
     const [audit, setAudit] = useState<any | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const [pdfBusy, setPdfBusy] = useState(false);
+    const [pdfBusy, setPdfBusy] = useState<string | null>(null);
 
-    useEffect(() => {
+    const cargar = useCallback(() => {
         const token = getStoredToken();
-        fetch(`/api/insurance/audits/${id}`, { headers: { 'X-Alteha-Token': token || '' } })
+        return fetch(`/api/insurance/audits/${id}`, { headers: { 'X-Alteha-Token': token || '' } })
             .then((r) => r.json())
             .then((r) => (r?.code === '00' ? setAudit(r.data) : setError(r?.message || 'No se pudo cargar la auditoría')))
             .catch(() => setError('No se pudo cargar la auditoría'));
     }, [id]);
 
+    useEffect(() => { cargar(); }, [cargar]);
+
+    // Mientras el motor trabaja, el expediente se refresca solo.
+    useEffect(() => {
+        if (audit?.status !== 'PROCESANDO') return;
+        const t = setInterval(cargar, 5000);
+        return () => clearInterval(t);
+    }, [audit?.status, cargar]);
+
     if (error) return <p className="text-red-500 font-bold p-10">{error}</p>;
     if (!audit) return <div className="flex justify-center py-32"><Loader2 className="w-8 h-8 text-alteha-turquoise animate-spin" /></div>;
 
-    let result: any = {};
-    try { result = audit.resultJson ? JSON.parse(audit.resultJson) : {}; } catch { result = {}; }
+    // ── En proceso ──
+    if (audit.status === 'PROCESANDO') {
+        return (
+            <div className="max-w-2xl mx-auto py-24 text-center space-y-5">
+                <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-alteha-turquoise/15 to-alteha-violet/15 flex items-center justify-center mx-auto">
+                    <Loader2 className="w-9 h-9 text-alteha-violet animate-spin" />
+                </div>
+                <h1 className="text-2xl font-black">Alteha está auditando el expediente</h1>
+                <p className="text-sm font-semibold text-slate-400 max-w-md mx-auto">
+                    Se están recorriendo las cinco fases de la metodología: pertinencia médica, codificación CPT,
+                    barematación, consolidación del pliego y vulnerabilidades del canal. Suele tardar entre 1 y 3 minutos.
+                </p>
+                <p className="text-xs font-bold text-slate-400">{audit.auditNumber}</p>
+                <button onClick={() => router.push('/dashboard/insurance/audits')}
+                    className="px-6 py-3 rounded-2xl bg-white border border-slate-100 font-black text-sm text-slate-500">
+                    Volver al historial — te avisamos aquí cuando esté listo
+                </button>
+            </div>
+        );
+    }
+
+    // ── Falló ──
+    if (audit.status === 'ERROR') {
+        return (
+            <div className="max-w-2xl mx-auto py-24 text-center space-y-5">
+                <div className="w-20 h-20 rounded-3xl bg-red-50 flex items-center justify-center mx-auto">
+                    <AlertTriangle className="w-9 h-9 text-red-400" />
+                </div>
+                <h1 className="text-2xl font-black">El informe no pudo generarse</h1>
+                <p className="text-sm font-semibold text-slate-500 bg-red-50 rounded-2xl p-4 max-w-lg mx-auto">{audit.statusMessage}</p>
+                <div className="flex items-center justify-center gap-2">
+                    <button onClick={() => router.push('/dashboard/insurance/audits')}
+                        className="px-6 py-3 rounded-2xl bg-white border border-slate-100 font-black text-sm text-slate-500">Volver al historial</button>
+                    <button onClick={cargar} className="px-6 py-3 rounded-2xl bg-alteha-gray text-white font-black text-sm flex items-center gap-2">
+                        <RefreshCw className="w-4 h-4" /> Actualizar
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    let r: any = {};
+    try { r = audit.resultJson ? JSON.parse(audit.resultJson) : {}; } catch { r = {}; }
+
+    const cur = audit.currency || 'USD';
     const risk = RISK[audit.riskLevel] || RISK.MEDIO;
-    const items: any[] = Array.isArray(result.cptItems) ? result.cptItems : [];
-    const findings: any[] = Array.isArray(result.findings) ? result.findings : [];
-    const recs: string[] = Array.isArray(result.recommendations) ? result.recommendations : [];
+    const exp = r.expediente || {};
+    const f1 = r.fase1 || {};
+    const f2 = r.fase2 || {};
+    const f3 = r.fase3 || {};
+    const f4 = r.fase4 || {};
+    const f5 = r.fase5 || {};
+    const items: any[] = Array.isArray(f2.items) ? f2.items : [];
+    const lineas: any[] = Array.isArray(f4.lineasRechazo) ? f4.lineasRechazo : [];
+    const documentos: any[] = Array.isArray(audit.documents) ? audit.documents : [];
 
-    // ══════════ PDF con el manual de marca Alteha ══════════
-    const downloadPdf = async () => {
-        setPdfBusy(true);
+    const descargar = async (tipo: 'corto' | 'largo') => {
+        setPdfBusy(tipo);
         try {
-            const doc = new jsPDF({ unit: 'pt', format: 'a4' });
-            const W = doc.internal.pageSize.getWidth();
-            const H = doc.internal.pageSize.getHeight();
-            const M = 40;
-            let y = M;
-
-            const ensure = (need: number) => {
-                if (y + need > H - 60) { doc.addPage(); y = M; }
-            };
-            const section = (title: string) => {
-                ensure(40);
-                doc.setFont('helvetica', 'bold').setFontSize(9.5).setTextColor(...VIOLET);
-                doc.text(title.toUpperCase(), M, y);
-                y += 12;
-            };
-
-            // ── Cabecera de marca ──
-            doc.setFillColor(...GRAY);
-            doc.roundedRect(M, y, W - M * 2, 74, 14, 14, 'F');
-            const logo = await logoPng();
-            if (logo) doc.addImage(logo, 'PNG', M + 20, y + 19, 90, 36);
-            doc.setFont('helvetica', 'bold').setFontSize(15).setTextColor(255, 255, 255);
-            doc.text('Informe de Auditoría Médica', M + 124, y + 32);
-            doc.setFont('helvetica', 'normal').setFontSize(8.5).setTextColor(166, 173, 187);
-            doc.text('Auditoría de cuentas médicas · Alteha', M + 124, y + 46);
-            doc.setFont('helvetica', 'bold').setFontSize(11).setTextColor(...TURQUOISE);
-            doc.text(String(audit.auditNumber || ''), W - M - 20, y + 32, { align: 'right' });
-            doc.setFont('helvetica', 'normal').setFontSize(7.5).setTextColor(166, 173, 187);
-            doc.text(fmtDate(audit.createdAt), W - M - 20, y + 46, { align: 'right' });
-            y += 86;
-
-            // Banda degradada turquesa → violeta
-            const segs = 40, bw = (W - M * 2) / segs;
-            for (let i = 0; i < segs; i++) {
-                const t = i / (segs - 1);
-                doc.setFillColor(
-                    Math.round(TURQUOISE[0] + (VIOLET[0] - TURQUOISE[0]) * t),
-                    Math.round(TURQUOISE[1] + (VIOLET[1] - TURQUOISE[1]) * t),
-                    Math.round(TURQUOISE[2] + (VIOLET[2] - TURQUOISE[2]) * t),
-                );
-                doc.rect(M + i * bw, y, bw + 0.5, 4, 'F');
-            }
-            y += 22;
-
-            // ── Datos de la intervención ──
-            section('Datos de la intervención');
-            autoTable(doc, {
-                startY: y, margin: { left: M, right: M }, theme: 'plain',
-                styles: { font: 'helvetica', fontSize: 8.5, cellPadding: { top: 3, bottom: 3, left: 0, right: 10 }, textColor: [51, 65, 85] },
-                columnStyles: { 0: { fontStyle: 'bold', textColor: [100, 116, 139], cellWidth: 120 } },
-                body: [
-                    ['Paciente', result.patientName || audit.patientName || '—'],
-                    ['Prestador', result.providerName || '—'],
-                    ['Fecha del procedimiento', result.procedureDate || '—'],
-                    ['Diagnóstico', result.diagnosis || '—'],
-                    ['Intervención auditada', result.procedureSummary || audit.procedureSummary || '—'],
-                    ['Solicitante', audit.insurance?.name || '—'],
-                ],
-            });
-            y = (doc as any).lastAutoTable.finalY + 16;
-
-            // ── Dictamen de riesgo ──
-            section('Dictamen de riesgo');
-            const just = doc.splitTextToSize(String(result.riskJustification || ''), W - M * 2 - 150);
-            const rh = Math.max(44, 22 + just.length * 11);
-            ensure(rh + 10);
-            doc.setFillColor(risk.soft[0], risk.soft[1], risk.soft[2]);
-            doc.setDrawColor(risk.color[0], risk.color[1], risk.color[2]);
-            doc.setLineWidth(1.5);
-            doc.roundedRect(M, y, W - M * 2, rh, 10, 10, 'FD');
-            doc.setFont('helvetica', 'bold').setFontSize(12).setTextColor(risk.color[0], risk.color[1], risk.color[2]);
-            doc.text(risk.label, M + 16, y + rh / 2 + 4);
-            doc.setFont('helvetica', 'normal').setFontSize(8.5).setTextColor(71, 85, 105);
-            doc.text(just, M + 130, y + 16);
-            y += rh + 18;
-
-            // ── Tabla CPT ──
-            section('Análisis por procedimiento (CPT · precios de referencia)');
-            autoTable(doc, {
-                startY: y, margin: { left: M, right: M },
-                headStyles: { fillColor: [248, 250, 252], textColor: [100, 116, 139], fontStyle: 'bold', fontSize: 7.5 },
-                styles: { font: 'helvetica', fontSize: 8, cellPadding: 5, textColor: [51, 65, 85] },
-                columnStyles: {
-                    0: { fontStyle: 'bold', textColor: [VIOLET[0], VIOLET[1], VIOLET[2]], cellWidth: 52 },
-                    2: { halign: 'right', cellWidth: 34 },
-                    3: { halign: 'right', cellWidth: 66 },
-                    4: { halign: 'right', cellWidth: 90 },
-                    5: { cellWidth: 78 },
-                },
-                head: [['CPT', 'Procedimiento', 'Cant.', 'Facturado', 'Rango mercado', 'Veredicto']],
-                body: items.map((it) => [
-                    it.cpt || 'N/A',
-                    (it.description || it.invoicedDescription || '') + (it.note ? `\n${it.note}` : ''),
-                    String(it.quantity ?? 1),
-                    money(it.invoicedAmount),
-                    it.marketLow != null ? `${money(it.marketLow)} – ${money(it.marketHigh)}` : '—',
-                    (VERDICT[it.verdict] || VERDICT.NO_VERIFICABLE).label,
-                ]),
-                didParseCell: (d) => {
-                    if (d.section === 'body' && d.column.index === 5) {
-                        const v = VERDICT[items[d.row.index]?.verdict] || VERDICT.NO_VERIFICABLE;
-                        d.cell.styles.textColor = v.color;
-                        d.cell.styles.fontStyle = 'bold';
-                    }
-                },
-            });
-            y = (doc as any).lastAutoTable.finalY + 10;
-
-            // ── Totales ──
-            autoTable(doc, {
-                startY: y, margin: { left: M, right: M }, theme: 'plain',
-                styles: { font: 'helvetica', fontSize: 9, fontStyle: 'bold', cellPadding: 8, halign: 'center' },
-                body: [[
-                    `Total facturado\n${money(result.totalInvoiced ?? audit.totalInvoiced)}`,
-                    `Referencia mercado (mín)\n${money(result.totalReferenceLow)}`,
-                    `Referencia mercado (máx)\n${money(result.totalReferenceHigh)}`,
-                ]],
-                didParseCell: (d) => {
-                    const fills = [[248, 250, 252], [231, 249, 247], [240, 235, 255]];
-                    const texts = [[51, 65, 85], [13, 148, 136], [VIOLET[0], VIOLET[1], VIOLET[2]]];
-                    d.cell.styles.fillColor = fills[d.column.index] as any;
-                    d.cell.styles.textColor = texts[d.column.index] as any;
-                },
-            });
-            y = (doc as any).lastAutoTable.finalY + 18;
-
-            // ── Hallazgos ──
-            section('Hallazgos de auditoría');
-            if (!findings.length) {
-                ensure(20);
-                doc.setFont('helvetica', 'normal').setFontSize(8.5).setTextColor(16, 185, 129);
-                doc.text('Sin hallazgos relevantes: la cuenta es consistente con el informe médico.', M, y + 4);
-                y += 20;
-            }
-            for (const f of findings) {
-                const detail = doc.splitTextToSize(String(f.detail || ''), W - M * 2 - 70);
-                const bh = 26 + detail.length * 10;
-                ensure(bh + 8);
-                doc.setFillColor(248, 250, 252);
-                doc.roundedRect(M, y, W - M * 2, bh, 8, 8, 'F');
-                const sc = SEV[f.severity] || SEV.BAJA;
-                doc.setFillColor(sc[0], sc[1], sc[2]);
-                doc.roundedRect(M + 12, y + 9, 38, 12, 6, 6, 'F');
-                doc.setFont('helvetica', 'bold').setFontSize(6.5).setTextColor(255, 255, 255);
-                doc.text(String(f.severity || 'BAJA'), M + 31, y + 17.5, { align: 'center' });
-                doc.setFont('helvetica', 'bold').setFontSize(9).setTextColor(...GRAY);
-                doc.text(String(f.title || ''), M + 58, y + 18);
-                doc.setFont('helvetica', 'normal').setFontSize(8).setTextColor(100, 116, 139);
-                doc.text(detail, M + 58, y + 30);
-                y += bh + 8;
-            }
-            y += 10;
-
-            // ── Conclusión ──
-            section('Conclusión');
-            const conc = doc.splitTextToSize(String(result.conclusion || '—'), W - M * 2 - 24);
-            const ch = 16 + conc.length * 11;
-            ensure(ch + 10);
-            doc.setFillColor(248, 250, 252);
-            doc.roundedRect(M, y, W - M * 2, ch, 8, 8, 'F');
-            doc.setFillColor(...TURQUOISE);
-            doc.rect(M, y + 4, 3.5, ch - 8, 'F');
-            doc.setFont('helvetica', 'normal').setFontSize(8.5).setTextColor(51, 65, 85);
-            doc.text(conc, M + 16, y + 15);
-            y += ch + 16;
-
-            // ── Recomendaciones ──
-            if (recs.length) {
-                section('Recomendaciones');
-                for (const r of recs) {
-                    const lines = doc.splitTextToSize(String(r), W - M * 2 - 20);
-                    ensure(lines.length * 11 + 6);
-                    doc.setFillColor(...VIOLET);
-                    doc.circle(M + 4, y + 3.2, 2, 'F');
-                    doc.setFont('helvetica', 'normal').setFontSize(8.5).setTextColor(51, 65, 85);
-                    doc.text(lines, M + 14, y + 6);
-                    y += lines.length * 11 + 6;
-                }
-                y += 8;
-            }
-
-            // ── Pie: metodología + confidencialidad ──
-            const foot =
-                `Metodología: lectura documental del informe médico y la factura; codificación CPT; comparación contra rangos de precio de mercado ` +
-                `de salud privada (Venezuela/Latam) estimados por Alteha; cruce informe-factura para detección de inconsistencias. ` +
-                `Confiabilidad documental estimada: ${result.confidence != null ? `${result.confidence}%` : 'n/d'}. ` +
-                `Los precios de referencia son estimaciones y no constituyen tarifas oficiales. Este informe es un apoyo a la decisión y no sustituye ` +
-                `el juicio del auditor médico. Documento confidencial para uso exclusivo de ${audit.insurance?.name || 'la aseguradora solicitante'}.`;
-            const flines = doc.splitTextToSize(foot, W - M * 2 - 110);
-            ensure(flines.length * 9 + 30);
-            doc.setDrawColor(226, 232, 240).setLineWidth(1);
-            doc.line(M, y, W - M, y);
-            y += 14;
-            doc.setFont('helvetica', 'normal').setFontSize(6.8).setTextColor(148, 163, 184);
-            doc.text(flines, M, y);
-            doc.setFont('helvetica', 'bold').setFontSize(7.5).setTextColor(...VIOLET);
-            doc.text('alteha.com', W - M, y, { align: 'right' });
-            doc.text(`Folio verificable: ${audit.auditNumber}`, W - M, y + 11, { align: 'right' });
-
-            // Numeración de páginas
-            const pages = doc.getNumberOfPages();
-            for (let i = 1; i <= pages; i++) {
-                doc.setPage(i);
-                doc.setFont('helvetica', 'normal').setFontSize(7).setTextColor(148, 163, 184);
-                doc.text(`${audit.auditNumber} · Página ${i} de ${pages}`, W / 2, H - 24, { align: 'center' });
-            }
-
-            doc.save(`${audit.auditNumber}.pdf`);
+            if (tipo === 'corto') await informeEjecutivo(audit, r);
+            else await informeTecnico(audit, r);
         } finally {
-            setPdfBusy(false);
+            setPdfBusy(null);
         }
     };
 
-    const riskColor = `rgb(${risk.color.join(',')})`;
-    const riskSoft = `rgb(${risk.soft.join(',')})`;
-
-    // ══════════ Vista en pantalla ══════════
     return (
-        <div className="space-y-6 max-w-5xl">
+        <div className="space-y-6 max-w-6xl">
             <header className="flex items-center justify-between flex-wrap gap-3">
                 <div className="flex items-center gap-3">
                     <button onClick={() => router.push('/dashboard/insurance/audits')} className="p-2.5 rounded-xl bg-white border border-slate-100 text-slate-400 hover:text-alteha-turquoise">
@@ -308,138 +147,346 @@ export default function AuditDetailPage() {
                         <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
                             <BrainCircuit className="w-6 h-6 text-alteha-violet" /> {audit.auditNumber}
                         </h1>
-                        <p className="text-xs text-slate-400 font-semibold">{fmtDate(audit.createdAt)}</p>
+                        <p className="text-xs text-slate-400 font-semibold">
+                            {fmtDate(audit.createdAt)}
+                            {audit.aiProvider ? ` · analizado con ${audit.aiProvider}${audit.aiModel ? ` (${audit.aiModel})` : ''}` : ''}
+                        </p>
                     </div>
-                </div>
-                <div className="flex items-center gap-2">
-                    {audit.reportUrl && (
-                        <a href={audit.reportUrl} target="_blank" rel="noreferrer" className="px-4 py-2.5 rounded-xl bg-white border border-slate-100 font-black text-xs text-slate-500 flex items-center gap-1.5 hover:border-alteha-turquoise/50">
-                            <FileText className="w-4 h-4" /> Informe <ExternalLink className="w-3 h-3" />
-                        </a>
-                    )}
-                    {audit.invoiceUrl && (
-                        <a href={audit.invoiceUrl} target="_blank" rel="noreferrer" className="px-4 py-2.5 rounded-xl bg-white border border-slate-100 font-black text-xs text-slate-500 flex items-center gap-1.5 hover:border-alteha-turquoise/50">
-                            <Receipt className="w-4 h-4" /> Factura <ExternalLink className="w-3 h-3" />
-                        </a>
-                    )}
-                    <button onClick={downloadPdf} disabled={pdfBusy}
-                        className="px-5 py-2.5 rounded-xl font-black text-white bg-alteha-gradient flex items-center gap-2 disabled:opacity-60">
-                        {pdfBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Descargar PDF
-                    </button>
                 </div>
             </header>
 
-            {/* Cabecera del expediente */}
+            {/* ══ Los dos entregables ══ */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <button onClick={() => descargar('corto')} disabled={!!pdfBusy}
+                    className="text-left bg-white rounded-3xl border-2 border-slate-100 hover:border-alteha-turquoise p-6 transition-all disabled:opacity-60 group">
+                    <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-alteha-turquoise/10 flex items-center justify-center shrink-0">
+                            {pdfBusy === 'corto' ? <Loader2 className="w-6 h-6 text-alteha-turquoise animate-spin" /> : <FileBarChart className="w-6 h-6 text-alteha-turquoise" />}
+                        </div>
+                        <div>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Entregable I</p>
+                            <p className="font-black text-lg group-hover:text-alteha-turquoise transition-colors">Generar informe corto</p>
+                            <p className="text-xs font-semibold text-slate-400 mt-1">
+                                Ejecutivo, para Presidencia y Junta: tablero de impacto, hallazgo central y decisiones a aprobar.
+                            </p>
+                        </div>
+                    </div>
+                </button>
+
+                <button onClick={() => descargar('largo')} disabled={!!pdfBusy}
+                    className="text-left bg-white rounded-3xl border-2 border-slate-100 hover:border-alteha-violet p-6 transition-all disabled:opacity-60 group">
+                    <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-alteha-violet/10 flex items-center justify-center shrink-0">
+                            {pdfBusy === 'largo' ? <Loader2 className="w-6 h-6 text-alteha-violet animate-spin" /> : <FileSpreadsheet className="w-6 h-6 text-alteha-violet" />}
+                        </div>
+                        <div>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Entregable II</p>
+                            <p className="font-black text-lg group-hover:text-alteha-violet transition-colors">Generar informe largo</p>
+                            <p className="text-xs font-semibold text-slate-400 mt-1">
+                                Técnico-operativo, para Auditoría y Redes: las cinco fases y el pliego de rechazos línea por línea.
+                            </p>
+                        </div>
+                    </div>
+                </button>
+            </div>
+
+            {/* ══ Cabecera del expediente ══ */}
             <div className="bg-alteha-gray text-white rounded-3xl p-6 flex items-center gap-5 flex-wrap">
                 <div className="flex-1 min-w-[240px]">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Intervención auditada</p>
-                    <h2 className="text-xl font-black mt-1">{result.procedureSummary || audit.procedureSummary || '—'}</h2>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                        Intervención auditada{f5.canal ? ` · ${CANALES[f5.canal] || f5.canal}` : ''}
+                    </p>
+                    <h2 className="text-xl font-black mt-1">{exp.procedimientoResumen || audit.procedureSummary || '—'}</h2>
                     <p className="text-sm text-slate-300 font-semibold mt-1">
-                        {result.patientName || audit.patientName || 'Paciente s/d'} · {result.providerName || 'Prestador s/d'}
-                        {result.procedureDate ? ` · ${result.procedureDate}` : ''}
+                        {exp.paciente || audit.patientName || 'Paciente s/d'} · {exp.prestador || 'Prestador s/d'}
+                        {exp.categoriaPrestador ? ` (categoría ${exp.categoriaPrestador})` : ''}
+                        {exp.fechaEvento ? ` · ${exp.fechaEvento}` : ''}
                     </p>
                 </div>
-                <div className="text-center px-5 py-3 rounded-2xl" style={{ background: riskSoft }}>
-                    <risk.Icon className="w-7 h-7 mx-auto" style={{ color: riskColor }} />
-                    <p className="font-black text-sm mt-1" style={{ color: riskColor }}>{risk.label}</p>
+                <div className="text-center px-5 py-3 rounded-2xl" style={{ background: risk.soft }}>
+                    <risk.Icon className="w-7 h-7 mx-auto" style={{ color: risk.color }} />
+                    <p className="font-black text-sm mt-1" style={{ color: risk.color }}>{risk.label}</p>
                 </div>
                 <div className="text-right">
                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total facturado</p>
-                    <p className="text-2xl font-black text-alteha-turquoise">{money(result.totalInvoiced ?? audit.totalInvoiced)}</p>
+                    <p className="text-2xl font-black text-alteha-turquoise">{money(f3.totalFacturado ?? audit.totalInvoiced, cur)}</p>
                     <p className="text-[11px] text-slate-400 font-semibold">
-                        Mercado: {money(result.totalReferenceLow)} – {money(result.totalReferenceHigh)}
+                        Procedente {money(f3.totalProcedente, cur)} · <span className="text-red-300">objetado {money(f3.totalRechazado, cur)}</span>
                     </p>
                 </div>
             </div>
 
-            {result.riskJustification && (
-                <p className="text-sm font-semibold text-slate-500 bg-white rounded-3xl border border-slate-100 shadow-sm p-5">
-                    {result.riskJustification}
-                </p>
+            {f4.hallazgoCentral && (
+                <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 border-l-4 border-l-alteha-violet">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Hallazgo central</p>
+                    <p className="text-base font-black text-slate-700 mt-1">{f4.hallazgoCentral}</p>
+                </div>
             )}
 
-            {/* Tabla CPT */}
-            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-                <div className="px-6 pt-5 pb-2 font-black flex items-center gap-2"><ListChecks className="w-5 h-5 text-alteha-violet" /> Análisis por procedimiento</div>
+            {r.riskJustification && (
+                <p className="text-sm font-semibold text-slate-500 bg-white rounded-3xl border border-slate-100 shadow-sm p-5">{r.riskJustification}</p>
+            )}
+
+            {/* ══ Fase 1 ══ */}
+            <Card title="Fase 1 · Pertinencia médica" icon={Stethoscope}>
+                <div className="px-6 pb-5 space-y-3">
+                    <div className="flex items-center gap-3 flex-wrap">
+                        <span className="px-3 py-1.5 rounded-xl bg-alteha-violet/10 text-alteha-violet font-black text-sm">{f1.nivel || '—'}</span>
+                        <p className="font-black text-sm">{f1.calificacion || '—'}</p>
+                        <p className="text-xs font-semibold text-slate-400">{f1.efectoSobreAval}</p>
+                    </div>
+                    {(f1.ejes || []).map((e: any, i: number) => (
+                        <div key={i} className="flex items-start gap-3 bg-slate-50 rounded-2xl p-4">
+                            <span className={`text-[9px] font-black rounded-full px-2.5 py-1 mt-0.5 shrink-0 ${RESULTADO_EJE[e.resultado] || RESULTADO_EJE.NO_VERIFICABLE}`}>
+                                {(e.resultado || '').replace(/_/g, ' ')}
+                            </span>
+                            <div className="min-w-0">
+                                <p className="font-black text-sm">{e.eje}</p>
+                                <p className="text-xs text-slate-500 font-semibold mt-0.5">{e.evidencia}</p>
+                                {e.comentario && <p className="text-xs text-slate-400 font-medium mt-1">{e.comentario}</p>}
+                            </div>
+                        </div>
+                    ))}
+                    {f1.fuenteAplicada && (
+                        <p className="text-[11px] font-bold text-slate-400">
+                            Fuente aplicada: {f1.fuenteAplicada}{f1.nivelJerarquico ? ` · nivel jerárquico ${f1.nivelJerarquico}` : ''}
+                        </p>
+                    )}
+                </div>
+            </Card>
+
+            {/* ══ Fase 2 ══ */}
+            <Card title="Fase 2 · Auditoría de codificación (CPT)" icon={ListChecks}>
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                         <thead><tr className="bg-slate-50">
-                            {['CPT', 'Procedimiento', 'Cant.', 'Facturado', 'Rango mercado', 'Veredicto'].map((h) => (
+                            {['CPT', 'Renglón facturado', 'Cant.', 'Facturado', 'Procedente', 'Rechazado', 'Tipología'].map((h) => (
                                 <th key={h} className="text-left px-5 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
                             ))}
                         </tr></thead>
                         <tbody>
-                            {items.map((it, i) => {
-                                const v = VERDICT[it.verdict] || VERDICT.NO_VERIFICABLE;
-                                const vc = `rgb(${v.color.join(',')})`;
-                                return (
-                                    <tr key={i} className="border-t border-slate-50 align-top">
-                                        <td className="px-5 py-3 font-black text-alteha-violet whitespace-nowrap">{it.cpt || 'N/A'}</td>
-                                        <td className="px-5 py-3 font-semibold">
-                                            {it.description || it.invoicedDescription}
-                                            {it.note && <p className="text-[11px] text-slate-400 mt-0.5">{it.note}</p>}
-                                        </td>
-                                        <td className="px-5 py-3 font-bold tabular-nums">{it.quantity ?? 1}</td>
-                                        <td className="px-5 py-3 font-black tabular-nums whitespace-nowrap">{money(it.invoicedAmount)}</td>
-                                        <td className="px-5 py-3 font-semibold tabular-nums text-slate-500 whitespace-nowrap">
-                                            {it.marketLow != null ? `${money(it.marketLow)} – ${money(it.marketHigh)}` : '—'}
-                                        </td>
-                                        <td className="px-5 py-3">
-                                            <span className="text-[10px] font-black px-2.5 py-1 rounded-full border-2 whitespace-nowrap" style={{ color: vc, borderColor: vc }}>
-                                                {v.label}
-                                            </span>
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                            {!items.length && <tr><td colSpan={6} className="text-center py-10 text-slate-400 font-semibold">Sin renglones identificados.</td></tr>}
+                            {items.map((it, i) => (
+                                <tr key={i} className="border-t border-slate-50 align-top">
+                                    <td className="px-5 py-3 font-black text-alteha-violet whitespace-nowrap">
+                                        {it.cpt || 'N/A'}
+                                        {it.cptPropuesto && it.cptPropuesto !== it.cpt && (
+                                            <span className="block text-[10px] text-emerald-600">→ {it.cptPropuesto}</span>
+                                        )}
+                                    </td>
+                                    <td className="px-5 py-3 font-semibold">
+                                        {it.invoicedDescription || it.descripcion}
+                                        {it.senalDeteccion && <p className="text-[11px] text-slate-400 mt-0.5">{it.senalDeteccion}</p>}
+                                    </td>
+                                    <td className="px-5 py-3 font-bold tabular-nums">{it.quantity ?? 1}</td>
+                                    <td className="px-5 py-3 font-black tabular-nums whitespace-nowrap">{money(it.invoicedAmount, cur)}</td>
+                                    <td className="px-5 py-3 font-bold tabular-nums text-emerald-600 whitespace-nowrap">{money(it.montoProcedente, cur)}</td>
+                                    <td className="px-5 py-3 font-black tabular-nums text-red-500 whitespace-nowrap">{money(it.montoRechazado, cur)}</td>
+                                    <td className="px-5 py-3">
+                                        <span className={`text-[10px] font-black px-2.5 py-1 rounded-full whitespace-nowrap ${
+                                            it.tipologia === 'CONFORME' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'}`}>
+                                            {(it.tipologia || 'CONFORME').replace(/_/g, ' ')}
+                                        </span>
+                                    </td>
+                                </tr>
+                            ))}
+                            {!items.length && <tr><td colSpan={7} className="text-center py-10 text-slate-400 font-semibold">Sin renglones identificados.</td></tr>}
                         </tbody>
                     </table>
                 </div>
-            </div>
-
-            {/* Hallazgos */}
-            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 space-y-3">
-                <p className="font-black flex items-center gap-2"><AlertTriangle className="w-5 h-5 text-amber-500" /> Hallazgos de auditoría</p>
-                {findings.length === 0 ? (
-                    <p className="text-sm text-emerald-600 font-bold bg-emerald-50 rounded-2xl p-4 flex items-center gap-2">
-                        <BadgeCheck className="w-5 h-5" /> Sin hallazgos relevantes: la cuenta es consistente con el informe médico.
-                    </p>
-                ) : findings.map((f, i) => (
-                    <div key={i} className="flex items-start gap-3 bg-slate-50 rounded-2xl p-4">
-                        <span className="text-[9px] font-black text-white rounded-full px-2.5 py-1 mt-0.5" style={{ background: `rgb(${(SEV[f.severity] || SEV.BAJA).join(',')})` }}>{f.severity}</span>
-                        <div>
-                            <p className="font-black text-sm">{f.title}</p>
-                            <p className="text-xs text-slate-500 font-semibold mt-0.5">{f.detail}</p>
-                        </div>
+                {!!(f2.equipoQuirurgico || []).length && (
+                    <div className="px-6 py-5 border-t border-slate-50 space-y-2">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Composición del equipo quirúrgico</p>
+                        {f2.equipoQuirurgico.map((e: any, i: number) => (
+                            <div key={i} className="flex items-center gap-3 text-sm">
+                                <span className={`text-[9px] font-black rounded-full px-2 py-0.5 ${e.procede ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'}`}>
+                                    {e.procede ? 'PROCEDE' : 'RECHAZA'}
+                                </span>
+                                <span className="font-black">{e.rol}</span>
+                                <span className="text-slate-400 font-semibold">{e.profesional || 'sin identificar'}</span>
+                                {e.porcentajeReferencia != null && <span className="text-slate-400 font-bold">{e.porcentajeReferencia}%</span>}
+                                <span className="font-black tabular-nums ml-auto">{money(e.montoFacturado, cur)}</span>
+                            </div>
+                        ))}
                     </div>
-                ))}
-            </div>
+                )}
+            </Card>
 
-            {/* Conclusión + recomendaciones */}
+            {/* ══ Fase 3 ══ */}
+            <Card title="Fase 3 · Barematación e indicadores" icon={Coins}>
+                <div className="px-6 pb-5 space-y-4">
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                        {(f3.bloques || []).map((b: any, i: number) => (
+                            <div key={i} className="bg-slate-50 rounded-2xl p-4">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{b.bloque}</p>
+                                <p className="font-black tabular-nums mt-1">{money(b.montoFacturado, cur)}</p>
+                                <p className="text-[11px] font-bold text-emerald-600 tabular-nums">proc. {money(b.montoProcedente, cur)}</p>
+                                <span className="inline-block mt-1.5 text-[9px] font-black px-2 py-0.5 rounded-full bg-alteha-violet/10 text-alteha-violet">
+                                    ancla {b.anclaAplicada}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        {(f3.indicadores || []).map((ind: any, i: number) => (
+                            <div key={i} className={`rounded-2xl px-4 py-3 ${
+                                ind.estado === 'ALERTA' ? 'bg-red-50' : ind.estado === 'CONFORME' ? 'bg-emerald-50' : 'bg-slate-50'}`}>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{ind.indice} · {ind.umbral}</p>
+                                <p className={`font-black tabular-nums ${
+                                    ind.estado === 'ALERTA' ? 'text-red-500' : ind.estado === 'CONFORME' ? 'text-emerald-600' : 'text-slate-400'}`}>
+                                    {ind.valor != null ? Number(ind.valor).toLocaleString('es-VE', { maximumFractionDigits: 2 }) : 'n/d'}
+                                </p>
+                                <p className="text-[10px] font-semibold text-slate-400 max-w-[210px]">{ind.lectura}</p>
+                            </div>
+                        ))}
+                    </div>
+                    {f3.benchmarking?.comentario && (
+                        <p className="text-xs font-semibold text-slate-500 bg-slate-50 rounded-2xl p-4">
+                            <span className="font-black text-alteha-violet">Benchmarking {f3.benchmarking.nivel}</span> — {f3.benchmarking.comentario}
+                        </p>
+                    )}
+                </div>
+            </Card>
+
+            {/* ══ Fase 4 · Pliego ══ */}
+            <Card title="Fase 4 · Pliego de rechazos" icon={AlertTriangle}>
+                {!lineas.length ? (
+                    <p className="mx-6 mb-6 text-sm text-emerald-600 font-bold bg-emerald-50 rounded-2xl p-4 flex items-center gap-2">
+                        <BadgeCheck className="w-5 h-5" /> Sin líneas objetables: la cuenta es consistente con el expediente y con el anclaje tarifario aplicado.
+                    </p>
+                ) : (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead><tr className="bg-slate-50">
+                                {['Clase', 'Línea facturada', 'Código', 'Ancla', 'Facturado', 'Procedente', 'Rechazado', 'Fundamento'].map((h) => (
+                                    <th key={h} className="text-left px-5 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
+                                ))}
+                            </tr></thead>
+                            <tbody>
+                                {lineas.map((l, i) => (
+                                    <tr key={i} className="border-t border-slate-50 align-top">
+                                        <td className="px-5 py-3">
+                                            <span className="text-[10px] font-black px-2 py-1 rounded-lg bg-red-50 text-red-500 whitespace-nowrap">{l.escalaRechazo}</span>
+                                            <p className="text-[10px] text-slate-400 font-bold mt-1">{ESCALA_RECHAZO[l.escalaRechazo] || ''}</p>
+                                        </td>
+                                        <td className="px-5 py-3 font-semibold max-w-[240px]">
+                                            {l.lineaFacturada}
+                                            <p className="text-[11px] text-slate-400 mt-0.5">{(l.tipologia || '').replace(/_/g, ' ')}</p>
+                                        </td>
+                                        <td className="px-5 py-3 font-bold whitespace-nowrap">
+                                            {l.codigoFacturado}
+                                            {l.codigoPropuesto && <span className="block text-[11px] text-emerald-600">→ {l.codigoPropuesto}</span>}
+                                        </td>
+                                        <td className="px-5 py-3 font-black text-alteha-violet">{l.anclaAplicada}</td>
+                                        <td className="px-5 py-3 font-bold tabular-nums whitespace-nowrap">{money(l.montoFacturado, cur)}</td>
+                                        <td className="px-5 py-3 font-bold tabular-nums text-emerald-600 whitespace-nowrap">{money(l.montoProcedente, cur)}</td>
+                                        <td className="px-5 py-3 font-black tabular-nums text-red-500 whitespace-nowrap">{money(l.montoRechazado, cur)}</td>
+                                        <td className="px-5 py-3 text-xs font-semibold text-slate-500 max-w-[280px]">
+                                            {l.fundamento}
+                                            {l.documentoRequerido && <p className="text-[11px] text-amber-600 font-bold mt-1">Requiere: {l.documentoRequerido}</p>}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </Card>
+
+            {/* ══ Fase 5 ══ */}
+            {!!(f5.tipologiasDetectadas || []).length && (
+                <Card title={`Fase 5 · Vulnerabilidades del canal — ${CANALES[f5.canal] || f5.canal || ''}`} icon={ShieldAlert}>
+                    <div className="px-6 pb-5 space-y-2">
+                        {f5.tipologiasDetectadas.map((t: any, i: number) => (
+                            <div key={i} className="flex items-start gap-3 bg-slate-50 rounded-2xl p-4">
+                                <span className={`text-[9px] font-black text-white rounded-full px-2.5 py-1 mt-0.5 shrink-0 ${
+                                    t.riesgo === 'ALTA' ? 'bg-red-500' : t.riesgo === 'MEDIA' ? 'bg-amber-500' : 'bg-slate-400'}`}>{t.riesgo}</span>
+                                <div>
+                                    <p className="font-black text-sm">{t.tipologia}</p>
+                                    <p className="text-xs text-slate-500 font-semibold mt-0.5">{t.comoOpera}</p>
+                                    <p className="text-[11px] text-slate-400 font-medium mt-1">Señal: {t.senalDeteccion}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </Card>
+            )}
+
+            {/* ══ Mesa de negociación ══ */}
+            {r.hojaNegociacion?.aperturaSugerida && (
+                <Card title="Hoja de ruta de la mesa" icon={Handshake}>
+                    <div className="px-6 pb-5 space-y-3">
+                        <p className="text-sm font-semibold text-slate-600 bg-slate-50 rounded-2xl p-4">{r.hojaNegociacion.aperturaSugerida}</p>
+                        {[
+                            { t: 'Bloques de discusión', l: r.hojaNegociacion.bloquesDiscusion },
+                            { t: 'Ceder primero (ancla A-5)', l: r.hojaNegociacion.cederPrimero },
+                            { t: 'Compromisos a incorporar en el acta', l: r.hojaNegociacion.compromisosSugeridos },
+                        ].filter((s) => (s.l || []).length).map((s) => (
+                            <div key={s.t}>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">{s.t}</p>
+                                <ul className="space-y-1.5">
+                                    {s.l.map((x: string, i: number) => (
+                                        <li key={i} className="text-sm font-semibold text-slate-600 flex items-start gap-2">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-alteha-violet mt-1.5 shrink-0" /> {x}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        ))}
+                    </div>
+                </Card>
+            )}
+
+            {/* ══ Conclusión ══ */}
             <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 space-y-4">
                 <div className="border-l-4 border-alteha-turquoise pl-4">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Conclusión</p>
-                    <p className="text-sm font-semibold text-slate-600 mt-1">{result.conclusion || '—'}</p>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Conclusión ejecutiva</p>
+                    <p className="text-sm font-semibold text-slate-600 mt-1">{r.conclusionEjecutiva || '—'}</p>
                 </div>
-                {recs.length > 0 && (
+                {!!(r.recomendaciones || []).length && (
                     <div>
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Recomendaciones</p>
                         <ul className="space-y-1.5">
-                            {recs.map((r, i) => (
+                            {r.recomendaciones.map((x: any, i: number) => (
                                 <li key={i} className="text-sm font-semibold text-slate-600 flex items-start gap-2">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-alteha-violet mt-1.5 shrink-0" /> {r}
+                                    <span className="w-1.5 h-1.5 rounded-full bg-alteha-violet mt-1.5 shrink-0" />
+                                    <span>{x.accion}{x.montoAsociado != null ? ` · ${money(x.montoAsociado, cur)}` : ''}{x.plazo ? ` · ${x.plazo}` : ''}</span>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
+                {!!(r.requerimientosPrevios || []).length && (
+                    <div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Requerimientos previos</p>
+                        <ul className="space-y-1.5">
+                            {r.requerimientosPrevios.map((x: string, i: number) => (
+                                <li key={i} className="text-sm font-semibold text-amber-600 flex items-start gap-2">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-1.5 shrink-0" /> {x}
                                 </li>
                             ))}
                         </ul>
                     </div>
                 )}
                 <p className="text-[10px] text-slate-400 font-semibold border-t border-slate-100 pt-3">
-                    Los precios de referencia son estimaciones de mercado de Alteha y no constituyen tarifas oficiales.
-                    Este informe es un apoyo a la decisión y no sustituye el juicio del auditor médico.
-                    Confiabilidad documental estimada: {result.confidence != null ? `${result.confidence}%` : 'n/d'}.
+                    Las tipologías descritas son indicadores de irregularidad que exigen confirmación documental y no equivalen a una determinación
+                    de conducta sancionable. Los precios de referencia son estimaciones de mercado y no constituyen tarifas oficiales.
+                    Confiabilidad documental estimada: {confianza(r.confidence) != null ? `${confianza(r.confidence)}%` : 'n/d'}.
                 </p>
             </div>
+
+            {/* ══ Documentos del expediente ══ */}
+            {!!documentos.length && (
+                <Card title="Documentos del expediente" icon={FileText}>
+                    <div className="px-6 pb-5 flex flex-wrap gap-2">
+                        {documentos.map((d) => (
+                            <a key={d.id} href={d.fileUrl} target="_blank" rel="noreferrer"
+                                className="px-4 py-2.5 rounded-xl bg-slate-50 font-black text-xs text-slate-500 flex items-center gap-1.5 hover:bg-slate-100">
+                                <FileText className="w-4 h-4" /> {d.docType?.replace(/_/g, ' ')} <ExternalLink className="w-3 h-3" />
+                            </a>
+                        ))}
+                    </div>
+                </Card>
+            )}
         </div>
     );
 }

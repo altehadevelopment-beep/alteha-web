@@ -87,7 +87,7 @@ const insuranceItems = [
     { title: 'Crear Subasta', icon: Plus, href: '/dashboard/insurance/auctions/new' },
     { title: 'Mis Subastas', icon: Gavel, href: '/dashboard/insurance/auctions' },
     { title: 'Listas de Exclusión', icon: ShieldBan, href: '/dashboard/insurance/exclusions' },
-    { title: 'Auditoría Médica', icon: BrainCircuit, href: '/dashboard/insurance/audits' },
+    { title: 'Informes de Auditoría', icon: BrainCircuit, href: '/dashboard/insurance/audits' },
     { title: 'Paquetes Médicos', icon: Package, href: '/dashboard/insurance/packages' },
     { title: 'Métodos de Pago', icon: CreditCard, href: '/dashboard/insurance/payments' },
     { title: 'Mis Pagos', icon: Banknote, href: '/dashboard/insurance/my-payments' },

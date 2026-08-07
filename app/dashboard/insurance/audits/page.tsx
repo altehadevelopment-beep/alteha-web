@@ -1,14 +1,16 @@
 "use client";
 
-// Auditoría Médica de Alteha: el seguro sube el informe médico + la factura de una
-// intervención y Alteha entrega una evaluación auditable (CPT, precios de
-// referencia de mercado, hallazgos y nivel de riesgo) con folio propio.
-import React, { useEffect, useRef, useState } from 'react';
+// Informes de Auditoría Médica de Alteha: el seguro adjunta todo lo que tenga
+// del caso (informe médico, factura, presupuesto, informe operatorio, estudios,
+// registro de enfermería…), el motor lo analiza bajo la metodología azALTEHA y
+// el expediente queda en el historial con su folio, del que salen los dos
+// entregables: informe ejecutivo e informe técnico-operativo.
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
-    BrainCircuit, FileText, Receipt, Loader2, Plus, X, ShieldAlert, ShieldCheck,
-    Shield, ChevronRight, Sparkles, UploadCloud, Info,
+    BrainCircuit, FileText, Loader2, Plus, X, ShieldAlert, ShieldCheck, Shield,
+    ChevronRight, Sparkles, UploadCloud, Info, Search, Trash2, AlertTriangle, Clock,
 } from 'lucide-react';
 import { getStoredToken } from '@/lib/api';
 
@@ -22,6 +24,49 @@ const RISK: any = {
     ALTO: { label: 'Riesgo alto', cls: 'bg-red-50 text-red-500', Icon: ShieldAlert },
 };
 
+// Tipos del expediente mínimo auditable de la metodología (Fase 1).
+const TIPOS_DOC = [
+    { code: 'INFORME_MEDICO', label: 'Informe del médico tratante' },
+    { code: 'FACTURA', label: 'Factura de la intervención' },
+    { code: 'PRESUPUESTO', label: 'Presupuesto desglosado' },
+    { code: 'INFORME_OPERATORIO', label: 'Informe operatorio' },
+    { code: 'EVOLUCION', label: 'Evolución clínica' },
+    { code: 'LABORATORIO', label: 'Estudios de laboratorio' },
+    { code: 'IMAGEN', label: 'Estudios de imagen' },
+    { code: 'ANATOMIA_PATOLOGICA', label: 'Anatomía patológica' },
+    { code: 'REGISTRO_ENFERMERIA', label: 'Registro de enfermería' },
+    { code: 'CARTA_AVAL', label: 'Carta aval emitida' },
+    { code: 'CONVENIO', label: 'Convenio o baremo del prestador' },
+    { code: 'POLIZA', label: 'Condicionado de la póliza' },
+    { code: 'OTRO', label: 'Otro documento' },
+];
+
+const CANALES = [
+    { code: 'AVAL', label: 'Carta aval (programado)' },
+    { code: 'EMERGENCIA', label: 'Emergencia médica' },
+    { code: 'REEMBOLSO', label: 'Reembolso' },
+    { code: 'APS', label: 'Atención primaria' },
+    { code: 'CONTINUO', label: 'Tratamiento continuo' },
+];
+
+// Adivina el tipo por el nombre del archivo para no obligar a clasificar a mano.
+function tipoSugerido(nombre: string) {
+    const n = nombre.toLowerCase();
+    if (/factura|invoice|recibo/.test(n)) return 'FACTURA';
+    if (/presupuesto|cotiza/.test(n)) return 'PRESUPUESTO';
+    if (/operatori|quirurgic|protocolo/.test(n)) return 'INFORME_OPERATORIO';
+    if (/evoluc/.test(n)) return 'EVOLUCION';
+    if (/lab|hematolog|quimica/.test(n)) return 'LABORATORIO';
+    if (/rx|tomograf|resonan|eco|imagen|radiolog/.test(n)) return 'IMAGEN';
+    if (/biopsia|patolog/.test(n)) return 'ANATOMIA_PATOLOGICA';
+    if (/enfermer/.test(n)) return 'REGISTRO_ENFERMERIA';
+    if (/aval/.test(n)) return 'CARTA_AVAL';
+    if (/convenio|baremo|tarifa/.test(n)) return 'CONVENIO';
+    if (/poliza|póliza|condicionado/.test(n)) return 'POLIZA';
+    if (/informe|medico|médico/.test(n)) return 'INFORME_MEDICO';
+    return 'OTRO';
+}
+
 async function api(path: string, opts: RequestInit = {}) {
     const token = getStoredToken();
     const res = await fetch(`/api/insurance/audits${path}`, {
@@ -31,98 +76,89 @@ async function api(path: string, opts: RequestInit = {}) {
     return res.json().catch(() => ({}));
 }
 
-const toBase64 = (file: File) =>
-    new Promise<string>((resolve, reject) => {
-        const r = new FileReader();
-        r.onload = () => resolve(String(r.result).split(',')[1] || '');
-        r.onerror = reject;
-        r.readAsDataURL(file);
-    });
-
-function FilePick({ label, icon: Icon, file, onFile }: { label: string; icon: any; file: File | null; onFile: (f: File | null) => void }) {
-    const ref = useRef<HTMLInputElement>(null);
-    return (
-        <div>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">{label}</p>
-            <input ref={ref} type="file" accept="application/pdf,image/png,image/jpeg,image/webp" className="hidden"
-                onChange={(e) => onFile(e.target.files?.[0] || null)} />
-            <button type="button" onClick={() => ref.current?.click()}
-                className={`w-full rounded-2xl border-2 border-dashed p-5 text-left transition-all flex items-center gap-3 ${
-                    file ? 'border-alteha-turquoise bg-alteha-turquoise/5' : 'border-slate-200 hover:border-alteha-turquoise/50'}`}>
-                <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${file ? 'bg-alteha-turquoise text-white' : 'bg-slate-100 text-slate-400'}`}>
-                    {file ? <Icon className="w-5 h-5" /> : <UploadCloud className="w-5 h-5" />}
-                </div>
-                <div className="flex-1 min-w-0">
-                    <p className="font-black text-sm truncate">{file ? file.name : 'Selecciona el archivo'}</p>
-                    <p className="text-[11px] text-slate-400 font-semibold">{file ? `${(file.size / 1024 / 1024).toFixed(1)} MB` : 'PDF o imagen (PNG/JPG)'}</p>
-                </div>
-                {file && (
-                    <span onClick={(e) => { e.stopPropagation(); onFile(null); }} className="p-1.5 rounded-lg hover:bg-red-50 text-slate-300 hover:text-red-400">
-                        <X className="w-4 h-4" />
-                    </span>
-                )}
-            </button>
-        </div>
-    );
-}
+type Adjunto = { file: File; tipo: string };
 
 export default function AuditsPage() {
     const router = useRouter();
-    const [items, setItems] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [items, setItems] = useState<any[] | null>(null);
     const [creating, setCreating] = useState(false);
-    const [report, setReport] = useState<File | null>(null);
-    const [invoice, setInvoice] = useState<File | null>(null);
-    const [busy, setBusy] = useState<string | null>(null);
+    const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [q, setQ] = useState('');
+    const [filtroRiesgo, setFiltroRiesgo] = useState<string>('');
+    const [borrando, setBorrando] = useState<number | null>(null);
 
-    const load = () => {
-        api('').then((r) => setItems(Array.isArray(r?.data) ? r.data : [])).finally(() => setLoading(false));
+    // Formulario
+    const [adjuntos, setAdjuntos] = useState<Adjunto[]>([]);
+    const [canal, setCanal] = useState('AVAL');
+    const [notas, setNotas] = useState('');
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    const load = () => api('').then((r) => setItems(Array.isArray(r?.data) ? r.data : []));
+    useEffect(() => { load(); }, []);
+
+    // Mientras haya informes generándose, el historial se refresca solo.
+    const enProceso = (items || []).some((a) => a.status === 'PROCESANDO');
+    useEffect(() => {
+        if (!enProceso) return;
+        const t = setInterval(load, 6000);
+        return () => clearInterval(t);
+    }, [enProceso]);
+
+    const visibles = useMemo(() => {
+        const term = q.trim().toLowerCase();
+        return (items || []).filter((a) => {
+            if (filtroRiesgo && a.riskLevel !== filtroRiesgo) return false;
+            if (!term) return true;
+            return [a.auditNumber, a.patientName, a.procedureSummary].filter(Boolean).join(' ').toLowerCase().includes(term);
+        });
+    }, [items, q, filtroRiesgo]);
+
+    const resumen = useMemo(() => {
+        const listos = (items || []).filter((a) => a.status === 'LISTA');
+        return {
+            total: listos.length,
+            facturado: listos.reduce((s, a) => s + Number(a.totalInvoiced || 0), 0),
+            objetado: listos.reduce((s, a) => s + Number(a.totalObjected || 0), 0),
+        };
+    }, [items]);
+
+    const agregarArchivos = (files: FileList | null) => {
+        if (!files) return;
+        const nuevos = Array.from(files).map((file) => ({ file, tipo: tipoSugerido(file.name) }));
+        setAdjuntos((prev) => [...prev, ...nuevos].slice(0, 12));
     };
-    useEffect(load, []);
 
-    const run = async () => {
-        if (!report || !invoice) return;
+    const enviar = async () => {
+        if (!adjuntos.length) return;
         setError(null);
+        setBusy(true);
         try {
-            // 1) Análisis de Alteha (el motor lee ambos documentos)
-            setBusy('Alteha está analizando el informe y la factura… esto puede tardar 1-2 minutos');
-            const [reportBase64, invoiceBase64] = await Promise.all([toBase64(report), toBase64(invoice)]);
-            const res = await fetch('/api/insurance/audit-analyze', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    reportBase64, reportMime: report.type || 'application/pdf',
-                    invoiceBase64, invoiceMime: invoice.type || 'application/pdf',
-                }),
-            });
-            const analyzed = await res.json().catch(() => ({}));
-            if (!res.ok || !analyzed?.result) throw new Error(analyzed?.error || 'El análisis no produjo resultados');
-            const result = analyzed.result;
-
-            // 2) Guardar expediente auditable en Alteha (documentos + resultado)
-            setBusy('Guardando el expediente de auditoría…');
             const fd = new FormData();
-            fd.append('report', report);
-            fd.append('invoice', invoice);
-            fd.append('data', JSON.stringify({
-                patientName: result.patientName || null,
-                procedureSummary: result.procedureSummary || null,
-                riskLevel: result.riskLevel || null,
-                currency: result.currency || 'USD',
-                totalInvoiced: result.totalInvoiced ?? null,
-                totalReference: result.totalReferenceHigh ?? null,
-                result,
-            }));
-            const saved = await api('', { method: 'POST', body: fd });
-            if (saved?.code !== '00' || !saved?.data?.id) throw new Error(saved?.message || 'No se pudo guardar la auditoría');
+            adjuntos.forEach((a) => fd.append('documents', a.file));
+            fd.append('docTypes', JSON.stringify(adjuntos.map((a) => a.tipo)));
+            fd.append('channel', canal);
+            if (notas.trim()) fd.append('notes', notas.trim());
 
-            setBusy(null); setCreating(false); setReport(null); setInvoice(null);
+            const saved = await api('', { method: 'POST', body: fd });
+            if (saved?.code !== '00' || !saved?.data?.id) throw new Error(saved?.message || 'No se pudo abrir la auditoría');
+
+            setCreating(false);
+            setAdjuntos([]);
+            setNotas('');
             router.push(`/dashboard/insurance/audits/${saved.data.id}`);
         } catch (e: any) {
-            setBusy(null);
-            setError(e?.message || 'No se pudo completar la auditoría. Intenta de nuevo.');
+            setError(e?.message || 'No se pudo abrir la auditoría. Intenta de nuevo.');
+        } finally {
+            setBusy(false);
         }
+    };
+
+    const borrar = async (id: number) => {
+        setBorrando(id);
+        await api(`/${id}`, { method: 'DELETE' });
+        await load();
+        setBorrando(null);
     };
 
     return (
@@ -130,11 +166,11 @@ export default function AuditsPage() {
             <header className="flex items-end justify-between flex-wrap gap-3">
                 <div>
                     <h1 className="text-3xl font-black tracking-tight flex items-center gap-3">
-                        <BrainCircuit className="w-8 h-8 text-alteha-violet" /> Auditoría Médica
+                        <BrainCircuit className="w-8 h-8 text-alteha-violet" /> Informes de Auditoría
                     </h1>
                     <p className="text-slate-400 font-medium mt-1 max-w-2xl">
-                        Sube el informe médico y la factura de una intervención: Alteha genera una evaluación auditable
-                        con códigos CPT, precios de referencia del mercado y hallazgos.
+                        Adjunta todo lo que tengas de la intervención y Alteha emite el informe ejecutivo y el técnico-operativo
+                        bajo la metodología de auditoría médica, barematación y negociación de redes.
                     </p>
                 </div>
                 <button onClick={() => { setCreating(true); setError(null); }}
@@ -143,43 +179,108 @@ export default function AuditsPage() {
                 </button>
             </header>
 
-            {/* Lista */}
-            {loading ? (
+            {/* Resumen del historial */}
+            {!!resumen.total && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {[
+                        { label: 'Informes emitidos', value: String(resumen.total), color: 'text-alteha-violet' },
+                        { label: 'Monto auditado', value: fmtMoney(resumen.facturado), color: 'text-slate-700' },
+                        { label: 'Total objetado', value: fmtMoney(resumen.objetado), color: 'text-red-500' },
+                    ].map((k) => (
+                        <div key={k.label} className="bg-white rounded-3xl border border-slate-100 shadow-sm px-6 py-4">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{k.label}</p>
+                            <p className={`text-2xl font-black tabular-nums mt-0.5 ${k.color}`}>{k.value}</p>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {/* Filtros del historial */}
+            {!!(items || []).length && (
+                <div className="flex items-center gap-2 flex-wrap">
+                    <div className="relative flex-1 min-w-[220px]">
+                        <Search className="w-4 h-4 text-slate-300 absolute left-4 top-1/2 -translate-y-1/2" />
+                        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por folio, paciente o intervención"
+                            className="w-full pl-11 pr-4 py-3 rounded-2xl bg-white border border-slate-100 font-semibold text-sm outline-none focus:border-alteha-turquoise" />
+                    </div>
+                    {[{ code: '', label: 'Todos' }, { code: 'ALTO', label: 'Riesgo alto' }, { code: 'MEDIO', label: 'Medio' }, { code: 'BAJO', label: 'Bajo' }].map((f) => (
+                        <button key={f.code} onClick={() => setFiltroRiesgo(f.code)}
+                            className={`px-4 py-2.5 rounded-2xl text-xs font-black ${filtroRiesgo === f.code ? 'bg-alteha-gray text-white' : 'bg-white border border-slate-100 text-slate-400'}`}>
+                            {f.label}
+                        </button>
+                    ))}
+                </div>
+            )}
+
+            {/* Historial */}
+            {items === null ? (
                 <div className="flex justify-center py-24"><Loader2 className="w-8 h-8 text-alteha-turquoise animate-spin" /></div>
-            ) : items.length === 0 ? (
+            ) : visibles.length === 0 ? (
                 <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-14 text-center space-y-4">
                     <img src="/backgrounds/specialist.png" alt="Auditoría médica Alteha"
                         className="w-44 h-44 object-cover rounded-3xl mx-auto shadow-lg shadow-alteha-violet/10" />
-                    <p className="font-black text-lg">Aún no has realizado auditorías</p>
+                    <p className="font-black text-lg">{items.length ? 'Ningún informe coincide con la búsqueda' : 'Aún no has emitido informes'}</p>
                     <p className="text-sm text-slate-400 font-medium max-w-md mx-auto">
-                        Con una auditoría de Alteha sabrás en minutos si lo facturado corresponde a lo realizado y a los precios del mercado.
+                        Con un informe de Alteha sabrás si lo facturado corresponde a lo realizado, a lo pactado y al mercado —
+                        y llegarás a la mesa con el prestador con el pliego ya fundamentado.
                     </p>
                 </div>
             ) : (
                 <div className="space-y-3">
-                    {items.map((a) => {
+                    {visibles.map((a) => {
                         const r = RISK[a.riskLevel] || RISK.MEDIO;
+                        const procesando = a.status === 'PROCESANDO';
+                        const fallo = a.status === 'ERROR';
                         return (
-                            <motion.button key={a.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-                                onClick={() => router.push(`/dashboard/insurance/audits/${a.id}`)}
-                                className="w-full text-left bg-white rounded-3xl border border-slate-100 shadow-sm p-5 flex items-center gap-4 hover:border-alteha-turquoise/50 transition-all">
-                                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-alteha-turquoise/15 to-alteha-violet/15 flex items-center justify-center">
-                                    <FileText className="w-5 h-5 text-alteha-violet" />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <p className="font-black truncate">{a.procedureSummary || 'Intervención médica'}</p>
-                                    <p className="text-xs text-slate-400 font-semibold truncate">
-                                        {a.auditNumber} · {a.patientName || 'Paciente s/d'} · {fmtDate(a.createdAt)}
-                                    </p>
-                                </div>
-                                <div className="text-right shrink-0 space-y-1">
-                                    <p className="font-black tabular-nums">{fmtMoney(a.totalInvoiced, a.currency)}</p>
-                                    <span className={`inline-flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider ${r.cls}`}>
-                                        <r.Icon className="w-3 h-3" /> {r.label}
-                                    </span>
-                                </div>
-                                <ChevronRight className="w-5 h-5 text-slate-300 shrink-0" />
-                            </motion.button>
+                            <motion.div key={a.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+                                className="bg-white rounded-3xl border border-slate-100 shadow-sm p-5 flex items-center gap-4 hover:border-alteha-turquoise/50 transition-all">
+                                <button onClick={() => router.push(`/dashboard/insurance/audits/${a.id}`)} className="flex items-center gap-4 flex-1 min-w-0 text-left">
+                                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
+                                        fallo ? 'bg-red-50' : procesando ? 'bg-amber-50' : 'bg-gradient-to-br from-alteha-turquoise/15 to-alteha-violet/15'}`}>
+                                        {procesando ? <Loader2 className="w-5 h-5 text-amber-500 animate-spin" />
+                                            : fallo ? <AlertTriangle className="w-5 h-5 text-red-400" />
+                                            : <FileText className="w-5 h-5 text-alteha-violet" />}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="font-black truncate">
+                                            {procesando ? 'Generando el informe…' : fallo ? 'El informe no pudo generarse' : (a.procedureSummary || 'Intervención médica')}
+                                        </p>
+                                        <p className="text-xs text-slate-400 font-semibold truncate">
+                                            {a.auditNumber} · {a.patientName || 'Paciente s/d'} · {fmtDate(a.createdAt)}
+                                            {a.aiProvider ? ` · ${a.aiProvider}` : ''}
+                                        </p>
+                                    </div>
+                                    <div className="text-right shrink-0 space-y-1 hidden sm:block">
+                                        {procesando ? (
+                                            <span className="inline-flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider bg-amber-50 text-amber-600">
+                                                <Clock className="w-3 h-3" /> En proceso
+                                            </span>
+                                        ) : fallo ? (
+                                            <span className="inline-flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider bg-red-50 text-red-500">
+                                                <AlertTriangle className="w-3 h-3" /> Error
+                                            </span>
+                                        ) : (
+                                            <>
+                                                <p className="font-black tabular-nums">{fmtMoney(a.totalInvoiced, a.currency)}</p>
+                                                {Number(a.totalObjected) > 0 && (
+                                                    <p className="text-[11px] font-black text-red-500 tabular-nums">
+                                                        objetado {fmtMoney(a.totalObjected, a.currency)}
+                                                    </p>
+                                                )}
+                                                <span className={`inline-flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider ${r.cls}`}>
+                                                    <r.Icon className="w-3 h-3" /> {r.label}
+                                                </span>
+                                            </>
+                                        )}
+                                    </div>
+                                    <ChevronRight className="w-5 h-5 text-slate-300 shrink-0" />
+                                </button>
+                                <button onClick={() => borrar(a.id)} disabled={borrando === a.id}
+                                    title="Retirar del historial"
+                                    className="p-2 rounded-xl text-slate-300 hover:text-red-500 hover:bg-red-50 shrink-0">
+                                    {borrando === a.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                                </button>
+                            </motion.div>
                         );
                     })}
                 </div>
@@ -189,39 +290,93 @@ export default function AuditsPage() {
             {creating && (
                 <div className="fixed inset-0 z-50 bg-alteha-gray/60 backdrop-blur-sm flex items-center justify-center p-4">
                     <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }}
-                        className="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-7 space-y-5">
+                        className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[92vh] overflow-y-auto p-7 space-y-5">
                         <div className="flex items-start justify-between">
                             <div>
-                                <h2 className="text-xl font-black flex items-center gap-2"><BrainCircuit className="w-5 h-5 text-alteha-violet" /> Nueva auditoría</h2>
-                                <p className="text-xs text-slate-400 font-semibold mt-1">Ambos documentos de la misma intervención.</p>
+                                <h2 className="text-xl font-black flex items-center gap-2">
+                                    <BrainCircuit className="w-5 h-5 text-alteha-violet" /> Nueva auditoría
+                                </h2>
+                                <p className="text-xs text-slate-400 font-semibold mt-1">
+                                    Mientras más completo el expediente, más fuerte es la objeción. Puedes adjuntar hasta 12 documentos.
+                                </p>
                             </div>
                             {!busy && (
                                 <button onClick={() => setCreating(false)} className="p-2 rounded-xl hover:bg-slate-50 text-slate-300"><X className="w-5 h-5" /></button>
                             )}
                         </div>
 
-                        <FilePick label="1 · Informe médico" icon={FileText} file={report} onFile={setReport} />
-                        <FilePick label="2 · Factura de la intervención" icon={Receipt} file={invoice} onFile={setInvoice} />
+                        {/* Canal de atención */}
+                        <div>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Canal de atención</p>
+                            <div className="flex flex-wrap gap-2">
+                                {CANALES.map((ch) => (
+                                    <button key={ch.code} onClick={() => setCanal(ch.code)}
+                                        className={`px-4 py-2 rounded-xl text-xs font-black ${canal === ch.code ? 'bg-alteha-turquoise text-white' : 'bg-slate-50 text-slate-400 border border-slate-100'}`}>
+                                        {ch.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Documentos */}
+                        <div>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Documentos del caso</p>
+                            <input ref={inputRef} type="file" multiple accept="application/pdf,image/png,image/jpeg,image/webp" className="hidden"
+                                onChange={(e) => { agregarArchivos(e.target.files); e.target.value = ''; }} />
+                            <button type="button" onClick={() => inputRef.current?.click()}
+                                className="w-full rounded-2xl border-2 border-dashed border-slate-200 hover:border-alteha-turquoise/50 p-5 flex items-center gap-3 transition-all">
+                                <div className="w-11 h-11 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center"><UploadCloud className="w-5 h-5" /></div>
+                                <div className="text-left">
+                                    <p className="font-black text-sm">Seleccionar archivos</p>
+                                    <p className="text-[11px] text-slate-400 font-semibold">PDF o imagen · hasta 25 MB cada uno</p>
+                                </div>
+                            </button>
+
+                            {adjuntos.length > 0 && (
+                                <div className="mt-3 space-y-2">
+                                    {adjuntos.map((a, i) => (
+                                        <div key={i} className="flex items-center gap-2 bg-slate-50 rounded-2xl p-3">
+                                            <FileText className="w-4 h-4 text-alteha-violet shrink-0" />
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-xs font-black truncate">{a.file.name}</p>
+                                                <p className="text-[10px] text-slate-400 font-bold">{(a.file.size / 1024 / 1024).toFixed(1)} MB</p>
+                                            </div>
+                                            <select value={a.tipo}
+                                                onChange={(e) => setAdjuntos((prev) => prev.map((x, j) => (j === i ? { ...x, tipo: e.target.value } : x)))}
+                                                className="text-[11px] font-bold bg-white border border-slate-200 rounded-lg px-2 py-1.5 outline-none focus:border-alteha-turquoise max-w-[190px]">
+                                                {TIPOS_DOC.map((t) => <option key={t.code} value={t.code}>{t.label}</option>)}
+                                            </select>
+                                            <button onClick={() => setAdjuntos((prev) => prev.filter((_, j) => j !== i))}
+                                                className="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 shrink-0">
+                                                <X className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Notas */}
+                        <div>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Notas para el auditor (opcional)</p>
+                            <textarea value={notas} onChange={(e) => setNotas(e.target.value)} rows={3}
+                                placeholder="Reglas de excepción institucional, condiciones del convenio, antecedentes del prestador…"
+                                className="w-full px-4 py-3 rounded-2xl bg-slate-50 font-semibold text-sm border-2 border-transparent focus:border-alteha-turquoise outline-none resize-none" />
+                        </div>
 
                         {error && <p className="text-sm font-bold text-red-500 bg-red-50 rounded-2xl p-3">{error}</p>}
 
-                        {busy ? (
-                            <div className="rounded-2xl bg-slate-50 p-5 text-center space-y-3">
-                                <Loader2 className="w-7 h-7 text-alteha-violet animate-spin mx-auto" />
-                                <p className="text-sm font-black text-slate-600">{busy}</p>
-                                <p className="text-[11px] text-slate-400 font-semibold">No cierres esta ventana.</p>
-                            </div>
-                        ) : (
-                            <button onClick={run} disabled={!report || !invoice}
-                                className="w-full py-4 rounded-2xl font-black text-white bg-alteha-gradient disabled:opacity-40 flex items-center justify-center gap-2">
-                                <Sparkles className="w-5 h-5" /> Auditar con Alteha
-                            </button>
-                        )}
+                        <button onClick={enviar} disabled={!adjuntos.length || busy}
+                            className="w-full py-4 rounded-2xl font-black text-white bg-alteha-gradient disabled:opacity-40 flex items-center justify-center gap-2">
+                            {busy ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
+                            {busy ? 'Abriendo el expediente…' : 'Auditar con Alteha'}
+                        </button>
 
                         <p className="text-[10px] text-slate-400 font-semibold flex items-start gap-1.5">
                             <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                            Los precios de referencia son estimaciones de mercado de Alteha y no constituyen tarifas oficiales.
-                            La evaluación es un apoyo a la decisión del auditor humano.
+                            El análisis corre en segundo plano y suele tardar entre 1 y 3 minutos: puedes seguir trabajando y volver al historial.
+                            Los precios de referencia son estimaciones de mercado y no constituyen tarifas oficiales; las tipologías detectadas son
+                            indicadores que exigen confirmación documental.
                         </p>
                     </motion.div>
                 </div>

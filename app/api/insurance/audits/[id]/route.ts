@@ -23,3 +23,23 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         return NextResponse.json({ code: 'ERROR', message: `Error de conexión: ${error.message}` }, { status: 500 });
     }
 }
+
+// DELETE /api/insurance/audits/{id} — retira el informe del historial.
+export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+    try {
+        const userToken = request.headers.get('X-Alteha-Token');
+        const adminToken = await getAppToken();
+        const response = await fetch(`${API_BASE}/insurance/audits/${params.id}`, {
+            method: 'DELETE',
+            headers: {
+                Accept: '*/*',
+                Authorization: `Bearer ${adminToken}`,
+                'X-Alteha-Token': userToken || '',
+            },
+        });
+        const data = await response.json().catch(() => ({}));
+        return NextResponse.json(data, { status: response.status });
+    } catch (error: any) {
+        return NextResponse.json({ code: 'ERROR', message: `Error de conexión: ${error.message}` }, { status: 500 });
+    }
+}
