@@ -378,6 +378,24 @@ export default function AuditsPage() {
                             Los precios de referencia son estimaciones de mercado y no constituyen tarifas oficiales; las tipologías detectadas son
                             indicadores que exigen confirmación documental.
                         </p>
+
+                        {/* Marcos metodológicos de referencia. Badges de texto con estilo
+                            uniforme; se sustituyen por los logos oficiales cuando cada
+                            licencia o membresía esté formalizada y su manual de marca lo
+                            permita. */}
+                        <div className="border-t border-slate-100 pt-4">
+                            <p className="text-[9px] font-black text-slate-300 uppercase tracking-[0.18em] text-center mb-2.5">
+                                Metodología alineada con los marcos de
+                            </p>
+                            <div className="flex flex-wrap justify-center gap-1.5">
+                                {['AMA · CPT®', 'ACFE', 'COSO', 'RIMS', 'The Institutes', 'IIA'].map((m) => (
+                                    <span key={m}
+                                        className="px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-100 text-[10px] font-black text-slate-400 tracking-wide">
+                                        {m}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
                     </motion.div>
                 </div>
             )}

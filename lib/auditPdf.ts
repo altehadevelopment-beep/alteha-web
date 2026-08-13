@@ -219,13 +219,38 @@ class Lienzo {
 
     cierre(audit: any, r: any, textoMetodologia: string) {
         const d = this.doc;
+
+        // Franja de marcos metodológicos: badges de texto uniformes. Se
+        // sustituyen por los logos oficiales cuando cada licencia o membresía
+        // esté formalizada y su manual de marca lo permita.
+        const marcos = ['AMA · CPT®', 'ACFE', 'COSO', 'RIMS', 'The Institutes', 'IIA'];
+        this.espacio(46);
+        d.setFont('helvetica', 'bold').setFontSize(6.2).setTextColor(...MUTED);
+        d.text('METODOLOGÍA ALINEADA CON LOS MARCOS DE', this.W / 2, this.y + 4, { align: 'center' });
+        this.y += 12;
+        const anchoTotal = marcos.reduce((s, m) => s + d.getTextWidth(m) + 26, 0) - 8;
+        let bx = (this.W - anchoTotal) / 2;
+        for (const m of marcos) {
+            const w = d.getTextWidth(m) + 18;
+            d.setFillColor(248, 250, 252);
+            d.setDrawColor(226, 232, 240).setLineWidth(0.75);
+            d.roundedRect(bx, this.y, w, 15, 5, 5, 'FD');
+            d.setFont('helvetica', 'bold').setFontSize(7).setTextColor(100, 116, 139);
+            d.text(m, bx + w / 2, this.y + 10, { align: 'center' });
+            bx += w + 8;
+        }
+        this.y += 26;
+
         const pie =
             `${textoMetodologia} Confiabilidad documental estimada: ${confianza(r.confidence) != null ? `${confianza(r.confidence)}%` : 'n/d'}. ` +
             `Motor de análisis: ${audit.aiProvider || 'n/d'}${audit.aiModel ? ` · ${audit.aiModel}` : ''}. ` +
             `Las tipologías descritas son indicadores de irregularidad que exigen confirmación documental y no equivalen a una determinación ` +
             `de conducta sancionable. Los precios de referencia son estimaciones de mercado y no constituyen tarifas oficiales. ` +
-            `Este informe es un apoyo a la decisión y no sustituye el juicio del auditor médico. Documento confidencial para uso exclusivo de ` +
-            `${audit.insurance?.name || 'la aseguradora solicitante'}.`;
+            `Este informe es un apoyo a la decisión y no sustituye el juicio del auditor médico. ` +
+            `La metodología azALTEHA se desarrolla en alineación con marcos internacionales de codificación, gestión de riesgo y examen de ` +
+            `irregularidades (AMA CPT®, ACFE, COSO, RIMS, The Institutes, IIA); CPT® es marca registrada de la American Medical Association ` +
+            `y las referencias a cada marco no implican certificación ni patrocinio de la institución titular. ` +
+            `Documento confidencial para uso exclusivo de ${audit.insurance?.name || 'la aseguradora solicitante'}.`;
         const l = d.splitTextToSize(pie, this.ancho - 110);
         this.espacio(l.length * 9 + 34);
         d.setDrawColor(226, 232, 240).setLineWidth(1);
