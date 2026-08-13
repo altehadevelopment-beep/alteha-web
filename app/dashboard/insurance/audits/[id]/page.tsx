@@ -4,12 +4,12 @@
 // dos entregables de la Fase 4 de la metodología: el informe ejecutivo (corto,
 // para Junta) y el técnico-operativo (largo, el que va a la mesa con el
 // prestador). Ambos se descargan desde aquí.
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
     ArrowLeft, Loader2, FileText, ShieldAlert, ShieldCheck, Shield, ExternalLink,
     BadgeCheck, AlertTriangle, ListChecks, BrainCircuit, FileBarChart, FileSpreadsheet,
-    Stethoscope, Coins, Handshake, RefreshCw,
+    Stethoscope, Coins, Handshake, RefreshCw, Plus, X, UploadCloud, Gavel,
 } from 'lucide-react';
 import { getStoredToken } from '@/lib/api';
 import { informeEjecutivo, informeTecnico, CANALES, ESCALA_RECHAZO, confianza } from '@/lib/auditPdf';
@@ -26,7 +26,43 @@ const RESULTADO_EJE: any = {
     NO_VERIFICABLE: 'text-slate-400 bg-slate-100',
 };
 
+// Mismos tipos que el alta del expediente: el motor los usa para saber qué lee.
+const TIPOS_DOC = [
+    { code: 'INFORME_MEDICO', label: 'Informe del médico tratante' },
+    { code: 'FACTURA', label: 'Factura de la intervención' },
+    { code: 'PRESUPUESTO', label: 'Presupuesto desglosado' },
+    { code: 'INFORME_OPERATORIO', label: 'Informe operatorio' },
+    { code: 'EVOLUCION', label: 'Evolución clínica' },
+    { code: 'LABORATORIO', label: 'Estudios de laboratorio' },
+    { code: 'IMAGEN', label: 'Estudios de imagen' },
+    { code: 'ANATOMIA_PATOLOGICA', label: 'Anatomía patológica' },
+    { code: 'REGISTRO_ENFERMERIA', label: 'Registro de enfermería' },
+    { code: 'CARTA_AVAL', label: 'Carta aval emitida' },
+    { code: 'CONVENIO', label: 'Convenio o baremo del prestador' },
+    { code: 'POLIZA', label: 'Condicionado de la póliza' },
+    { code: 'OTRO', label: 'Otro documento' },
+];
+
+function tipoSugerido(nombre: string) {
+    const n = nombre.toLowerCase();
+    if (/factura|invoice|recibo/.test(n)) return 'FACTURA';
+    if (/presupuesto|cotiza/.test(n)) return 'PRESUPUESTO';
+    if (/operatori|quirurgic|protocolo/.test(n)) return 'INFORME_OPERATORIO';
+    if (/evoluc/.test(n)) return 'EVOLUCION';
+    if (/lab|hematolog|quimica/.test(n)) return 'LABORATORIO';
+    if (/rx|tomograf|resonan|eco|imagen|radiolog/.test(n)) return 'IMAGEN';
+    if (/biopsia|patolog/.test(n)) return 'ANATOMIA_PATOLOGICA';
+    if (/enfermer/.test(n)) return 'REGISTRO_ENFERMERIA';
+    if (/aval/.test(n)) return 'CARTA_AVAL';
+    if (/convenio|baremo|tarifa/.test(n)) return 'CONVENIO';
+    if (/poliza|póliza|condicionado/.test(n)) return 'POLIZA';
+    if (/informe|medico|médico/.test(n)) return 'INFORME_MEDICO';
+    return 'OTRO';
+}
+
 const fmtDate = (v?: string) => (v ? new Date(v).toLocaleString('es-VE', { dateStyle: 'long', timeStyle: 'short' }) : '—');
+const fmtCorta = (v?: string) => (v ? new Date(v).toLocaleDateString('es-VE', { dateStyle: 'medium' }) : '—');
+const peso = (b?: number) => (b == null ? '—' : b > 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
 const money = (v?: number | null, cur = 'USD') =>
     v == null || isNaN(Number(v))
         ? '—'
@@ -50,6 +86,13 @@ export default function AuditDetailPage() {
     const [error, setError] = useState<string | null>(null);
     const [pdfBusy, setPdfBusy] = useState<string | null>(null);
 
+    // Ampliación del expediente
+    const [ampliando, setAmpliando] = useState(false);
+    const [nuevos, setNuevos] = useState<{ file: File; tipo: string }[]>([]);
+    const [subiendoDoc, setSubiendoDoc] = useState(false);
+    const [errorDoc, setErrorDoc] = useState<string | null>(null);
+    const inputDoc = useRef<HTMLInputElement>(null);
+
     const cargar = useCallback(() => {
         const token = getStoredToken();
         return fetch(`/api/insurance/audits/${id}`, { headers: { 'X-Alteha-Token': token || '' } })
@@ -59,6 +102,36 @@ export default function AuditDetailPage() {
     }, [id]);
 
     useEffect(() => { cargar(); }, [cargar]);
+
+    const agregarNuevos = (files: FileList | null) => {
+        if (!files) return;
+        setNuevos((prev) => [...prev, ...Array.from(files).map((file) => ({ file, tipo: tipoSugerido(file.name) }))]);
+    };
+
+    /** Sube los documentos nuevos y dispara el recálculo del expediente completo. */
+    const ampliarYRecalcular = async () => {
+        if (!nuevos.length) return;
+        setErrorDoc(null);
+        setSubiendoDoc(true);
+        try {
+            const fd = new FormData();
+            nuevos.forEach((a) => fd.append('documents', a.file));
+            fd.append('docTypes', JSON.stringify(nuevos.map((a) => a.tipo)));
+            const r = await fetch(`/api/insurance/audits/${id}/documents`, {
+                method: 'POST',
+                headers: { 'X-Alteha-Token': getStoredToken() || '' },
+                body: fd,
+            }).then((x) => x.json());
+            if (r?.code !== '00') throw new Error(r?.message || 'No se pudo ampliar el expediente');
+            setAmpliando(false);
+            setNuevos([]);
+            await cargar();
+        } catch (e: any) {
+            setErrorDoc(e?.message || 'No se pudo ampliar el expediente');
+        } finally {
+            setSubiendoDoc(false);
+        }
+    };
 
     // Mientras el motor trabaja, el expediente se refresca solo.
     useEffect(() => {
@@ -77,10 +150,14 @@ export default function AuditDetailPage() {
                 <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-alteha-turquoise/15 to-alteha-violet/15 flex items-center justify-center mx-auto">
                     <Loader2 className="w-9 h-9 text-alteha-violet animate-spin" />
                 </div>
-                <h1 className="text-2xl font-black">Alteha está auditando el expediente</h1>
+                <h1 className="text-2xl font-black">
+                    {(audit.version ?? 1) > 1 ? 'Alteha está recalculando el expediente' : 'Alteha está auditando el expediente'}
+                </h1>
                 <p className="text-sm font-semibold text-slate-400 max-w-md mx-auto">
-                    Se están recorriendo las cinco fases de la metodología: pertinencia médica, codificación CPT,
-                    barematación, consolidación del pliego y vulnerabilidades del canal. Suele tardar entre 1 y 3 minutos.
+                    {(audit.version ?? 1) > 1
+                        ? `Se rehace el análisis completo con el expediente ampliado (versión ${audit.version}). Los dictámenes ya emitidos pueden cambiar si los documentos nuevos los sustentan.`
+                        : 'Se están recorriendo las cinco fases de la metodología: pertinencia médica, codificación CPT, barematación, consolidación del pliego y vulnerabilidades del canal.'}
+                    {' '}Suele tardar entre 1 y 3 minutos.
                 </p>
                 <p className="text-xs font-bold text-slate-400">{audit.auditNumber}</p>
                 <button onClick={() => router.push('/dashboard/insurance/audits')}
@@ -150,6 +227,11 @@ export default function AuditDetailPage() {
                         <p className="text-xs text-slate-400 font-semibold">
                             {fmtDate(audit.createdAt)}
                             {audit.aiProvider ? ` · analizado con ${audit.aiProvider}${audit.aiModel ? ` (${audit.aiModel})` : ''}` : ''}
+                            {(audit.version ?? 1) > 1 && (
+                                <span className="ml-2 text-[10px] font-black px-2 py-0.5 rounded-full bg-alteha-turquoise/10 text-alteha-turquoise uppercase tracking-wider">
+                                    Versión {audit.version} · recalculada {fmtCorta(audit.recalculatedAt)}
+                                </span>
+                            )}
                         </p>
                     </div>
                 </div>
@@ -475,17 +557,135 @@ export default function AuditDetailPage() {
             </div>
 
             {/* ══ Documentos del expediente ══ */}
-            {!!documentos.length && (
-                <Card title="Documentos del expediente" icon={FileText}>
-                    <div className="px-6 pb-5 flex flex-wrap gap-2">
-                        {documentos.map((d) => (
-                            <a key={d.id} href={d.fileUrl} target="_blank" rel="noreferrer"
-                                className="px-4 py-2.5 rounded-xl bg-slate-50 font-black text-xs text-slate-500 flex items-center gap-1.5 hover:bg-slate-100">
-                                <FileText className="w-4 h-4" /> {d.docType?.replace(/_/g, ' ')} <ExternalLink className="w-3 h-3" />
-                            </a>
-                        ))}
+            <Card title="Documentos del expediente" icon={FileText}>
+                <div className="px-6 pb-2 flex items-center justify-between flex-wrap gap-2 -mt-1">
+                    <p className="text-xs font-semibold text-slate-400">
+                        Cada archivo tal como se cargó, con su enlace para control.
+                    </p>
+                    <button onClick={() => { setAmpliando(true); setErrorDoc(null); }}
+                        className="px-4 py-2.5 rounded-xl font-black text-xs text-white bg-alteha-gray flex items-center gap-1.5">
+                        <Plus className="w-4 h-4" /> Agregar documento y recalcular
+                    </button>
+                </div>
+                {!documentos.length ? (
+                    <p className="px-6 pb-6 text-sm font-semibold text-slate-400">Este expediente no tiene documentos archivados.</p>
+                ) : (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead><tr className="bg-slate-50">
+                                {['Tipo', 'Archivo', 'Tamaño', 'Incorporado', 'Versión', ''].map((h) => (
+                                    <th key={h} className="text-left px-5 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
+                                ))}
+                            </tr></thead>
+                            <tbody>
+                                {documentos.map((d) => (
+                                    <tr key={d.id} className="border-t border-slate-50">
+                                        <td className="px-5 py-3 font-black text-alteha-violet whitespace-nowrap">{(d.docType || 'OTRO').replace(/_/g, ' ')}</td>
+                                        <td className="px-5 py-3 font-semibold max-w-[280px] truncate" title={d.fileName}>{d.fileName}</td>
+                                        <td className="px-5 py-3 font-bold tabular-nums text-slate-500 whitespace-nowrap">{peso(d.sizeBytes)}</td>
+                                        <td className="px-5 py-3 font-semibold text-slate-400 whitespace-nowrap">{fmtCorta(d.createdAt)}</td>
+                                        <td className="px-5 py-3">
+                                            <span className={`text-[10px] font-black px-2 py-1 rounded-lg ${
+                                                (d.addedInVersion ?? 1) > 1 ? 'bg-alteha-turquoise/10 text-alteha-turquoise' : 'bg-slate-100 text-slate-400'}`}>
+                                                v{d.addedInVersion ?? 1}
+                                            </span>
+                                        </td>
+                                        <td className="px-5 py-3 text-right">
+                                            {d.fileUrl ? (
+                                                <a href={d.fileUrl} target="_blank" rel="noreferrer"
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-50 font-black text-[11px] text-slate-500 hover:bg-slate-100 whitespace-nowrap">
+                                                    Abrir <ExternalLink className="w-3 h-3" />
+                                                </a>
+                                            ) : (
+                                                <span className="text-[11px] font-bold text-amber-600">Sin archivar</span>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
-                </Card>
+                )}
+            </Card>
+
+            {/* ══ Llamado a subastar ══ */}
+            <div className="bg-alteha-gray text-white rounded-3xl p-7 flex items-center gap-6 flex-wrap">
+                <div className="flex-1 min-w-[280px]">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-alteha-turquoise">El siguiente paso</p>
+                    <h2 className="text-xl font-black mt-1">¿Subastar esta intervención con Alteha?</h2>
+                    <p className="text-sm text-slate-300 font-semibold mt-1.5 max-w-2xl">
+                        Ya sabes lo que la red te cobraría por este caso. Publícalo y deja que los médicos de la
+                        especialidad compitan por él: la auditoría te dice qué es un precio razonable, la subasta te lo consigue.
+                    </p>
+                </div>
+                <button onClick={() => router.push('/dashboard/insurance/auctions/new')}
+                    className="px-7 py-4 rounded-2xl font-black bg-alteha-gradient text-white flex items-center gap-2 shadow-lg shadow-alteha-violet/30 shrink-0">
+                    <Gavel className="w-5 h-5" /> Subastar con Alteha
+                </button>
+            </div>
+
+            {/* ══ Modal: ampliar el expediente ══ */}
+            {ampliando && (
+                <div className="fixed inset-0 z-50 bg-alteha-gray/60 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-7 space-y-5 max-h-[92vh] overflow-y-auto">
+                        <div className="flex items-start justify-between">
+                            <div>
+                                <h2 className="text-xl font-black flex items-center gap-2">
+                                    <RefreshCw className="w-5 h-5 text-alteha-turquoise" /> Ampliar el expediente
+                                </h2>
+                                <p className="text-xs text-slate-400 font-semibold mt-1 max-w-sm">
+                                    Al agregar documentos se vuelve a auditar el expediente <b>completo</b>, no solo lo nuevo:
+                                    un soporte que llega después puede cambiar un dictamen ya emitido.
+                                </p>
+                            </div>
+                            {!subiendoDoc && (
+                                <button onClick={() => setAmpliando(false)} className="p-2 rounded-xl hover:bg-slate-50 text-slate-300">
+                                    <X className="w-5 h-5" />
+                                </button>
+                            )}
+                        </div>
+
+                        <input ref={inputDoc} type="file" multiple accept="application/pdf,image/png,image/jpeg,image/webp" className="hidden"
+                            onChange={(e) => { agregarNuevos(e.target.files); e.target.value = ''; }} />
+                        <button type="button" onClick={() => inputDoc.current?.click()}
+                            className="w-full rounded-2xl border-2 border-dashed border-slate-200 hover:border-alteha-turquoise/60 p-5 flex items-center gap-3">
+                            <div className="w-11 h-11 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center"><UploadCloud className="w-5 h-5" /></div>
+                            <div className="text-left">
+                                <p className="font-black text-sm">Seleccionar archivos</p>
+                                <p className="text-[11px] text-slate-400 font-semibold">
+                                    PDF o imagen · quedan {Math.max(0, 12 - documentos.length)} espacios en este expediente
+                                </p>
+                            </div>
+                        </button>
+
+                        {nuevos.map((a, i) => (
+                            <div key={i} className="flex items-center gap-2 bg-slate-50 rounded-2xl p-3">
+                                <FileText className="w-4 h-4 text-alteha-violet shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-black truncate">{a.file.name}</p>
+                                    <p className="text-[10px] text-slate-400 font-bold">{(a.file.size / 1024 / 1024).toFixed(1)} MB</p>
+                                </div>
+                                <select value={a.tipo}
+                                    onChange={(e) => setNuevos((p) => p.map((x, j) => (j === i ? { ...x, tipo: e.target.value } : x)))}
+                                    className="text-[11px] font-bold bg-white border border-slate-200 rounded-lg px-2 py-1.5 outline-none max-w-[190px]">
+                                    {TIPOS_DOC.map((t) => <option key={t.code} value={t.code}>{t.label}</option>)}
+                                </select>
+                                <button onClick={() => setNuevos((p) => p.filter((_, j) => j !== i))}
+                                    className="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 shrink-0">
+                                    <X className="w-4 h-4" />
+                                </button>
+                            </div>
+                        ))}
+
+                        {errorDoc && <p className="text-sm font-bold text-red-500 bg-red-50 rounded-2xl p-3">{errorDoc}</p>}
+
+                        <button onClick={ampliarYRecalcular} disabled={!nuevos.length || subiendoDoc}
+                            className="w-full py-4 rounded-2xl font-black text-white bg-alteha-gradient disabled:opacity-40 flex items-center justify-center gap-2">
+                            {subiendoDoc ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />}
+                            {subiendoDoc ? 'Recalculando…' : 'Agregar y recalcular la auditoría'}
+                        </button>
+                    </div>
+                </div>
             )}
         </div>
     );

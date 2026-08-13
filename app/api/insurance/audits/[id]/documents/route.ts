@@ -1,0 +1,30 @@
+export const dynamic = 'force-dynamic';
+export const maxDuration = 300;
+
+import { NextRequest, NextResponse } from 'next/server';
+import { getAppToken } from '@/lib/auth-service';
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://qaback.alteha.com:3232/api';
+
+// POST /api/insurance/audits/{id}/documents — amplía el expediente y dispara el
+// recálculo. Va por su propia ruta porque es multipart y el proxy JSON no sirve.
+export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+    try {
+        const userToken = request.headers.get('X-Alteha-Token');
+        const adminToken = await getAppToken();
+        const formData = await request.formData();
+        const response = await fetch(`${API_BASE}/insurance/audits/${params.id}/documents`, {
+            method: 'POST',
+            headers: {
+                Accept: '*/*',
+                Authorization: `Bearer ${adminToken}`,
+                'X-Alteha-Token': userToken || '',
+            },
+            body: formData,
+        });
+        const data = await response.json().catch(() => ({}));
+        return NextResponse.json(data, { status: response.status });
+    } catch (error: any) {
+        return NextResponse.json({ code: 'ERROR', message: `Error de conexión: ${error.message}` }, { status: 500 });
+    }
+}
