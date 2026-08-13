@@ -87,6 +87,33 @@ async function logoPng(): Promise<{ data: string; razon: number } | null> {
     }
 }
 
+// Tarjetas de los marcos metodológicos (PNG pre-normalizados en /public/marcos).
+// Se cachean porque los dos entregables las dibujan.
+const MARCOS = ['ama', 'acfe', 'rims', 'iia'];
+let marcosCache: { data: string; razon: number }[] | null | undefined;
+
+async function logosMarcos(): Promise<{ data: string; razon: number }[]> {
+    if (marcosCache !== undefined) return marcosCache || [];
+    try {
+        marcosCache = await Promise.all(
+            MARCOS.map(async (m) => {
+                const blob = await fetch(`/marcos/${m}.png`).then((r) => r.blob());
+                const data = await new Promise<string>((res) => {
+                    const f = new FileReader();
+                    f.onload = () => res(String(f.result));
+                    f.readAsDataURL(blob);
+                });
+                const img = new Image();
+                await new Promise((ok, err) => { img.onload = ok; img.onerror = err; img.src = data; });
+                return { data, razon: (img.naturalWidth || 300) / (img.naturalHeight || 160) };
+            }),
+        );
+    } catch {
+        marcosCache = null;
+    }
+    return marcosCache || [];
+}
+
 /** Utilidades de maquetación compartidas por los dos entregables. */
 class Lienzo {
     doc: jsPDF;
@@ -217,29 +244,44 @@ class Lienzo {
         this.y += 22;
     }
 
-    cierre(audit: any, r: any, textoMetodologia: string) {
+    async cierre(audit: any, r: any, textoMetodologia: string) {
         const d = this.doc;
 
-        // Franja de marcos metodológicos: badges de texto uniformes. Se
-        // sustituyen por los logos oficiales cuando cada licencia o membresía
-        // esté formalizada y su manual de marca lo permita.
-        const marcos = ['AMA · CPT®', 'ACFE', 'COSO', 'RIMS', 'The Institutes', 'IIA'];
-        this.espacio(46);
+        // Franja de marcos metodológicos con los logos normalizados. Si por
+        // cualquier razón no cargan, se cae a los badges de texto: la franja
+        // nunca puede romper la generación del informe.
+        this.espacio(52);
         d.setFont('helvetica', 'bold').setFontSize(6.2).setTextColor(...MUTED);
         d.text('METODOLOGÍA ALINEADA CON LOS MARCOS DE', this.W / 2, this.y + 4, { align: 'center' });
         this.y += 12;
-        const anchoTotal = marcos.reduce((s, m) => s + d.getTextWidth(m) + 26, 0) - 8;
-        let bx = (this.W - anchoTotal) / 2;
-        for (const m of marcos) {
-            const w = d.getTextWidth(m) + 18;
-            d.setFillColor(248, 250, 252);
-            d.setDrawColor(226, 232, 240).setLineWidth(0.75);
-            d.roundedRect(bx, this.y, w, 15, 5, 5, 'FD');
-            d.setFont('helvetica', 'bold').setFontSize(7).setTextColor(100, 116, 139);
-            d.text(m, bx + w / 2, this.y + 10, { align: 'center' });
-            bx += w + 8;
+        const logos = await logosMarcos();
+        if (logos.length) {
+            const ALTO = 18;
+            const anchoTotal = logos.reduce((s, l) => s + ALTO * l.razon + 8, 0) - 8;
+            let bx = (this.W - anchoTotal) / 2;
+            for (const l of logos) {
+                const w = ALTO * l.razon;
+                d.addImage(l.data, 'PNG', bx, this.y, w, ALTO);
+                d.setDrawColor(226, 232, 240).setLineWidth(0.6);
+                d.roundedRect(bx, this.y, w, ALTO, 3, 3, 'S');
+                bx += w + 8;
+            }
+            this.y += ALTO + 10;
+        } else {
+            const marcos = ['AMA · CPT®', 'ACFE', 'RIMS', 'IIA'];
+            const anchoTotal = marcos.reduce((s, m) => s + d.getTextWidth(m) + 26, 0) - 8;
+            let bx = (this.W - anchoTotal) / 2;
+            for (const m of marcos) {
+                const w = d.getTextWidth(m) + 18;
+                d.setFillColor(248, 250, 252);
+                d.setDrawColor(226, 232, 240).setLineWidth(0.75);
+                d.roundedRect(bx, this.y, w, 15, 5, 5, 'FD');
+                d.setFont('helvetica', 'bold').setFontSize(7).setTextColor(100, 116, 139);
+                d.text(m, bx + w / 2, this.y + 10, { align: 'center' });
+                bx += w + 8;
+            }
+            this.y += 26;
         }
-        this.y += 26;
 
         const pie =
             `${textoMetodologia} Confiabilidad documental estimada: ${confianza(r.confidence) != null ? `${confianza(r.confidence)}%` : 'n/d'}. ` +
@@ -412,7 +454,7 @@ export async function informeEjecutivo(audit: any, r: any) {
         c.vinetas(r.requerimientosPrevios);
     }
 
-    c.cierre(
+    await c.cierre(
         audit,
         r,
         'Metodología de Auditoría Médica, Barematación y Negociación de Redes V1.1 de azALTEHA: pertinencia médica, auditoría de codificación CPT, ' +
@@ -783,7 +825,7 @@ export async function informeTecnico(audit: any, r: any) {
         c.vinetas(r.advertencias);
     }
 
-    c.cierre(
+    await c.cierre(
         audit,
         r,
         'Metodología de Auditoría Médica, Barematación y Negociación de Redes V1.1 de azALTEHA, aplicada en sus cinco fases: pertinencia médica y ' +

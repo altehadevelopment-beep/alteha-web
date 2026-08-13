@@ -379,20 +379,21 @@ export default function AuditsPage() {
                             indicadores que exigen confirmación documental.
                         </p>
 
-                        {/* Marcos metodológicos de referencia. Badges de texto con estilo
-                            uniforme; se sustituyen por los logos oficiales cuando cada
-                            licencia o membresía esté formalizada y su manual de marca lo
-                            permita. */}
+                        {/* Marcos metodológicos de referencia (tarjetas uniformes en
+                            /public/marcos). La leyenda es de alineación, no de patrocinio. */}
                         <div className="border-t border-slate-100 pt-4">
                             <p className="text-[9px] font-black text-slate-300 uppercase tracking-[0.18em] text-center mb-2.5">
                                 Metodología alineada con los marcos de
                             </p>
-                            <div className="flex flex-wrap justify-center gap-1.5">
-                                {['AMA · CPT®', 'ACFE', 'COSO', 'RIMS', 'The Institutes', 'IIA'].map((m) => (
-                                    <span key={m}
-                                        className="px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-100 text-[10px] font-black text-slate-400 tracking-wide">
-                                        {m}
-                                    </span>
+                            <div className="flex flex-wrap justify-center items-center gap-2">
+                                {[
+                                    { src: '/marcos/ama.png', alt: 'AMA — CPT®' },
+                                    { src: '/marcos/acfe.png', alt: 'ACFE' },
+                                    { src: '/marcos/rims.png', alt: 'RIMS' },
+                                    { src: '/marcos/iia.png', alt: 'The Institute of Internal Auditors' },
+                                ].map((m) => (
+                                    <img key={m.src} src={m.src} alt={m.alt} title={m.alt}
+                                        className="h-9 w-auto rounded-lg border border-slate-100 opacity-90" />
                                 ))}
                             </div>
                         </div>
