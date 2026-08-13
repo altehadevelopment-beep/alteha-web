@@ -6,6 +6,7 @@ import { MessageCircle, X, Send, Mic, MicOff, Volume2, VolumeX, Sparkles, Loader
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { TEHA_SYSTEM_PROMPT, TEHA_GREETINGS } from '@/lib/teha-persona';
+import { getStoredToken, getProfile } from '@/lib/api';
 
 interface Message {
     id: string;
@@ -27,24 +28,65 @@ export function TehaChatbot() {
     const scrollRef = useRef<HTMLDivElement>(null);
     const recognitionRef = useRef<any>(null);
     const synthRef = useRef<SpeechSynthesis | null>(null);
-    const [voice, setVoice] = useState<SpeechSynthesisVoice | null>(null);
+    // La voz elegida se fija UNA vez y en un ref: si viviera en estado, el saludo
+    // (que suena antes de que la lista async de voces termine de cargar) caería al
+    // fallback y las respuestas posteriores sonarían con otra voz.
+    const voiceRef = useRef<SpeechSynthesisVoice | null>(null);
+    // Identidad del usuario para el saludo personalizado, resuelta una sola vez.
+    const identityRef = useRef<{ saludo: string } | null>(null);
+
+    /**
+     * Saludo según quién está conectado: el seguro por su nombre comercial, el
+     * médico como Doctor, la clínica y la casa de salud por el suyo. Sin sesión
+     * (o si el perfil no responde) se cae a los saludos genéricos.
+     */
+    const resolverIdentidad = useCallback(async (): Promise<{ saludo: string } | null> => {
+        if (identityRef.current) return identityRef.current;
+        try {
+            const token = getStoredToken();
+            if (!token) return null;
+            const claims = JSON.parse(atob(token.split('.')[1] || '')) as { auth?: string };
+            const role = claims.auth;
+            if (!role || !['DOCTOR', 'INSURANCE_COMPANY', 'CLINIC', 'PHARMACY'].includes(role)) return null;
+
+            const perfil = await getProfile(role);
+            const p: any = perfil?.data || {};
+            const nombrePersona = [p.firstName, p.lastName].filter(Boolean).join(' ') || p.fullName || '';
+            const nombreEntidad = p.commercialName || p.name || p.legalName || '';
+
+            let saludo: string | null = null;
+            if (role === 'DOCTOR' && nombrePersona) {
+                saludo = `¡Hola, Doctor ${nombrePersona}! Soy Teha, un gusto saludarte. ¿En qué te ayudo hoy dentro del ecosistema Alteha?`;
+            } else if (role === 'INSURANCE_COMPANY' && nombreEntidad) {
+                saludo = `¡Hola, querido amigo de seguros ${nombreEntidad}! Soy Teha. ¿En qué te ayudo hoy: subastas, auditorías o pagos?`;
+            } else if (role === 'CLINIC' && nombreEntidad) {
+                saludo = `¡Hola, querido amigo de la clínica ${nombreEntidad}! Soy Teha. ¿En qué te ayudo hoy dentro del ecosistema Alteha?`;
+            } else if (role === 'PHARMACY' && nombreEntidad) {
+                saludo = `¡Hola, querido amigo de la casa de salud ${nombreEntidad}! Soy Teha. ¿En qué te ayudo hoy dentro del ecosistema Alteha?`;
+            }
+            if (saludo) {
+                identityRef.current = { saludo };
+                return identityRef.current;
+            }
+            return null;
+        } catch {
+            return null;
+        }
+    }, []);
 
     // Initialize initial message on mount or when opening
-    const initChat = useCallback(() => {
-        const randomGreeting = TEHA_GREETINGS[Math.floor(Math.random() * TEHA_GREETINGS.length)];
+    const initChat = useCallback(async () => {
+        const identidad = await resolverIdentidad();
+        const greeting = identidad?.saludo || TEHA_GREETINGS[Math.floor(Math.random() * TEHA_GREETINGS.length)];
         const initialMsg: Message = {
             id: '1',
             role: 'assistant',
-            content: randomGreeting,
+            content: greeting,
             timestamp: new Date()
         };
         setMessages([initialMsg]);
-        
-        // Auto-speak the greeting after a short delay to ensure voice is ready
-        setTimeout(() => {
-            speak(randomGreeting);
-        }, 500);
-    }, [voice]);
+        speak(greeting);
+    }, [resolverIdentidad]);
 
     const handleTalkToHuman = () => {
         const roomId = `alteha-support-${Math.random().toString(36).substring(2, 10)}`;
@@ -90,26 +132,39 @@ export function TehaChatbot() {
         
         if (typeof window !== 'undefined') {
             synthRef.current = window.speechSynthesis;
-            
-            const loadVoices = () => {
-                const voices = window.speechSynthesis.getVoices();
-                // Priority for Natural/Neural appearing Spanish Female voices (Latin American/Mexico/US)
-                const femaleVoice = 
-                    voices.find((v: SpeechSynthesisVoice) => (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Neural')) && (v.lang.startsWith('es-MX') || v.lang.startsWith('es-US') || v.lang.startsWith('es-VE')) && (v.name.includes('Female') || v.name.includes('femenino'))) ||
-                    voices.find((v: SpeechSynthesisVoice) => (v.name.includes('Monica') || v.name.includes('Paulina') || v.name.includes('Paloma')) && (v.lang.startsWith('es-MX') || v.lang.startsWith('es-US'))) ||
-                    voices.find((v: SpeechSynthesisVoice) => v.lang.startsWith('es-MX') || v.lang.startsWith('es-US') || v.lang.startsWith('es-VE')) ||
-                    voices.find((v: SpeechSynthesisVoice) => v.lang.startsWith('es') && (v.name.includes('Female') || v.name.includes('femenino') || v.name.includes('Google'))) ||
-                    voices.find((v: SpeechSynthesisVoice) => v.lang.startsWith('es'));
-                
-                if (femaleVoice) setVoice(femaleVoice);
-            };
-
-            loadVoices();
-            if (window.speechSynthesis.onvoiceschanged !== undefined) {
-                window.speechSynthesis.onvoiceschanged = loadVoices;
-            }
+            // La lista de voces carga async: se dispara el evento para que la
+            // primera llamada a vozFija() ya la encuentre poblada.
+            window.speechSynthesis.getVoices();
         }
     }, []);
+
+    /**
+     * Único criterio de selección de voz en todo el componente. Antes había dos
+     * (uno al cargar y otro de fallback dentro de speak), y como el saludo suena
+     * antes de que la lista async termine de cargar, elegían voces distintas:
+     * ese era el cambio de voz después del saludo.
+     */
+    const elegirVoz = (voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null =>
+        voices.find((v) => (v.name.includes('Mónica') || v.name.includes('Monica') || v.name.includes('Paulina') || v.name.includes('Paloma')) && v.lang.startsWith('es')) ||
+        voices.find((v) => (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Neural')) && (v.lang.startsWith('es-MX') || v.lang.startsWith('es-US') || v.lang.startsWith('es-VE'))) ||
+        voices.find((v) => v.lang.startsWith('es-MX') || v.lang.startsWith('es-US') || v.lang.startsWith('es-VE')) ||
+        voices.find((v) => v.lang.startsWith('es')) ||
+        null;
+
+    /** Devuelve la voz fijada; si aún no hay, espera la carga y la fija para siempre. */
+    const vozFija = async (): Promise<SpeechSynthesisVoice | null> => {
+        if (voiceRef.current) return voiceRef.current;
+        if (typeof window === 'undefined') return null;
+        for (let intento = 0; intento < 20; intento++) {
+            const voices = window.speechSynthesis.getVoices();
+            if (voices.length) {
+                voiceRef.current = elegirVoz(voices);
+                return voiceRef.current;
+            }
+            await new Promise((r) => setTimeout(r, 120));
+        }
+        return null;
+    };
 
     // Stop speaking when muting or closing
     useEffect(() => {
@@ -138,15 +193,18 @@ export function TehaChatbot() {
         }
     };
 
-    const speak = (text: string) => {
+    const speak = async (text: string) => {
         if (!shouldSpeak || !synthRef.current) return;
-        
+
         // Stop any current speech and RECOGNITION to prevent loop
         stopSpeaking();
         if (recognitionRef.current && isRecording) {
             recognitionRef.current.stop();
             setIsRecording(false);
         }
+
+        // Siempre la MISMA voz, resuelta (y esperada si hace falta) antes de hablar.
+        const voice = await vozFija();
 
         // Audio Cleaning: Remove markdown, symbols and expand abbreviations
         const cleanText = text
@@ -169,14 +227,7 @@ export function TehaChatbot() {
         utterance.pitch = 1.2; // Natural high pitch for a younger female voice
         utterance.volume = 1;
         
-        if (voice) {
-            utterance.voice = voice;
-        } else {
-            // Fallback voice search if state not populated
-            const voices = synthRef.current.getVoices();
-            const fallbackVoice = voices.find((v: SpeechSynthesisVoice) => v.lang.startsWith('es') && (v.name.includes('Female') || v.name.includes('femenino') || v.name.includes('Monica')));
-            if (fallbackVoice) utterance.voice = fallbackVoice;
-        }
+        if (voice) utterance.voice = voice;
 
         utterance.onstart = () => setIsSpeaking(true);
         utterance.onend = () => setIsSpeaking(false);
