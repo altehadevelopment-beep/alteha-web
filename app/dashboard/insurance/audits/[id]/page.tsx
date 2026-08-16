@@ -618,7 +618,7 @@ export default function AuditDetailPage() {
                         especialidad compitan por él: la auditoría te dice qué es un precio razonable, la subasta te lo consigue.
                     </p>
                 </div>
-                <button onClick={() => router.push('/dashboard/insurance/auctions/new')}
+                <button onClick={() => router.push(`/dashboard/insurance/auctions/new?fromAudit=${audit.id}`)}
                     className="px-7 py-4 rounded-2xl font-black bg-alteha-gradient text-white flex items-center gap-2 shadow-lg shadow-alteha-violet/30 shrink-0">
                     <Gavel className="w-5 h-5" /> Subastar con Alteha
                 </button>

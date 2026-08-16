@@ -122,6 +122,61 @@ export default function NewAuctionPage() {
     });
 
     const [medicalReport, setMedicalReport] = useState<File | null>(null);
+
+    // Cuando la subasta nace de una auditoría (?fromAudit=ID), el formulario se
+    // precarga con lo que el análisis ya determinó: la intervención como título,
+    // el diagnóstico como antecedentes y —lo más valioso— el presupuesto a partir
+    // del MONTO PROCEDENTE por bloque: honorarios → presupuesto del médico,
+    // quirófano+insumos+medicamentos → presupuesto de la clínica. Así la subasta
+    // arranca del precio que la propia auditoría consideró razonable.
+    const [desdeAuditoria, setDesdeAuditoria] = useState<{ folio: string; procedente: number } | null>(null);
+
+    useEffect(() => {
+        const auditId = new URLSearchParams(window.location.search).get('fromAudit');
+        if (!auditId) return;
+        (async () => {
+            try {
+                const token = getStoredToken();
+                const r = await fetch(`/api/insurance/audits/${auditId}`, {
+                    headers: { 'X-Alteha-Token': token || '' },
+                }).then((x) => x.json());
+                if (r?.code !== '00' || !r?.data?.resultJson) return;
+                const audit = r.data;
+                const res = JSON.parse(audit.resultJson);
+                const exp = res.expediente || {};
+                const bloques: any[] = res.fase3?.bloques || [];
+
+                const totalProcedente = bloques.reduce((s, b) => s + (Number(b.montoProcedente) || 0), 0);
+                const honorarios = bloques
+                    .filter((b) => /honorario/i.test(b.bloque || ''))
+                    .reduce((s, b) => s + (Number(b.montoProcedente) || 0), 0);
+                const resto = totalProcedente - honorarios;
+
+                setFormData((prev) => ({
+                    ...prev,
+                    title: exp.procedimientoResumen || prev.title,
+                    description:
+                        `Intervención auditada con Alteha (folio ${audit.auditNumber}). ` +
+                        (exp.diagnosticoTexto ? `Diagnóstico: ${exp.diagnosticoTexto}. ` : '') +
+                        'El presupuesto parte del monto procedente determinado por la auditoría.',
+                    medicalHistory:
+                        [
+                            exp.diagnosticoCIE || exp.diagnosticoTexto
+                                ? `Diagnóstico${exp.diagnosticoCIE ? ` (${exp.diagnosticoCIE})` : ''}: ${exp.diagnosticoTexto || ''}`
+                                : null,
+                            res.conclusionEjecutiva ? `Resumen de la auditoría: ${res.conclusionEjecutiva}` : null,
+                        ]
+                            .filter(Boolean)
+                            .join('\n\n') || prev.medicalHistory,
+                    doctorBudget: honorarios > 0 ? Math.round(honorarios * 100) / 100 : prev.doctorBudget,
+                    clinicBudget: resto > 0 ? Math.round(resto * 100) / 100 : prev.clinicBudget,
+                }));
+                setDesdeAuditoria({ folio: audit.auditNumber, procedente: totalProcedente });
+            } catch {
+                // La precarga es una comodidad: si falla, el formulario queda como siempre.
+            }
+        })();
+    }, []);
     const [analyzingReport, setAnalyzingReport] = useState(false);
     const [analyzeError, setAnalyzeError] = useState<string>('');
     const [exclusionCounts, setExclusionCounts] = useState<Record<string, number>>({ DOCTOR: 0, CLINIC: 0, PHARMACY: 0 });
@@ -539,6 +594,22 @@ export default function NewAuctionPage() {
                 <ChevronLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
                 Volver a Subastas
             </Link>
+
+            {desdeAuditoria && (
+                <div className="mb-6 bg-alteha-turquoise/5 border-2 border-alteha-turquoise/30 rounded-3xl p-5 flex items-start gap-3">
+                    <Sparkles className="w-5 h-5 text-alteha-turquoise shrink-0 mt-0.5" />
+                    <div>
+                        <p className="font-black text-sm text-slate-700">
+                            Datos precargados desde la auditoría {desdeAuditoria.folio}
+                        </p>
+                        <p className="text-xs font-semibold text-slate-500 mt-0.5">
+                            El título, los antecedentes y el presupuesto (${desdeAuditoria.procedente.toLocaleString('es-VE', { minimumFractionDigits: 2 })}, el
+                            monto procedente que determinó la auditoría) ya vienen llenos. Revisa, ajusta lo que quieras y selecciona
+                            el paciente y la intervención del catálogo para publicar.
+                        </p>
+                    </div>
+                </div>
+            )}
 
             <div className="bg-white rounded-[3rem] shadow-2xl shadow-slate-200 overflow-hidden border border-slate-100">
                 <div className="bg-slate-900 p-10 text-white flex flex-col md:flex-row justify-between items-center gap-6">
