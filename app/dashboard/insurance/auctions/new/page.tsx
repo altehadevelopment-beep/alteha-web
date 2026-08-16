@@ -42,6 +42,7 @@ import {
     getClinics,
     getDoctors,
     searchPatient,
+    registerPatient,
     type Specialty,
     type AuctionPayload,
     type Patient,
@@ -123,73 +124,179 @@ export default function NewAuctionPage() {
 
     const [medicalReport, setMedicalReport] = useState<File | null>(null);
 
-    // Cuando la subasta nace de una auditoría (?fromAudit=ID), el formulario se
-    // precarga con lo que el análisis ya determinó: la intervención como título,
-    // el diagnóstico como antecedentes y —lo más valioso— el presupuesto a partir
-    // del MONTO PROCEDENTE por bloque: honorarios → presupuesto del médico,
-    // quirófano+insumos+medicamentos → presupuesto de la clínica. Así la subasta
-    // arranca del precio que la propia auditoría consideró razonable.
+    // ══════════ Asistente de precarga desde una auditoría (?fromAudit=ID) ══════════
+    // No solo llena campos: ejecuta el paso 1 completo mostrando en pantalla lo
+    // que va haciendo — busca al paciente por la cédula del expediente (y lo crea
+    // si no existe), adjunta el informe médico ya archivado y selecciona la
+    // intervención del catálogo. El presupuesto parte del MONTO PROCEDENTE de la
+    // auditoría: la subasta arranca del precio que el análisis consideró justo.
+    type PasoAsistente = { label: string; estado: 'haciendo' | 'ok' | 'aviso' | 'error'; detalle?: string };
     const [desdeAuditoria, setDesdeAuditoria] = useState<{ folio: string; procedente: number } | null>(null);
+    const [pasosAsistente, setPasosAsistente] = useState<PasoAsistente[]>([]);
+
+    const pasoAsistente = (label: string) =>
+        setPasosAsistente((p) => [...p, { label, estado: 'haciendo' }]);
+    const cerrarPaso = (estado: PasoAsistente['estado'], detalle?: string) =>
+        setPasosAsistente((p) => p.map((x, i) => (i === p.length - 1 ? { ...x, estado, detalle } : x)));
+
+    const normalizar = (s: string) =>
+        (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, ' ');
 
     useEffect(() => {
         const auditId = new URLSearchParams(window.location.search).get('fromAudit');
         if (!auditId) return;
         (async () => {
+            // ── 1. Leer la auditoría ──
+            pasoAsistente('Leyendo la auditoría');
+            let audit: any, res: any;
             try {
                 const token = getStoredToken();
                 const r = await fetch(`/api/insurance/audits/${auditId}`, {
                     headers: { 'X-Alteha-Token': token || '' },
                 }).then((x) => x.json());
-                if (r?.code !== '00' || !r?.data?.resultJson) return;
-                const audit = r.data;
-                const res = JSON.parse(audit.resultJson);
-                const exp = res.expediente || {};
-                const bloques: any[] = res.fase3?.bloques || [];
+                if (r?.code !== '00' || !r?.data?.resultJson) throw new Error(r?.message || 'sin resultado');
+                audit = r.data;
+                res = JSON.parse(audit.resultJson);
+                cerrarPaso('ok', `Expediente ${audit.auditNumber}`);
+            } catch (e: any) {
+                cerrarPaso('error', 'No se pudo leer la auditoría: el formulario queda en blanco.');
+                return;
+            }
 
-                const sumaBloques = bloques.reduce((s, b) => s + (Number(b.montoProcedente) || 0), 0);
-                const totalProcedente =
-                    Number(res.fase3?.totalProcedente) || Number(audit.totalReference) || sumaBloques;
+            const exp = res.expediente || {};
+            const bloques: any[] = res.fase3?.bloques || [];
 
-                let honorarios = bloques
+            // ── 2. Datos y presupuesto ──
+            pasoAsistente('Cargando datos y presupuesto de la subasta');
+            const sumaBloques = bloques.reduce((s, b) => s + (Number(b.montoProcedente) || 0), 0);
+            const totalProcedente = Number(res.fase3?.totalProcedente) || Number(audit.totalReference) || sumaBloques;
+            let honorarios = bloques
+                .filter((b) => /honorario/i.test(b.bloque || ''))
+                .reduce((s, b) => s + (Number(b.montoProcedente) || 0), 0);
+            let resto = sumaBloques - honorarios;
+            // Paquete cerrado (A-1): los bloques traen 0 y el monto vive en el total;
+            // se reparte en proporción a lo facturado. Precarga editable, no liquidación.
+            if (sumaBloques <= 0 && totalProcedente > 0) {
+                const factHon = bloques
                     .filter((b) => /honorario/i.test(b.bloque || ''))
-                    .reduce((s, b) => s + (Number(b.montoProcedente) || 0), 0);
-                let resto = sumaBloques - honorarios;
+                    .reduce((s, b) => s + (Number(b.montoFacturado) || 0), 0);
+                const factTotal = bloques.reduce((s, b) => s + (Number(b.montoFacturado) || 0), 0);
+                honorarios = factTotal > 0 ? (totalProcedente * factHon) / factTotal : totalProcedente;
+                resto = totalProcedente - honorarios;
+            }
+            setFormData((prev) => ({
+                ...prev,
+                title: exp.procedimientoResumen || prev.title,
+                description:
+                    `Intervención auditada con Alteha (folio ${audit.auditNumber}). ` +
+                    (exp.diagnosticoTexto ? `Diagnóstico: ${exp.diagnosticoTexto}. ` : '') +
+                    'El presupuesto parte del monto procedente determinado por la auditoría.',
+                medicalHistory:
+                    [
+                        exp.diagnosticoCIE || exp.diagnosticoTexto
+                            ? `Diagnóstico${exp.diagnosticoCIE ? ` (${exp.diagnosticoCIE})` : ''}: ${exp.diagnosticoTexto || ''}`
+                            : null,
+                        res.conclusionEjecutiva ? `Resumen de la auditoría: ${res.conclusionEjecutiva}` : null,
+                    ]
+                        .filter(Boolean)
+                        .join('\n\n') || prev.medicalHistory,
+                ...(exp.edadPaciente ? { patientAge: Number(exp.edadPaciente) } : {}),
+                ...(exp.sexoPaciente ? { patientGender: exp.sexoPaciente } : {}),
+                doctorBudget: honorarios > 0 ? Math.round(honorarios * 100) / 100 : prev.doctorBudget,
+                clinicBudget: resto > 0 ? Math.round(resto * 100) / 100 : prev.clinicBudget,
+            }));
+            setDesdeAuditoria({ folio: audit.auditNumber, procedente: totalProcedente });
+            cerrarPaso('ok', `Presupuesto según el monto procedente: $${totalProcedente.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`);
 
-                // Con paquete cerrado (ancla A-1) los bloques traen procedente 0 y el
-                // monto vive en totalProcedente: se reparte entre médico y clínica en
-                // proporción a lo facturado por bloque. Es una precarga editable, no
-                // una liquidación.
-                if (sumaBloques <= 0 && totalProcedente > 0) {
-                    const factHonorarios = bloques
-                        .filter((b) => /honorario/i.test(b.bloque || ''))
-                        .reduce((s, b) => s + (Number(b.montoFacturado) || 0), 0);
-                    const factTotal = bloques.reduce((s, b) => s + (Number(b.montoFacturado) || 0), 0);
-                    honorarios = factTotal > 0 ? (totalProcedente * factHonorarios) / factTotal : totalProcedente;
-                    resto = totalProcedente - honorarios;
+            // ── 3. Paciente: buscar por cédula; si no existe, crearlo ──
+            const cedula = String(exp.cedulaPaciente || '').replace(/\D/g, '');
+            pasoAsistente('Verificando al paciente');
+            if (!cedula) {
+                cerrarPaso('aviso', 'La auditoría no trae la cédula del paciente: escríbela abajo para buscarlo.');
+            } else {
+                try {
+                    const b = await searchPatient('CEDULA', cedula);
+                    const encontrado = b?.code === '00' && b?.data ? (Array.isArray(b.data) ? b.data[0] : b.data) : null;
+                    if (encontrado) {
+                        handleSelectPatient(encontrado as Patient);
+                        cerrarPaso('ok', `El paciente ya existe: ${(encontrado as any).firstName || ''} ${(encontrado as any).lastName || ''} (V-${cedula}) quedó seleccionado.`);
+                    } else {
+                        cerrarPaso('ok', `No existe paciente con la cédula ${cedula}: creándolo…`);
+                        pasoAsistente('Creando al paciente con los datos del expediente');
+                        const partes = String(exp.paciente || 'Paciente Alteha').trim().split(/\s+/);
+                        const mitad = Math.ceil(partes.length / 2);
+                        const edad = Number(exp.edadPaciente) || 35;
+                        const nacimiento = new Date();
+                        nacimiento.setFullYear(nacimiento.getFullYear() - edad);
+                        const alta = await registerPatient({
+                            email: `paciente.${cedula}@registro.alteha.com`,
+                            phone: '04120000000',
+                            firstName: partes.slice(0, mitad).join(' '),
+                            lastName: partes.slice(mitad).join(' ') || 'Sin apellido',
+                            identificationType: 'CEDULA',
+                            identificationNumber: cedula,
+                            gender: (exp.sexoPaciente === 'MASCULINO' ? 'MASCULINO' : 'FEMENINO'),
+                            dateOfBirth: nacimiento.toISOString().split('T')[0],
+                            address: 'Por completar — creado desde auditoría',
+                            latitude: 10.4806,
+                            longitude: -66.9036,
+                        });
+                        if (alta?.code === '00' && alta?.data) {
+                            handleSelectPatient(alta.data as Patient);
+                            cerrarPaso('ok', `Paciente creado y seleccionado (V-${cedula}). Completa su teléfono y dirección cuando puedas.`);
+                        } else {
+                            cerrarPaso('aviso', alta?.message || 'No se pudo crear automáticamente: regístralo con el botón Crear Paciente.');
+                        }
+                    }
+                } catch {
+                    cerrarPaso('aviso', 'La búsqueda del paciente falló: intenta con la cédula manualmente.');
                 }
+            }
 
-                setFormData((prev) => ({
-                    ...prev,
-                    title: exp.procedimientoResumen || prev.title,
-                    description:
-                        `Intervención auditada con Alteha (folio ${audit.auditNumber}). ` +
-                        (exp.diagnosticoTexto ? `Diagnóstico: ${exp.diagnosticoTexto}. ` : '') +
-                        'El presupuesto parte del monto procedente determinado por la auditoría.',
-                    medicalHistory:
-                        [
-                            exp.diagnosticoCIE || exp.diagnosticoTexto
-                                ? `Diagnóstico${exp.diagnosticoCIE ? ` (${exp.diagnosticoCIE})` : ''}: ${exp.diagnosticoTexto || ''}`
-                                : null,
-                            res.conclusionEjecutiva ? `Resumen de la auditoría: ${res.conclusionEjecutiva}` : null,
-                        ]
-                            .filter(Boolean)
-                            .join('\n\n') || prev.medicalHistory,
-                    doctorBudget: honorarios > 0 ? Math.round(honorarios * 100) / 100 : prev.doctorBudget,
-                    clinicBudget: resto > 0 ? Math.round(resto * 100) / 100 : prev.clinicBudget,
-                }));
-                setDesdeAuditoria({ folio: audit.auditNumber, procedente: totalProcedente });
+            // ── 4. Informe médico: adjuntar el ya archivado en el expediente ──
+            pasoAsistente('Adjuntando el informe médico del expediente');
+            try {
+                const token = getStoredToken();
+                const rf = await fetch(`/api/insurance/audits/${auditId}/report-file`, {
+                    headers: { 'X-Alteha-Token': token || '' },
+                });
+                if (!rf.ok) throw new Error(String(rf.status));
+                const blob = await rf.blob();
+                const nombre = `informe-${audit.auditNumber}.pdf`;
+                setMedicalReport(new File([blob], nombre, { type: blob.type || 'application/pdf' }));
+                cerrarPaso('ok', 'El informe de la auditoría quedó adjunto: no hace falta volver a subirlo.');
             } catch {
-                // La precarga es una comodidad: si falla, el formulario queda como siempre.
+                cerrarPaso('aviso', 'No se pudo recuperar el informe archivado: adjúntalo manualmente.');
+            }
+
+            // ── 5. Intervención: buscar la mejor coincidencia del catálogo ──
+            pasoAsistente('Buscando la intervención en el catálogo');
+            try {
+                const tipos = await getProcedureTypes(0, 2000);
+                const objetivo = normalizar(exp.procedimientoResumen || '');
+                const tokens = objetivo.split(/\s+/).filter((t) => t.length > 4);
+                let mejor: ProcedureType | null = null;
+                let mejorScore = 0;
+                for (const t of Array.isArray(tipos) ? tipos : []) {
+                    const nombre = normalizar(t.name || '');
+                    const score = tokens.filter((tok) => nombre.includes(tok)).length / Math.max(tokens.length, 1);
+                    if (score > mejorScore) { mejorScore = score; mejor = t; }
+                }
+                if (mejor && mejorScore >= 0.5) {
+                    setSelectedProcedureTypeId(mejor.id);
+                    setSearchProcedure(mejor.name);
+                    const espId = mejor.specialty?.id || mejor.specialtyId;
+                    setFormData((prev) => ({
+                        ...prev,
+                        procedureType: { id: Number(mejor!.id) },
+                        ...(espId ? { specialty: { id: Number(espId) } } : {}),
+                    }));
+                    cerrarPaso('ok', `Intervención seleccionada del catálogo: ${mejor.name}.`);
+                } else {
+                    cerrarPaso('aviso', 'No encontré una coincidencia clara en el catálogo: selecciónala abajo.');
+                }
+            } catch {
+                cerrarPaso('aviso', 'No se pudo consultar el catálogo: selecciona la intervención manualmente.');
             }
         })();
     }, []);
@@ -611,18 +718,28 @@ export default function NewAuctionPage() {
                 Volver a Subastas
             </Link>
 
-            {desdeAuditoria && (
-                <div className="mb-6 bg-alteha-turquoise/5 border-2 border-alteha-turquoise/30 rounded-3xl p-5 flex items-start gap-3">
-                    <Sparkles className="w-5 h-5 text-alteha-turquoise shrink-0 mt-0.5" />
-                    <div>
-                        <p className="font-black text-sm text-slate-700">
-                            Datos precargados desde la auditoría {desdeAuditoria.folio}
-                        </p>
-                        <p className="text-xs font-semibold text-slate-500 mt-0.5">
-                            El título, los antecedentes y el presupuesto (${desdeAuditoria.procedente.toLocaleString('es-VE', { minimumFractionDigits: 2 })}, el
-                            monto procedente que determinó la auditoría) ya vienen llenos. Revisa, ajusta lo que quieras y selecciona
-                            el paciente y la intervención del catálogo para publicar.
-                        </p>
+            {pasosAsistente.length > 0 && (
+                <div className="mb-6 bg-white border-2 border-alteha-turquoise/30 rounded-3xl p-5">
+                    <p className="font-black text-sm text-slate-700 flex items-center gap-2">
+                        <Sparkles className="w-5 h-5 text-alteha-turquoise" />
+                        Alteha está preparando la subasta{desdeAuditoria ? ` desde la auditoría ${desdeAuditoria.folio}` : ''}
+                    </p>
+                    <div className="mt-3 space-y-2">
+                        {pasosAsistente.map((p, i) => (
+                            <div key={i} className="flex items-start gap-2.5">
+                                {p.estado === 'haciendo' ? (
+                                    <Loader2 className="w-4 h-4 text-alteha-violet animate-spin shrink-0 mt-0.5" />
+                                ) : p.estado === 'ok' ? (
+                                    <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                                ) : (
+                                    <AlertCircle className={`w-4 h-4 shrink-0 mt-0.5 ${p.estado === 'error' ? 'text-red-400' : 'text-amber-500'}`} />
+                                )}
+                                <div>
+                                    <p className="text-xs font-black text-slate-600">{p.label}</p>
+                                    {p.detalle && <p className="text-[11px] font-semibold text-slate-400">{p.detalle}</p>}
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 </div>
             )}
