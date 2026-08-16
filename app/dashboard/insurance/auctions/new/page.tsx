@@ -146,11 +146,27 @@ export default function NewAuctionPage() {
                 const exp = res.expediente || {};
                 const bloques: any[] = res.fase3?.bloques || [];
 
-                const totalProcedente = bloques.reduce((s, b) => s + (Number(b.montoProcedente) || 0), 0);
-                const honorarios = bloques
+                const sumaBloques = bloques.reduce((s, b) => s + (Number(b.montoProcedente) || 0), 0);
+                const totalProcedente =
+                    Number(res.fase3?.totalProcedente) || Number(audit.totalReference) || sumaBloques;
+
+                let honorarios = bloques
                     .filter((b) => /honorario/i.test(b.bloque || ''))
                     .reduce((s, b) => s + (Number(b.montoProcedente) || 0), 0);
-                const resto = totalProcedente - honorarios;
+                let resto = sumaBloques - honorarios;
+
+                // Con paquete cerrado (ancla A-1) los bloques traen procedente 0 y el
+                // monto vive en totalProcedente: se reparte entre médico y clínica en
+                // proporción a lo facturado por bloque. Es una precarga editable, no
+                // una liquidación.
+                if (sumaBloques <= 0 && totalProcedente > 0) {
+                    const factHonorarios = bloques
+                        .filter((b) => /honorario/i.test(b.bloque || ''))
+                        .reduce((s, b) => s + (Number(b.montoFacturado) || 0), 0);
+                    const factTotal = bloques.reduce((s, b) => s + (Number(b.montoFacturado) || 0), 0);
+                    honorarios = factTotal > 0 ? (totalProcedente * factHonorarios) / factTotal : totalProcedente;
+                    resto = totalProcedente - honorarios;
+                }
 
                 setFormData((prev) => ({
                     ...prev,
