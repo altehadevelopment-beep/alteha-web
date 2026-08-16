@@ -209,7 +209,41 @@ export default function NewAuctionPage() {
             cerrarPaso('ok', `Presupuesto según el monto procedente: $${totalProcedente.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`);
 
             // ── 3. Paciente: buscar por cédula; si no existe, crearlo ──
-            const cedula = String(exp.cedulaPaciente || '').replace(/\D/g, '');
+            let cedula = String(exp.cedulaPaciente || '').replace(/\D/g, '');
+            let nombreExp = String(exp.paciente || '');
+            let edadExp = Number(exp.edadPaciente) || 0;
+            let sexoExp = String(exp.sexoPaciente || '');
+            // Las auditorías anteriores al campo cedulaPaciente no lo traen en el
+            // resultado, pero el dato vive en el informe archivado: se le pide al
+            // backend que lo extraiga (y lo deja persistido para la próxima vez).
+            if (!cedula) {
+                pasoAsistente('Extrayendo la cédula del informe archivado');
+                try {
+                    const token = getStoredToken();
+                    const px = await fetch(`/api/insurance/audits/${auditId}/patient-data`, {
+                        method: 'POST',
+                        headers: { 'X-Alteha-Token': token || '' },
+                    }).then((x) => x.json());
+                    if (px?.code === '00' && px?.data?.cedulaPaciente) {
+                        cedula = String(px.data.cedulaPaciente).replace(/\D/g, '');
+                        nombreExp = px.data.paciente || nombreExp;
+                        edadExp = Number(px.data.edadPaciente) || edadExp;
+                        sexoExp = px.data.sexoPaciente || sexoExp;
+                        if (edadExp || sexoExp) {
+                            setFormData((prev) => ({
+                                ...prev,
+                                ...(edadExp ? { patientAge: edadExp } : {}),
+                                ...(sexoExp ? { patientGender: sexoExp } : {}),
+                            }));
+                        }
+                        cerrarPaso('ok', `Cédula encontrada en el informe: V-${cedula}.`);
+                    } else {
+                        cerrarPaso('aviso', px?.message || 'El informe archivado no menciona la cédula.');
+                    }
+                } catch {
+                    cerrarPaso('aviso', 'No se pudo leer el informe archivado.');
+                }
+            }
             pasoAsistente('Verificando al paciente');
             if (!cedula) {
                 cerrarPaso('aviso', 'La auditoría no trae la cédula del paciente: escríbela abajo para buscarlo.');
@@ -223,9 +257,9 @@ export default function NewAuctionPage() {
                     } else {
                         cerrarPaso('ok', `No existe paciente con la cédula ${cedula}: creándolo…`);
                         pasoAsistente('Creando al paciente con los datos del expediente');
-                        const partes = String(exp.paciente || 'Paciente Alteha').trim().split(/\s+/);
+                        const partes = String(nombreExp || 'Paciente Alteha').trim().split(/\s+/);
                         const mitad = Math.ceil(partes.length / 2);
-                        const edad = Number(exp.edadPaciente) || 35;
+                        const edad = edadExp || 35;
                         const nacimiento = new Date();
                         nacimiento.setFullYear(nacimiento.getFullYear() - edad);
                         const alta = await registerPatient({
@@ -235,7 +269,7 @@ export default function NewAuctionPage() {
                             lastName: partes.slice(mitad).join(' ') || 'Sin apellido',
                             identificationType: 'CEDULA',
                             identificationNumber: cedula,
-                            gender: (exp.sexoPaciente === 'MASCULINO' ? 'MASCULINO' : 'FEMENINO'),
+                            gender: (sexoExp === 'MASCULINO' ? 'MASCULINO' : 'FEMENINO'),
                             dateOfBirth: nacimiento.toISOString().split('T')[0],
                             address: 'Por completar — creado desde auditoría',
                             latitude: 10.4806,
