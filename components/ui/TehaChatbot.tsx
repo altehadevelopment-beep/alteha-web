@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageCircle, X, Send, Mic, MicOff, Volume2, VolumeX, Sparkles, Loader2, Headset } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -17,6 +18,10 @@ interface Message {
 
 export function TehaChatbot() {
     const { userProfile } = useAuth();
+    // Teha tiene ruta propia (/teha) para enlazarla desde la landing: al entrar
+    // por ahí la conversación se abre sola, sin que haya que buscar el botón.
+    const pathname = usePathname();
+    const enRutaPropia = pathname === '/teha';
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
@@ -92,6 +97,15 @@ export function TehaChatbot() {
         const roomId = `alteha-support-${Math.random().toString(36).substring(2, 10)}`;
         window.open(`/meet/${roomId}`, '_blank');
     };
+
+    // Su ruta propia abre la conversación al entrar; el botón de la página
+    // vuelve a abrirla si el visitante la cerró.
+    useEffect(() => {
+        if (enRutaPropia) setIsOpen(true);
+        const abrir = () => setIsOpen(true);
+        window.addEventListener('teha:open', abrir);
+        return () => window.removeEventListener('teha:open', abrir);
+    }, [enRutaPropia]);
 
     // Handle opening/closing
     useEffect(() => {

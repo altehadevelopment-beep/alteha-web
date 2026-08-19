@@ -210,6 +210,21 @@ export default function Home() {
               </motion.div>
             ))}
           </div>
+
+          {/* Teha tiene ruta propia: se enlaza desde aquí para quien llega sin saber por dónde empezar. */}
+          <div className="mt-12 flex justify-center">
+            <Link
+              href="/teha"
+              className="group inline-flex items-center gap-3 px-6 py-3 rounded-full bg-white/70 backdrop-blur-md border border-white/80 shadow-xl shadow-slate-200/50 hover:shadow-alteha-turquoise/20 transition-all"
+            >
+              <span className="w-9 h-9 rounded-full overflow-hidden border-2 border-alteha-turquoise/40 bg-slate-100 flex-shrink-0">
+                <img src="/tita-avatar.png" alt="Teha" className="w-full h-full object-cover object-top scale-110" />
+              </span>
+              <span className="text-sm font-bold text-slate-700 group-hover:text-slate-900 transition-colors">
+                ¿Tienes dudas? Habla con <span className="text-alteha-turquoise">Teha</span>
+              </span>
+            </Link>
+          </div>
         </div>
       </div>
 
@@ -261,6 +276,7 @@ export default function Home() {
             <Link href="/privacy" className="hover:text-alteha-turquoise transition-colors">Privacidad</Link>
             <Link href="/terms" className="hover:text-alteha-violet transition-colors">Términos</Link>
             <Link href="/support" className="hover:text-blue-500 transition-colors">Soporte</Link>
+            <Link href="/teha" className="hover:text-alteha-turquoise transition-colors">Habla con Teha</Link>
           </div>
         </div>
       </footer>
