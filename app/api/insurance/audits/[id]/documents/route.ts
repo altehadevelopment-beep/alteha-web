@@ -12,6 +12,9 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     try {
         const userToken = request.headers.get('X-Alteha-Token');
         const adminToken = await getAppToken();
+        // El multipart se rearma aquí: reenviar request.body en streaming
+        // (duplex: 'half') no funciona en esta versión de Next y la petición al
+        // backend muere con "fetch failed".
         const formData = await request.formData();
         const response = await fetch(`${API_BASE}/insurance/audits/${params.id}/documents`, {
             method: 'POST',
@@ -25,6 +28,6 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         const data = await response.json().catch(() => ({}));
         return NextResponse.json(data, { status: response.status });
     } catch (error: any) {
-        return NextResponse.json({ code: 'ERROR', message: `Error de conexión: ${error.message}` }, { status: 500 });
+        return NextResponse.json({ code: 'ERROR', message: `Error de conexión: ${error.message}${error?.cause?.message ? ' — ' + error.cause.message : ''}` }, { status: 500 });
     }
 }
