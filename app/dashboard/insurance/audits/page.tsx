@@ -328,7 +328,7 @@ export default function AuditsPage() {
                                 <div className="w-11 h-11 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center"><UploadCloud className="w-5 h-5" /></div>
                                 <div className="text-left">
                                     <p className="font-black text-sm">Seleccionar archivos</p>
-                                    <p className="text-[11px] text-slate-400 font-semibold">PDF o imagen · hasta 25 MB cada uno</p>
+                                    <p className="text-[11px] text-slate-400 font-semibold">PDF o imagen · hasta 60 MB cada uno</p>
                                 </div>
                             </button>
 
