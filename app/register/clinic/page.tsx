@@ -251,6 +251,7 @@ export default function ClinicRegistrationPage() {
 
     const loadSpecialties = async () => {
         try {
+            const data = await getSpecialties(0, 200);
             const list = Array.isArray(data) ? data : (data as any).content || [];
             const sortedList = list
                 .filter((s: Specialty) => s.isActive)
@@ -263,6 +264,7 @@ export default function ClinicRegistrationPage() {
 
     const loadServices = async () => {
         try {
+            const data = await getServices(0, 200);
             const list = Array.isArray(data) ? data : (data as any).content || [];
             const sortedList = list.sort((a: Service, b: Service) => a.name.localeCompare(b.name));
             setServices(sortedList);
