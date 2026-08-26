@@ -9,7 +9,7 @@ import { useParams, useRouter } from 'next/navigation';
 import {
     ArrowLeft, Loader2, FileText, ShieldAlert, ShieldCheck, Shield, ExternalLink,
     BadgeCheck, AlertTriangle, ListChecks, BrainCircuit, FileBarChart, FileSpreadsheet,
-    Stethoscope, Coins, Handshake, RefreshCw, Plus, X, UploadCloud, Gavel,
+    Stethoscope, Coins, Handshake, RefreshCw, Plus, X, UploadCloud, Gavel, Globe2,
 } from 'lucide-react';
 import { getStoredToken } from '@/lib/api';
 import { informeEjecutivo, informeTecnico, CANALES, ESCALA_RECHAZO, confianza } from '@/lib/auditPdf';
@@ -514,6 +514,50 @@ export default function AuditDetailPage() {
                                 </ul>
                             </div>
                         ))}
+                    </div>
+                </Card>
+            )}
+
+            {/* ══ Comparativa internacional de costos ══ */}
+            {!!(r.comparativaInternacional?.paises || []).length && (
+                <Card title="Costo comparado en Latinoamérica" icon={Globe2}>
+                    <div className="px-6 pb-5 space-y-3">
+                        {r.comparativaInternacional.sintesis && (
+                            <p className="text-sm font-semibold text-slate-600 bg-slate-50 rounded-2xl p-4">{r.comparativaInternacional.sintesis}</p>
+                        )}
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead>
+                                    <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                        <th className="text-left py-2">País</th>
+                                        <th className="text-right py-2">Estimado (USD)</th>
+                                        <th className="text-left py-2 pl-4">Nota</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {r.comparativaInternacional.montoLocalUSD != null && (
+                                        <tr className="border-t border-slate-100 bg-alteha-turquoise/5">
+                                            <td className="py-2 font-black text-slate-700">🇻🇪 Venezuela · este caso</td>
+                                            <td className="py-2 text-right font-black text-alteha-turquoise">${Number(r.comparativaInternacional.montoLocalUSD).toLocaleString('es-VE')}</td>
+                                            <td className="py-2 pl-4 text-slate-400 text-xs">Total facturado del expediente</td>
+                                        </tr>
+                                    )}
+                                    {r.comparativaInternacional.paises.map((c: any, i: number) => (
+                                        <tr key={i} className="border-t border-slate-100">
+                                            <td className="py-2 font-bold text-slate-700">{c.pais}</td>
+                                            <td className="py-2 text-right font-semibold text-slate-600 whitespace-nowrap">
+                                                ${Number(c.estimadoMinUSD).toLocaleString('es-VE')} – ${Number(c.estimadoMaxUSD).toLocaleString('es-VE')}
+                                            </td>
+                                            <td className="py-2 pl-4 text-slate-500 text-xs">{c.nota}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                        <p className="text-[10px] text-slate-400 font-semibold border-t border-slate-100 pt-3">
+                            Estimaciones referenciales de tarifas de mercado privado en cada país, generadas por el motor de auditoría a partir de su
+                            conocimiento del mercado. No son cotizaciones vigentes ni tarifas oficiales; úsalas como contexto de negociación.
+                        </p>
                     </div>
                 </Card>
             )}

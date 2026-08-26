@@ -812,6 +812,34 @@ export async function informeTecnico(audit: any, r: any) {
         );
     }
 
+    const comp = r.comparativaInternacional || {};
+    if (Array.isArray(comp.paises) && comp.paises.length) {
+        c.seccion('Costo comparado en Latinoamérica', 'Estimaciones referenciales de mercado privado. Contexto para la mesa, no cotizaciones vigentes.');
+        if (comp.sintesis) c.nota(comp.sintesis);
+        const filas: any[] = [];
+        if (comp.montoLocalUSD != null) {
+            filas.push(['Venezuela · este caso', `$${Number(comp.montoLocalUSD).toLocaleString('es-VE')}`, 'Total facturado del expediente']);
+        }
+        comp.paises.forEach((x: any) => {
+            filas.push([
+                String(x.pais || ''),
+                `$${Number(x.estimadoMinUSD).toLocaleString('es-VE')} - $${Number(x.estimadoMaxUSD).toLocaleString('es-VE')}`,
+                String(x.nota || ''),
+            ]);
+        });
+        c.tabla({
+            head: [['País', 'Estimado (USD)', 'Nota']],
+            body: filas,
+            columnStyles: { 1: { halign: 'right' } },
+        });
+        c.nota(
+            'Cifras generadas por el motor de auditoría a partir de su conocimiento de tarifas de mercado privado en cada país. ' +
+                'No constituyen tarifas oficiales ni cotizaciones vigentes; su valor es de referencia para la negociación.',
+            [148, 163, 184],
+            [248, 250, 252],
+        );
+    }
+
     if (Array.isArray(r.requerimientosPrevios) && r.requerimientosPrevios.length) {
         c.seccion('Requerimientos previos (G-9)', 'Suspenden el plazo de respuesta hasta su consignación. No se convierten en rechazo.');
         c.vinetas(r.requerimientosPrevios);
