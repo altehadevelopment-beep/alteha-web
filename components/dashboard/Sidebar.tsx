@@ -41,6 +41,7 @@ const specialistItems = [
     { title: 'Dashboard', icon: LayoutDashboard, href: '/dashboard/specialist' },
     { title: 'Subastas', icon: Gavel, href: '/dashboard/specialist/auctions' },
     { title: 'Invitaciones', icon: Bell, href: '/dashboard/specialist/invitations' },
+    { title: 'Subastas de Pacientes', icon: Users, href: '/dashboard/specialist/patient-auctions' },
     { title: 'Paquetes', icon: Package, href: '/dashboard/specialist/packages' },
     { title: 'Histórico de Subastas', icon: History, href: '/dashboard/specialist/history' },
     // ── Dinero: cómo cobra y qué plan tiene ──
@@ -71,6 +72,7 @@ const clinicItems = [
     { title: 'Dashboard', icon: LayoutDashboard, href: '/dashboard/clinic' },
     { title: 'Subastas', icon: Gavel, href: '/dashboard/clinic/auctions' },
     { title: 'Invitaciones', icon: Bell, href: '/dashboard/clinic/invitations' },
+    { title: 'Subastas de Pacientes', icon: Users, href: '/dashboard/clinic/patient-auctions' },
     { title: 'Paquetes', icon: Package, href: '/dashboard/clinic/packages' },
     { section: 'Finanzas' },
     { title: 'Métodos de Cobro', icon: CreditCard, href: '/dashboard/clinic/payments' },
@@ -118,6 +120,7 @@ const approvalItems = [
 const patientItems = [
     { title: 'Inicio', icon: LayoutDashboard, href: '/dashboard/patient' },
     { title: 'Explorar ofertas', icon: Gavel, href: '/dashboard/patient/ofertas' },
+    { title: 'Mis subastas', icon: Plus, href: '/dashboard/patient/subastas' },
     { title: 'Mi perfil', icon: UserCheck, href: '/dashboard/patient/perfil' },
     { title: 'Referir a alguien', icon: Users, href: '/dashboard/patient/referir' },
     { title: 'Seguridad', icon: ShieldBan, href: '/dashboard/patient/seguridad' },
