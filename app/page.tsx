@@ -212,7 +212,13 @@ export default function Home() {
           </div>
 
           {/* Teha tiene ruta propia: se enlaza desde aquí para quien llega sin saber por dónde empezar. */}
-          <div className="mt-12 flex justify-center">
+          <div className="mt-12 flex flex-col sm:flex-row justify-center items-center gap-3">
+            <Link
+              href="/ofertas"
+              className="group inline-flex items-center gap-3 px-6 py-3 rounded-full bg-slate-900 text-white shadow-xl hover:bg-slate-800 transition-all"
+            >
+              <span className="text-sm font-bold">Ver ofertas de médicos y clínicas</span>
+            </Link>
             <Link
               href="/teha"
               className="group inline-flex items-center gap-3 px-6 py-3 rounded-full bg-white/70 backdrop-blur-md border border-white/80 shadow-xl shadow-slate-200/50 hover:shadow-alteha-turquoise/20 transition-all"
