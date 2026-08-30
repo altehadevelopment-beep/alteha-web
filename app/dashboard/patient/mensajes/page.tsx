@@ -1,4 +1,5 @@
 "use client";
+export const dynamic = "force-dynamic";
 
 // Mensajes del paciente: chat en vivo con clínicas y médicos (Sistema B por correo).
 // La conversación se abre desde una oferta (?chat=<id>&otro=<email>...) o desde la lista.

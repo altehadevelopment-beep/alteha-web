@@ -1,9 +1,12 @@
 "use client";
+export const dynamic = "force-dynamic";
 
 // Vitrina pública de ofertas para el cliente final (sin login): paquetes y
 // servicios de médicos y clínicas, y subastas activas del mercado. Con filtros.
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { contactarPrestador } from '@/lib/contactProvider';
 import {
   ArrowLeft, Search, Package, Gavel, Loader2, Stethoscope, Building2, MapPin, Clock, Tag, Sparkles,
 } from 'lucide-react';
