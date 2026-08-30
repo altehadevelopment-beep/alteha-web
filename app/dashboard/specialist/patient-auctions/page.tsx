@@ -3,7 +3,9 @@
 // Subastas de pacientes (canal separado): casos publicados por clientes finales
 // que el médico o la clínica puede revisar.
 import { useEffect, useState } from 'react';
-import { getStoredToken } from '@/lib/api';
+import { useRouter } from 'next/navigation';
+import { getStoredToken, getProfile } from '@/lib/api';
+import { asegurarChat } from '@/lib/chatFirebase';
 import { Users, Loader2, MapPin, Clock, Gavel } from 'lucide-react';
 
 const money = (n: any) => (n == null ? null : `$${Number(n).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`);
@@ -11,6 +13,20 @@ const money = (n: any) => (n == null ? null : `$${Number(n).toLocaleString('es-V
 export default function PatientAuctionsMarket() {
   const [items, setItems] = useState<any[]>([]);
   const [cargando, setCargando] = useState(true);
+  const router = useRouter();
+  const contactarPaciente = async (num: string) => {
+    try {
+      const token = getStoredToken();
+      const r = await fetch(`/api/patient/auctions/${num}/patient-contact`, { headers: { 'X-Alteha-Token': token || '' } }).then((x) => x.json());
+      if (r?.code !== '00' || !r?.data?.email) { alert(r?.message || 'No se pudo contactar al paciente.'); return; }
+      const perfil: any = (await getProfile('DOCTOR'))?.data || {};
+      const yo = { email: perfil.email, nombre: perfil.fullName || perfil.firstName || perfil.email, foto: perfil.profileImageUrl, rol: 'DOCTOR' };
+      if (!yo.email) { alert('No se pudo cargar tu perfil.'); return; }
+      await asegurarChat(yo as any, r.data);
+      const qs = new URLSearchParams({ otro: r.data.email, nombre: r.data.nombre || '', foto: r.data.foto || '', rol: 'PATIENT' });
+      router.push(`/dashboard/mensajes?${qs.toString()}`);
+    } catch { alert('No se pudo contactar al paciente.'); }
+  };
   const [ofertando, setOfertando] = useState<string | null>(null);
   const [monto, setMonto] = useState('');
   const [notas, setNotas] = useState('');
@@ -64,6 +80,8 @@ export default function PatientAuctionsMarket() {
                 <span className="text-xs font-bold text-slate-500">{a.totalBids} oferta{a.totalBids === 1 ? '' : 's'}</span>
                 {a.maxBudget != null && Number(a.maxBudget) > 0 && <span className="text-sm font-black text-slate-700">Ref. {money(a.maxBudget)}</span>}
               </div>
+              <button onClick={() => contactarPaciente(a.auctionNumber)}
+                className="w-full mt-3 bg-alteha-turquoise/10 text-alteha-turquoise py-2 rounded-xl font-black text-xs uppercase tracking-widest">Contactar al paciente</button>
               {ofertando === a.auctionNumber ? (
                 <div className="mt-3 space-y-2">
                   {msg && <p className="text-xs font-semibold text-red-500">{msg}</p>}

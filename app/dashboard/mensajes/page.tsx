@@ -1,8 +1,10 @@
 "use client";
+export const dynamic = "force-dynamic";
 
 // Mensajes: chat en tiempo real entre médicos, clínicas, seguros y casas de
 // salud (Firebase Firestore — misma conversación que la app móvil).
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { getStoredToken } from '@/lib/api';
 import {
     escucharChats, escucharMensajes, asegurarChat, enviarMensaje, chatIdDe,
@@ -45,6 +47,7 @@ export default function MensajesPage() {
     const [busca, setBusca] = useState('');
     const [nuevo, setNuevo] = useState(false);
     const finRef = useRef<HTMLDivElement>(null);
+    const params = useSearchParams();
 
     // Identidad + directorio del backend; conversaciones en vivo desde Firebase.
     useEffect(() => {
@@ -60,6 +63,16 @@ export default function MensajesPage() {
         })();
         return () => { if (salir) salir(); };
     }, []);
+
+    // Abrir una conversación indicada por la URL (?otro=<email>&nombre=&foto=&rol=),
+    // p. ej. al pulsar "Contactar al paciente" desde una subasta.
+    useEffect(() => {
+        if (!me?.email) return;
+        const email = params.get('otro');
+        if (!email) return;
+        const otro: ActorChat = { email, nombre: params.get('nombre') || email, foto: params.get('foto') || undefined, rol: params.get('rol') || '' };
+        setSel({ id: chatIdDe(me.email, email), otro });
+    }, [me?.email, params]);
 
     // Mensajes de la conversación seleccionada, en vivo.
     useEffect(() => {

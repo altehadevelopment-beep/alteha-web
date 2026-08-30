@@ -52,6 +52,7 @@ const specialistItems = [
     // ── Relación con la red ──
     { section: 'Gestión' },
     { title: 'Conversaciones', icon: MessageSquare, href: '/dashboard/specialist/conversations' },
+    { title: 'Mensajes con pacientes', icon: MessageSquare, href: '/dashboard/mensajes' },
     { title: 'Disputas', icon: AlertCircle, href: '/dashboard/specialist/disputes' },
     { title: 'Referir Colega', icon: Users, href: '/dashboard/specialist/referrals' },
     // ── Herramientas de apoyo ──
@@ -80,6 +81,7 @@ const clinicItems = [
     { title: 'Mi Plan', icon: Crown, href: '/dashboard/clinic/plan' },
     { section: 'Gestión' },
     { title: 'Conversaciones', icon: MessageSquare, href: '/dashboard/clinic/conversations' },
+    { title: 'Mensajes con pacientes', icon: MessageSquare, href: '/dashboard/mensajes' },
     { title: 'Disputas', icon: AlertCircle, href: '/dashboard/clinic/disputes' },
     { title: 'Puntuación', icon: Star, href: '/dashboard/clinic/score' },
 ];
