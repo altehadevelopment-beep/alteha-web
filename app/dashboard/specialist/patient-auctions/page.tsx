@@ -11,10 +11,27 @@ const money = (n: any) => (n == null ? null : `$${Number(n).toLocaleString('es-V
 export default function PatientAuctionsMarket() {
   const [items, setItems] = useState<any[]>([]);
   const [cargando, setCargando] = useState(true);
+  const [ofertando, setOfertando] = useState<string | null>(null);
+  const [monto, setMonto] = useState('');
+  const [notas, setNotas] = useState('');
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const cargar = () => fetch('/api/patient/auctions/market', { headers: { 'X-Alteha-Token': getStoredToken() || '' } })
+    .then((r) => r.json()).then((r) => setItems(r?.data || [])).catch(() => {});
+
+  const enviarOferta = async (num: string) => {
+    if (!monto || Number(monto) <= 0) { setMsg('Indica un monto válido.'); return; }
+    setMsg(null);
+    const r = await fetch(`/api/patient/auctions/${num}/bids`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Alteha-Token': getStoredToken() || '' },
+      body: JSON.stringify({ amount: Number(monto), notes: notas }),
+    }).then((x) => x.json()).catch(() => ({ code: 'ERROR' }));
+    if (r?.code === '00') { setOfertando(null); setMonto(''); setNotas(''); cargar(); }
+    else setMsg(r?.message || 'No se pudo enviar la oferta.');
+  };
 
   useEffect(() => {
-    fetch('/api/patient/auctions/market', { headers: { 'X-Alteha-Token': getStoredToken() || '' } })
-      .then((r) => r.json()).then((r) => setItems(r?.data || [])).catch(() => {}).finally(() => setCargando(false));
+    cargar().finally(() => setCargando(false));
   }, []);
 
   return (
@@ -45,8 +62,24 @@ export default function PatientAuctionsMarket() {
               </div>
               <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-500">{a.totalBids} oferta{a.totalBids === 1 ? '' : 's'}</span>
-                {a.maxBudget != null && <span className="text-sm font-black text-slate-700">Ref. {money(a.maxBudget)}</span>}
+                {a.maxBudget != null && Number(a.maxBudget) > 0 && <span className="text-sm font-black text-slate-700">Ref. {money(a.maxBudget)}</span>}
               </div>
+              {ofertando === a.auctionNumber ? (
+                <div className="mt-3 space-y-2">
+                  {msg && <p className="text-xs font-semibold text-red-500">{msg}</p>}
+                  <input type="number" value={monto} onChange={(e) => setMonto(e.target.value)} placeholder="Tu precio (USD)"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border-2 border-transparent focus:border-alteha-turquoise outline-none font-semibold text-sm" />
+                  <input value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Nota (opcional)"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border-2 border-transparent focus:border-alteha-turquoise outline-none text-sm" />
+                  <div className="flex gap-2">
+                    <button onClick={() => { setOfertando(null); setMsg(null); }} className="px-3 py-2 rounded-xl bg-slate-100 text-slate-500 font-bold text-xs">Cancelar</button>
+                    <button onClick={() => enviarOferta(a.auctionNumber)} className="flex-1 bg-alteha-turquoise text-white py-2 rounded-xl font-black text-xs uppercase tracking-widest">Enviar oferta</button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => { setOfertando(a.auctionNumber); setMonto(''); setNotas(''); setMsg(null); }}
+                  className="w-full mt-3 bg-slate-900 text-white py-2.5 rounded-xl font-black text-xs uppercase tracking-widest">Ofertar</button>
+              )}
             </div>
           ))}
         </div>

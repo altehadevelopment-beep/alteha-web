@@ -19,10 +19,19 @@ export default function MyPatientAuctions() {
   const [items, setItems] = useState<any[]>([]);
   const [cargando, setCargando] = useState(true);
 
-  useEffect(() => {
-    fetch('/api/patient/auctions', { headers: { 'X-Alteha-Token': getStoredToken() || '' } })
-      .then((r) => r.json()).then((r) => setItems(r?.data || [])).catch(() => {}).finally(() => setCargando(false));
-  }, []);
+  const cargar = () => fetch('/api/patient/auctions', { headers: { 'X-Alteha-Token': getStoredToken() || '' } })
+    .then((r) => r.json()).then((r) => setItems(r?.data || [])).catch(() => {});
+
+  useEffect(() => { cargar().finally(() => setCargando(false)); }, []);
+
+  const adjudicar = async (num: string, bidNumber: string) => {
+    if (!confirm('¿Adjudicar esta oferta? Se cerrará la subasta y el resto de ofertas quedarán rechazadas.')) return;
+    const r = await fetch(`/api/patient/auctions/${num}/award/${bidNumber}`, {
+      method: 'POST', headers: { 'X-Alteha-Token': getStoredToken() || '' },
+    }).then((x) => x.json()).catch(() => ({ code: 'ERROR' }));
+    if (r?.code === '00') cargar();
+    else alert(r?.message || 'No se pudo adjudicar.');
+  };
 
   return (
     <div className="p-8 max-w-4xl mx-auto">
@@ -67,12 +76,19 @@ export default function MyPatientAuctions() {
                   <div className="mt-4 pt-4 border-t border-slate-100 space-y-2">
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Ofertas recibidas</p>
                     {a.bids.map((b: any, i: number) => (
-                      <div key={i} className="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-2.5">
+                      <div key={i} className={`flex items-center justify-between rounded-xl px-4 py-2.5 ${b.status === 'ACCEPTED' ? 'bg-emerald-50 border border-emerald-200' : 'bg-slate-50'}`}>
                         <div className="flex items-center gap-2 text-sm font-bold text-slate-700">
                           {b.bidderType === 'CLINIC' ? <Building2 className="w-4 h-4 text-slate-400" /> : <Stethoscope className="w-4 h-4 text-slate-400" />}
                           {b.bidderName || 'Oferente'}
+                          {b.status === 'ACCEPTED' && <span className="text-[10px] font-black uppercase text-emerald-600">Adjudicada</span>}
                         </div>
-                        <span className="font-black text-emerald-600">{money(b.amount)}</span>
+                        <div className="flex items-center gap-3">
+                          <span className="font-black text-emerald-600">{money(b.amount)}</span>
+                          {a.status !== 'AWARDED' && b.status !== 'REJECTED' && (
+                            <button onClick={() => adjudicar(a.auctionNumber, b.bidNumber)}
+                              className="bg-slate-900 text-white px-3 py-1.5 rounded-lg font-black text-[10px] uppercase tracking-widest">Adjudicar</button>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
