@@ -115,6 +115,14 @@ const approvalItems = [
     { title: 'Validación de Empresas', icon: ShieldBan, href: '/dashboard/approval/insurances' },
 ];
 
+const patientItems = [
+    { title: 'Inicio', icon: LayoutDashboard, href: '/dashboard/patient' },
+    { title: 'Explorar ofertas', icon: Gavel, href: '/dashboard/patient/ofertas' },
+    { title: 'Mi perfil', icon: UserCheck, href: '/dashboard/patient/perfil' },
+    { title: 'Referir a alguien', icon: Users, href: '/dashboard/patient/referir' },
+    { title: 'Seguridad', icon: ShieldBan, href: '/dashboard/patient/seguridad' },
+];
+
 export function DashboardSidebar() {
     const pathname = usePathname();
     const router = useRouter();
@@ -126,12 +134,14 @@ export function DashboardSidebar() {
     const isInsurance = pathname.includes('/dashboard/insurance');
     const isProvider = pathname.includes('/dashboard/provider');
     const isApproval = pathname.includes('/dashboard/approval');
+    const isPatient = pathname.includes('/dashboard/patient');
 
     let menuItems = specialistItems;
     if (isClinic) menuItems = clinicItems;
     if (isInsurance) menuItems = insuranceItems;
     if (isProvider) menuItems = providerItems;
     if (isApproval) menuItems = approvalItems;
+    if (isPatient) menuItems = patientItems;
 
     const dashboardHref = isClinic ? '/dashboard/clinic' :
         isInsurance ? '/dashboard/insurance' :
