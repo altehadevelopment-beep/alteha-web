@@ -121,6 +121,7 @@ const patientItems = [
     { title: 'Inicio', icon: LayoutDashboard, href: '/dashboard/patient' },
     { title: 'Explorar ofertas', icon: Gavel, href: '/dashboard/patient/ofertas' },
     { title: 'Mis subastas', icon: Plus, href: '/dashboard/patient/subastas' },
+    { title: 'Mensajes', icon: MessageSquare, href: '/dashboard/patient/mensajes' },
     { title: 'Mi perfil', icon: UserCheck, href: '/dashboard/patient/perfil' },
     { title: 'Referir a alguien', icon: Users, href: '/dashboard/patient/referir' },
     { title: 'Seguridad', icon: ShieldBan, href: '/dashboard/patient/seguridad' },

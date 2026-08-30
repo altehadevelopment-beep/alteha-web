@@ -2,6 +2,8 @@
 
 // Ofertas dentro del portal del paciente: mismos datos públicos, con filtros.
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { contactarPrestador } from '@/lib/contactProvider';
 import { Search, Package, Gavel, Loader2, Stethoscope, Building2, MapPin, Clock, Tag } from 'lucide-react';
 
 const money = (n: any) => (n == null ? null : `$${Number(n).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`);
@@ -13,6 +15,8 @@ export default function PatientOffers() {
   const [paquetes, setPaquetes] = useState<any[]>([]);
   const [subastas, setSubastas] = useState<any[]>([]);
   const [cargando, setCargando] = useState(true);
+  const router = useRouter();
+  const contactar = async (t?: string, id?: number) => router.push(await contactarPrestador(t, id));
 
   useEffect(() => {
     setCargando(true);
@@ -71,6 +75,8 @@ export default function PatientOffers() {
                 <span className="text-lg font-black text-slate-900">{money(p.discountedPrice ?? p.basePrice) || 'Consultar'}</span>
                 {p.category && <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1"><Tag className="w-3 h-3" />{p.category}</span>}
               </div>
+              <button onClick={() => contactar(p.providerType, p.providerId)}
+                className="w-full mt-3 bg-slate-900 text-white py-2.5 rounded-xl font-black text-xs uppercase tracking-widest">Contactar</button>
             </div>
           ))}
         </div>

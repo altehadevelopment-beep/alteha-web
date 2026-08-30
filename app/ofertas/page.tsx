@@ -11,7 +11,7 @@ import {
 type Paquete = {
   id: number; name: string; description?: string; basePrice?: number; discountedPrice?: number;
   category?: string; imageUrl?: string; specialtyId?: number; specialty?: string;
-  providerName?: string; providerType?: string;
+  providerName?: string; providerType?: string; providerId?: number;
 };
 type Subasta = {
   auctionNumber: string; title: string; specialtyId?: number; specialty?: string; procedure?: string;
@@ -28,6 +28,8 @@ export default function OfertasPage() {
   const [paquetes, setPaquetes] = useState<Paquete[]>([]);
   const [subastas, setSubastas] = useState<Subasta[]>([]);
   const [cargando, setCargando] = useState(true);
+  const router = useRouter();
+  const contactar = async (t?: string, id?: number) => router.push(await contactarPrestador(t, id));
 
   useEffect(() => {
     setCargando(true);
@@ -121,6 +123,8 @@ export default function OfertasPage() {
                       </div>
                       {p.category && <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1"><Tag className="w-3 h-3" />{p.category}</span>}
                     </div>
+                    <button onClick={() => contactar(p.providerType, p.providerId)}
+                      className="w-full mt-3 bg-slate-900 text-white py-2.5 rounded-xl font-black text-xs uppercase tracking-widest">Contactar</button>
                   </div>
                 </div>
               ))}
