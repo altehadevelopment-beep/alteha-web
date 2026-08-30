@@ -23,6 +23,7 @@ const PROFILE_LOGINS = [
     { role: 'clinic', label: 'Clínica', Icon: Building2 },
     { role: 'provider', label: 'Farmacia', Icon: Pill },
     { role: 'approval', label: 'Módulo de Aprobación', Icon: Key },
+    { role: 'patient', label: 'Paciente', Icon: User },
 ];
 
 export default function LoginPage() {
@@ -86,6 +87,14 @@ export default function LoginPage() {
                     registerLink: '/register/health-fund', 
                     color: 'text-rose-500',
                     bgImage: '/backgrounds/health-fund.png'
+                };
+            case 'patient':
+                return {
+                    title: 'Portal del Paciente',
+                    subtitle: 'Crea tus subastas y encuentra el mejor precio',
+                    color: 'text-alteha-turquoise',
+                    registerLink: '/register/patient',
+                    bgImage: '/backgrounds/specialist.png',
                 };
             case 'approval':
                 return {

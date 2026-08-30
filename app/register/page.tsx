@@ -2,13 +2,21 @@
 
 import Link from 'next/link'
 import { motion } from 'framer-motion'
-import { ArrowLeft, Stethoscope, Building2, ShieldCheck, Truck, Activity, Pill } from 'lucide-react'
+import { ArrowLeft, Stethoscope, Building2, ShieldCheck, Truck, Activity, Pill, User } from 'lucide-react'
 import { Logo } from '@/components/ui/Logo'
 
 // Selector de perfil para /register: cada tarjeta lleva al formulario de su rol.
 // Las clases de color van completas y literales: Tailwind escanea el texto del archivo
 // y no genera clases armadas por interpolación.
 const profiles = [
+  {
+    href: '/register/patient',
+    name: 'Paciente / Cliente',
+    description: 'Crea subastas y encuentra el mejor precio para tu atención.',
+    icon: User,
+    overlay: 'bg-alteha-turquoise',
+    iconHover: 'group-hover:bg-alteha-turquoise'
+  },
   {
     href: '/register/specialist',
     name: 'Médico Especialista',
