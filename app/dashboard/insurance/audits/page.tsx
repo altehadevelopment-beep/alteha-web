@@ -11,6 +11,7 @@ import { motion } from 'framer-motion';
 import {
     BrainCircuit, FileText, Loader2, Plus, X, ShieldAlert, ShieldCheck, Shield,
     ChevronRight, Sparkles, UploadCloud, Info, Search, Trash2, AlertTriangle, Clock,
+    Calendar, ArrowUpDown, RotateCcw,
 } from 'lucide-react';
 import { getStoredToken } from '@/lib/api';
 
@@ -86,6 +87,12 @@ export default function AuditsPage() {
     const [error, setError] = useState<string | null>(null);
     const [q, setQ] = useState('');
     const [filtroRiesgo, setFiltroRiesgo] = useState<string>('');
+    const [filtroEstado, setFiltroEstado] = useState<string>('');
+    const [filtroResultado, setFiltroResultado] = useState<string>('');
+    const [filtroCanal, setFiltroCanal] = useState<string>('');
+    const [desde, setDesde] = useState<string>('');
+    const [hasta, setHasta] = useState<string>('');
+    const [orden, setOrden] = useState<string>('recientes');
     const [borrando, setBorrando] = useState<number | null>(null);
 
     // Formulario
@@ -105,14 +112,68 @@ export default function AuditsPage() {
         return () => clearInterval(t);
     }, [enProceso]);
 
+    // Etiqueta del canal por código (a partir del catálogo de creación).
+    const canalLabel = (code?: string) => CANALES.find((c) => c.code === code)?.label || code || '—';
+
+    // Resultado de la auditoría, derivado de lo facturado vs. objetado.
+    const resultadoDe = (a: any): 'SIN' | 'PARCIAL' | 'TOTAL' | null => {
+        if (a.status !== 'LISTA') return null;
+        const obj = Number(a.totalObjected || 0);
+        const fac = Number(a.totalInvoiced || 0);
+        if (obj <= 0) return 'SIN';
+        if (fac > 0 && obj >= fac) return 'TOTAL';
+        return 'PARCIAL';
+    };
+
+    // Canales presentes en el historial (para no mostrar un filtro vacío).
+    const canalesDisponibles = useMemo(
+        () => [...new Set((items || []).map((a) => a.channel).filter(Boolean))] as string[],
+        [items],
+    );
+
     const visibles = useMemo(() => {
         const term = q.trim().toLowerCase();
-        return (items || []).filter((a) => {
+        const desdeTs = desde ? new Date(desde + 'T00:00:00').getTime() : null;
+        const hastaTs = hasta ? new Date(hasta + 'T23:59:59').getTime() : null;
+        const out = (items || []).filter((a) => {
+            if (filtroEstado && a.status !== filtroEstado) return false;
             if (filtroRiesgo && a.riskLevel !== filtroRiesgo) return false;
+            if (filtroCanal && a.channel !== filtroCanal) return false;
+            if (filtroResultado && resultadoDe(a) !== filtroResultado) return false;
+            if (desdeTs || hastaTs) {
+                const t = a.createdAt ? new Date(a.createdAt).getTime() : null;
+                if (t == null) return false;
+                if (desdeTs && t < desdeTs) return false;
+                if (hastaTs && t > hastaTs) return false;
+            }
             if (!term) return true;
             return [a.auditNumber, a.patientName, a.procedureSummary].filter(Boolean).join(' ').toLowerCase().includes(term);
         });
-    }, [items, q, filtroRiesgo]);
+        const val = (a: any) => Number(a.totalInvoiced || 0);
+        const obj = (a: any) => Number(a.totalObjected || 0);
+        const ts = (a: any) => (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+        out.sort((a, b) => {
+            if (orden === 'antiguas') return ts(a) - ts(b);
+            if (orden === 'monto') return val(b) - val(a);
+            if (orden === 'objetado') return obj(b) - obj(a);
+            return ts(b) - ts(a); // más recientes
+        });
+        return out;
+    }, [items, q, filtroRiesgo, filtroEstado, filtroResultado, filtroCanal, desde, hasta, orden]);
+
+    const hayFiltros = !!(q || filtroRiesgo || filtroEstado || filtroResultado || filtroCanal || desde || hasta);
+    const limpiar = () => {
+        setQ(''); setFiltroRiesgo(''); setFiltroEstado(''); setFiltroResultado(''); setFiltroCanal(''); setDesde(''); setHasta('');
+    };
+    const preset = (dias: number | 'mes') => {
+        const now = new Date();
+        const fin = now.toISOString().slice(0, 10);
+        const ini = dias === 'mes'
+            ? new Date(now.getFullYear(), now.getMonth(), 1)
+            : new Date(now.getTime() - (dias - 1) * 86400000);
+        setDesde(ini.toISOString().slice(0, 10));
+        setHasta(fin);
+    };
 
     const resumen = useMemo(() => {
         const listos = (items || []).filter((a) => a.status === 'LISTA');
@@ -197,18 +258,73 @@ export default function AuditsPage() {
 
             {/* Filtros del historial */}
             {!!(items || []).length && (
-                <div className="flex items-center gap-2 flex-wrap">
-                    <div className="relative flex-1 min-w-[220px]">
-                        <Search className="w-4 h-4 text-slate-300 absolute left-4 top-1/2 -translate-y-1/2" />
-                        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por folio, paciente o intervención"
-                            className="w-full pl-11 pr-4 py-3 rounded-2xl bg-white border border-slate-100 font-semibold text-sm outline-none focus:border-alteha-turquoise" />
+                <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-4 space-y-3">
+                    {/* Búsqueda + orden + limpiar */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <div className="relative flex-1 min-w-[220px]">
+                            <Search className="w-4 h-4 text-slate-300 absolute left-4 top-1/2 -translate-y-1/2" />
+                            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por folio, paciente o intervención"
+                                className="w-full pl-11 pr-4 py-3 rounded-2xl bg-slate-50 border border-slate-100 font-semibold text-sm outline-none focus:border-alteha-turquoise" />
+                        </div>
+                        <div className="relative">
+                            <ArrowUpDown className="w-4 h-4 text-slate-300 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            <select value={orden} onChange={(e) => setOrden(e.target.value)}
+                                className="pl-9 pr-8 py-3 rounded-2xl bg-slate-50 border border-slate-100 font-bold text-xs outline-none focus:border-alteha-turquoise appearance-none">
+                                <option value="recientes">Más recientes</option>
+                                <option value="antiguas">Más antiguas</option>
+                                <option value="monto">Mayor monto</option>
+                                <option value="objetado">Mayor objetado</option>
+                            </select>
+                        </div>
+                        {hayFiltros && (
+                            <button onClick={limpiar}
+                                className="px-3 py-3 rounded-2xl bg-slate-50 text-slate-400 hover:text-red-500 font-black text-xs flex items-center gap-1.5">
+                                <RotateCcw className="w-3.5 h-3.5" /> Limpiar
+                            </button>
+                        )}
                     </div>
-                    {[{ code: '', label: 'Todos' }, { code: 'ALTO', label: 'Riesgo alto' }, { code: 'MEDIO', label: 'Medio' }, { code: 'BAJO', label: 'Bajo' }].map((f) => (
-                        <button key={f.code} onClick={() => setFiltroRiesgo(f.code)}
-                            className={`px-4 py-2.5 rounded-2xl text-xs font-black ${filtroRiesgo === f.code ? 'bg-alteha-gray text-white' : 'bg-white border border-slate-100 text-slate-400'}`}>
-                            {f.label}
-                        </button>
-                    ))}
+
+                    {/* Rango de fechas + accesos rápidos */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                            <Calendar className="w-3.5 h-3.5" /> Fecha
+                        </span>
+                        <input type="date" value={desde} max={hasta || undefined} onChange={(e) => setDesde(e.target.value)}
+                            className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-100 font-bold text-xs outline-none focus:border-alteha-turquoise" />
+                        <span className="text-slate-300 text-xs font-black">→</span>
+                        <input type="date" value={hasta} min={desde || undefined} onChange={(e) => setHasta(e.target.value)}
+                            className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-100 font-bold text-xs outline-none focus:border-alteha-turquoise" />
+                        {[{ l: 'Hoy', v: 1 }, { l: 'Últimos 7 días', v: 7 }, { l: 'Este mes', v: 'mes' }].map((p) => (
+                            <button key={p.l} onClick={() => preset(p.v as any)}
+                                className="px-3 py-2 rounded-xl bg-slate-50 text-slate-500 hover:bg-alteha-turquoise/10 hover:text-alteha-turquoise font-black text-[11px]">
+                                {p.l}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Estado / Riesgo / Resultado / Canal */}
+                    <div className="flex items-start gap-x-6 gap-y-3 flex-wrap">
+                        <GrupoFiltro titulo="Estado" valor={filtroEstado} set={setFiltroEstado}
+                            opciones={[{ code: '', label: 'Todos' }, { code: 'LISTA', label: 'Realizadas' }, { code: 'PROCESANDO', label: 'En proceso' }, { code: 'ERROR', label: 'Con error' }]} />
+                        <GrupoFiltro titulo="Riesgo" valor={filtroRiesgo} set={setFiltroRiesgo}
+                            opciones={[{ code: '', label: 'Todos' }, { code: 'ALTO', label: 'Alto' }, { code: 'MEDIO', label: 'Medio' }, { code: 'BAJO', label: 'Bajo' }]} />
+                        <GrupoFiltro titulo="Resultado" valor={filtroResultado} set={setFiltroResultado}
+                            opciones={[{ code: '', label: 'Todos' }, { code: 'SIN', label: 'Sin objeciones' }, { code: 'PARCIAL', label: 'Parcial' }, { code: 'TOTAL', label: 'Objeción total' }]} />
+                        {canalesDisponibles.length > 0 && (
+                            <div>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Canal</p>
+                                <select value={filtroCanal} onChange={(e) => setFiltroCanal(e.target.value)}
+                                    className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-100 font-bold text-xs outline-none focus:border-alteha-turquoise">
+                                    <option value="">Todos</option>
+                                    {canalesDisponibles.map((c) => <option key={c} value={c}>{canalLabel(c)}</option>)}
+                                </select>
+                            </div>
+                        )}
+                    </div>
+
+                    <p className="text-[11px] font-bold text-slate-400">
+                        {visibles.length} de {(items || []).length} auditoría{(items || []).length === 1 ? '' : 's'}
+                    </p>
                 </div>
             )}
 
@@ -400,6 +516,29 @@ export default function AuditsPage() {
                     </motion.div>
                 </div>
             )}
+        </div>
+    );
+}
+
+// Grupo de chips para un filtro (Estado, Riesgo, Resultado).
+function GrupoFiltro({ titulo, opciones, valor, set }: {
+    titulo: string;
+    opciones: { code: string; label: string }[];
+    valor: string;
+    set: (v: string) => void;
+}) {
+    return (
+        <div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{titulo}</p>
+            <div className="flex gap-1.5 flex-wrap">
+                {opciones.map((o) => (
+                    <button key={o.code} onClick={() => set(o.code)}
+                        className={`px-3 py-1.5 rounded-xl text-[11px] font-black transition-colors ${
+                            valor === o.code ? 'bg-alteha-gray text-white' : 'bg-slate-50 border border-slate-100 text-slate-400 hover:text-slate-600'}`}>
+                        {o.label}
+                    </button>
+                ))}
+            </div>
         </div>
     );
 }
