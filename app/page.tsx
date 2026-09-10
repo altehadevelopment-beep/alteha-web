@@ -16,7 +16,8 @@ import {
   Wallet,
   Activity,
   Sparkles,
-  Key
+  Key,
+  HeartPulse
 } from 'lucide-react'
 import { Logo } from '@/components/ui/Logo'
 
@@ -211,25 +212,62 @@ export default function Home() {
             ))}
           </div>
 
-          {/* Teha tiene ruta propia: se enlaza desde aquí para quien llega sin saber por dónde empezar. */}
-          <div className="mt-12 flex flex-col sm:flex-row justify-center items-center gap-3">
-            <Link
-              href="/ofertas"
-              className="group inline-flex items-center gap-3 px-6 py-3 rounded-full bg-slate-900 text-white shadow-xl hover:bg-slate-800 transition-all"
+          {/* Cliente final (paciente): es el lado de la demanda, por eso va destacado
+              y más grande que el resto de accesos. Teha queda como acción secundaria. */}
+          <div className="mt-16 w-full max-w-3xl mx-auto">
+            <motion.div
+              initial={{ opacity: 0, y: 24 }}
+              animate={{ opacity: 1, y: [0, -6, 0] }}
+              transition={{
+                opacity: { delay: 1.2, duration: 0.6 },
+                y: { delay: 1.4, duration: 4, repeat: Infinity, ease: 'easeInOut' },
+              }}
             >
-              <span className="text-sm font-bold">Ver ofertas de médicos y clínicas</span>
-            </Link>
-            <Link
-              href="/teha"
-              className="group inline-flex items-center gap-3 px-6 py-3 rounded-full bg-white/70 backdrop-blur-md border border-white/80 shadow-xl shadow-slate-200/50 hover:shadow-alteha-turquoise/20 transition-all"
-            >
-              <span className="w-9 h-9 rounded-full overflow-hidden border-2 border-alteha-turquoise/40 bg-slate-100 flex-shrink-0">
-                <img src="/tita-avatar.png" alt="Teha" className="w-full h-full object-cover object-top scale-110" />
-              </span>
-              <span className="text-sm font-bold text-slate-700 group-hover:text-slate-900 transition-colors">
-                ¿Tienes dudas? Habla con <span className="text-alteha-turquoise">Teha</span>
-              </span>
-            </Link>
+              <Link
+                href="/ofertas"
+                className="group relative block overflow-hidden rounded-[2.2rem] shadow-2xl shadow-alteha-violet/30 hover:shadow-alteha-turquoise/40 hover:scale-[1.02] transition-all duration-500"
+              >
+                {/* Fondo con gradiente de marca animado */}
+                <div className="absolute inset-0 bg-gradient-to-r from-alteha-turquoise via-blue-500 to-alteha-violet bg-[length:200%_auto] animate-gradient" />
+                {/* Brillo que barre en hover */}
+                <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-out bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+
+                <div className="relative flex items-center gap-5 px-6 py-6 md:px-10 md:py-8 text-white">
+                  <div className="w-16 h-16 md:w-20 md:h-20 rounded-3xl bg-white flex items-center justify-center shrink-0 shadow-lg">
+                    <HeartPulse className="w-9 h-9 md:w-11 md:h-11 text-alteha-violet" />
+                  </div>
+                  <div className="flex-1 text-left">
+                    <span className="inline-flex items-center gap-1.5 text-[10px] md:text-xs font-black uppercase tracking-[0.15em] bg-white/25 px-3 py-1 rounded-full mb-2">
+                      <Sparkles className="w-3.5 h-3.5" /> Para pacientes
+                    </span>
+                    <h3 className="text-2xl md:text-4xl font-black leading-tight tracking-tight">
+                      Encuentra tu mejor precio en salud
+                    </h3>
+                    <p className="text-white/90 text-sm md:text-lg font-medium mt-1.5">
+                      Compara ofertas de médicos y clínicas y crea tu subasta. Explora sin registrarte.
+                    </p>
+                  </div>
+                  <div className="hidden sm:flex w-14 h-14 md:w-16 md:h-16 rounded-full bg-white text-slate-900 items-center justify-center shrink-0 shadow-lg group-hover:translate-x-1 group-hover:scale-110 transition-all duration-300">
+                    <ArrowRight className="w-6 h-6 md:w-7 md:h-7" />
+                  </div>
+                </div>
+              </Link>
+            </motion.div>
+
+            {/* Teha: acción secundaria */}
+            <div className="mt-5 flex justify-center">
+              <Link
+                href="/teha"
+                className="group inline-flex items-center gap-3 px-6 py-3 rounded-full bg-white/70 backdrop-blur-md border border-white/80 shadow-xl shadow-slate-200/50 hover:shadow-alteha-turquoise/20 transition-all"
+              >
+                <span className="w-9 h-9 rounded-full overflow-hidden border-2 border-alteha-turquoise/40 bg-slate-100 flex-shrink-0">
+                  <img src="/tita-avatar.png" alt="Teha" className="w-full h-full object-cover object-top scale-110" />
+                </span>
+                <span className="text-sm font-bold text-slate-700 group-hover:text-slate-900 transition-colors">
+                  ¿Tienes dudas? Habla con <span className="text-alteha-turquoise">Teha</span>
+                </span>
+              </Link>
+            </div>
           </div>
         </div>
       </div>
