@@ -31,6 +31,7 @@ import { PhoneField } from '@/components/ui/PhoneField';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthContext';
 import { Logo } from '@/components/ui/Logo';
+import ComplementaryUsersManager from '@/components/ComplementaryUsersManager';
 import { toast } from 'sonner';
 import { getStoredToken } from '@/lib/api';
 
@@ -297,8 +298,8 @@ export default function InsuranceProfilePage() {
                 {/* Personas de Contacto / Administradores (varias) */}
                 <ContactManager />
 
-                {/* Usuarios adicionales con acceso */}
-                <InsuranceUsersManager />
+                {/* Usuarios complementarios con acceso */}
+                <ComplementaryUsersManager apiBase="insurance-users" entidad="aseguradora" />
 
                 {/* Action Bar */}
                 <div className="flex items-center justify-end gap-4 bg-slate-900/5 p-6 rounded-[2.5rem] border border-slate-100">

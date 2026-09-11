@@ -22,6 +22,7 @@ import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthContext';
 import { Logo } from '@/components/ui/Logo';
 import { updateClinicProfile } from '@/lib/api';
+import ComplementaryUsersManager from '@/components/ComplementaryUsersManager';
 import dynamic from 'next/dynamic';
 const LocationPicker = dynamic(() => import('@/components/maps/LocationPicker'), { ssr: false });
 import { toast } from 'sonner';
@@ -294,6 +295,10 @@ export default function ClinicProfilePage() {
                     </Button>
                 </div>
             </form>
+
+            <div className="mt-8">
+                <ComplementaryUsersManager apiBase="clinic-users" entidad="clínica" />
+            </div>
         </div>
     );
 }

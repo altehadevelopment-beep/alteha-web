@@ -20,6 +20,7 @@ import { PhoneField } from '@/components/ui/PhoneField';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthContext';
 import { Logo } from '@/components/ui/Logo';
+import ComplementaryUsersManager from '@/components/ComplementaryUsersManager';
 import { updatePharmacyProfile } from '@/lib/api';
 import LocationPicker from '@/components/maps/LocationPicker';
 import { toast } from 'sonner';
@@ -312,6 +313,10 @@ export default function ProviderProfilePage() {
                     </Button>
                 </div>
             </form>
+
+            <div className="mt-8">
+                <ComplementaryUsersManager apiBase="pharmacy-users" entidad="casa de salud" />
+            </div>
         </div>
     );
 }
