@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { getStoredToken } from '@/lib/api';
 import { informeEjecutivo, informeTecnico, CANALES, ESCALA_RECHAZO, confianza } from '@/lib/auditPdf';
+import AuditChat from '@/components/AuditChat';
 
 const RISK: any = {
     BAJO: { label: 'RIESGO BAJO', color: '#10b981', soft: '#ecfdf5', Icon: ShieldCheck },
@@ -215,6 +216,9 @@ export default function AuditDetailPage() {
 
     return (
         <div className="space-y-6 max-w-6xl">
+            {audit.status === 'LISTA' && (
+                <AuditChat auditId={id} initialChat={audit.chatJson} onApplied={cargar} />
+            )}
             <header className="flex items-center justify-between flex-wrap gap-3">
                 <div className="flex items-center gap-3">
                     <button onClick={() => router.push('/dashboard/insurance/audits')} className="p-2.5 rounded-xl bg-white border border-slate-100 text-slate-400 hover:text-alteha-turquoise">
