@@ -11,9 +11,10 @@ import { motion } from 'framer-motion';
 import {
     BrainCircuit, FileText, Loader2, Plus, X, ShieldAlert, ShieldCheck, Shield,
     ChevronRight, Sparkles, UploadCloud, Info, Search, Trash2, AlertTriangle, Clock,
-    Calendar, ArrowUpDown, RotateCcw,
+    Calendar, ArrowUpDown, RotateCcw, HardDriveDownload,
 } from 'lucide-react';
 import { getStoredToken } from '@/lib/api';
+import { importarDeDrive, driveConfigurado } from '@/lib/googleDrivePicker';
 
 const fmtDate = (v?: string) => (v ? new Date(v).toLocaleDateString('es-VE', { dateStyle: 'medium' }) : '—');
 const fmtMoney = (v?: number | null, cur = 'USD') =>
@@ -84,6 +85,7 @@ export default function AuditsPage() {
     const [items, setItems] = useState<any[] | null>(null);
     const [creating, setCreating] = useState(false);
     const [busy, setBusy] = useState(false);
+    const [busyDrive, setBusyDrive] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [q, setQ] = useState('');
     const [filtroRiesgo, setFiltroRiesgo] = useState<string>('');
@@ -188,6 +190,23 @@ export default function AuditsPage() {
         if (!files) return;
         const nuevos = Array.from(files).map((file) => ({ file, tipo: tipoSugerido(file.name) }));
         setAdjuntos((prev) => [...prev, ...nuevos].slice(0, 12));
+    };
+
+    // Importa documentos del caso desde Google Drive (selector oficial + descarga).
+    const importarDrive = async () => {
+        setError(null);
+        setBusyDrive(true);
+        try {
+            const files = await importarDeDrive();
+            if (files.length) {
+                const nuevos = files.map((file) => ({ file, tipo: tipoSugerido(file.name) }));
+                setAdjuntos((prev) => [...prev, ...nuevos].slice(0, 12));
+            }
+        } catch (e: any) {
+            setError(e?.message || 'No se pudo importar de Google Drive.');
+        } finally {
+            setBusyDrive(false);
+        }
     };
 
     const enviar = async () => {
@@ -447,6 +466,19 @@ export default function AuditsPage() {
                                     <p className="text-[11px] text-slate-400 font-semibold">PDF o imagen · hasta 60 MB cada uno</p>
                                 </div>
                             </button>
+
+                            {driveConfigurado() && (
+                                <button type="button" onClick={importarDrive} disabled={busyDrive}
+                                    className="w-full mt-2 rounded-2xl border-2 border-dashed border-slate-200 hover:border-alteha-violet/50 p-5 flex items-center gap-3 transition-all disabled:opacity-60">
+                                    <div className="w-11 h-11 rounded-xl bg-violet-50 text-alteha-violet flex items-center justify-center">
+                                        {busyDrive ? <Loader2 className="w-5 h-5 animate-spin" /> : <HardDriveDownload className="w-5 h-5" />}
+                                    </div>
+                                    <div className="text-left">
+                                        <p className="font-black text-sm">{busyDrive ? 'Importando de Google Drive…' : 'Importar de Google Drive'}</p>
+                                        <p className="text-[11px] text-slate-400 font-semibold">Elige los documentos del caso desde tu Drive</p>
+                                    </div>
+                                </button>
+                            )}
 
                             {adjuntos.length > 0 && (
                                 <div className="mt-3 space-y-2">
