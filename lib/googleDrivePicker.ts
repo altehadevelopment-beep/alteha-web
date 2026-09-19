@@ -11,7 +11,8 @@
 const CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '';
 const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_API_KEY || '';
 const APP_ID = process.env.NEXT_PUBLIC_GOOGLE_APP_ID || '';
-const SCOPE = 'https://www.googleapis.com/auth/drive.readonly';
+// Scope no sensible: el app solo accede a los archivos que el usuario elige en el Picker.
+const SCOPE = 'https://www.googleapis.com/auth/drive.file';
 
 /** ¿Están configuradas las credenciales de Google? (para mostrar u ocultar el botón). */
 export const driveConfigurado = (): boolean => !!(CLIENT_ID && API_KEY);
