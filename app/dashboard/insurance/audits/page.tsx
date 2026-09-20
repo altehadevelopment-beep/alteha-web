@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { getStoredToken } from '@/lib/api';
 import { importarDeDrive, driveConfigurado } from '@/lib/googleDrivePicker';
+import AuditContextDocs from '@/components/AuditContextDocs';
 
 const fmtDate = (v?: string) => (v ? new Date(v).toLocaleDateString('es-VE', { dateStyle: 'medium' }) : '—');
 const fmtMoney = (v?: number | null, cur = 'USD') =>
@@ -258,6 +259,9 @@ export default function AuditsPage() {
                     <Plus className="w-4 h-4" /> Nueva auditoría
                 </button>
             </header>
+
+            {/* Documentos de contexto que la IA considera en todas las auditorías */}
+            <AuditContextDocs />
 
             {/* Resumen del historial */}
             {!!resumen.total && (
