@@ -9,7 +9,7 @@ import { useParams, useRouter } from 'next/navigation';
 import {
     ArrowLeft, Loader2, FileText, ShieldAlert, ShieldCheck, Shield, ExternalLink,
     BadgeCheck, AlertTriangle, ListChecks, BrainCircuit, FileBarChart, FileSpreadsheet,
-    Stethoscope, Coins, Handshake, RefreshCw, Plus, X, UploadCloud, Gavel, Globe2,
+    Stethoscope, Coins, Handshake, RefreshCw, Plus, X, UploadCloud, Gavel, Globe2, Landmark,
 } from 'lucide-react';
 import { getStoredToken } from '@/lib/api';
 import { informeEjecutivo, informeTecnico, CANALES, ESCALA_RECHAZO, confianza } from '@/lib/auditPdf';
@@ -521,6 +521,54 @@ export default function AuditDetailPage() {
                     </div>
                 </Card>
             )}
+
+            {/* ══ Referencias nacionales de precio (baremos de clínicas) ══ */}
+            {!!(audit.referenciasNacionales?.muestras || []).length && (() => {
+                const rn = audit.referenciasNacionales;
+                const mon = rn.moneda && rn.moneda !== '—' ? rn.moneda + ' ' : '';
+                const num = (v: any) => `${mon}${Number(v).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`;
+                return (
+                    <Card title="Referencias nacionales de precio" icon={Landmark}>
+                        <div className="px-6 pb-5 space-y-3">
+                            <p className="text-sm font-semibold text-slate-600">
+                                Precios de <b>{rn.totalClinicas}</b> clínica(s) para esta intervención, según sus baremos cargados en Alteha.
+                            </p>
+                            <div className="grid grid-cols-3 gap-3">
+                                {[['Mínimo', rn.min], ['Promedio', rn.promedio], ['Máximo', rn.max]].map(([lbl, v]) => (
+                                    <div key={lbl as string} className="bg-slate-50 rounded-2xl p-4 text-center">
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{lbl as string}</p>
+                                        <p className="text-lg font-black text-slate-800 tabular-nums mt-1">{num(v)}</p>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                            <th className="text-left py-2">Clínica</th>
+                                            <th className="text-left py-2 pl-4">Procedimiento en su baremo</th>
+                                            <th className="text-right py-2">Precio</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {rn.muestras.map((m: any, i: number) => (
+                                            <tr key={i} className="border-t border-slate-100">
+                                                <td className="py-2 font-bold text-slate-700">{m.clinica || '—'}</td>
+                                                <td className="py-2 pl-4 text-slate-500 text-xs">{m.procedimiento}</td>
+                                                <td className="py-2 text-right font-black text-alteha-turquoise tabular-nums whitespace-nowrap">{num(m.precio)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <p className="text-[10px] text-slate-400 font-semibold border-t border-slate-100 pt-3">
+                                Precios reales tomados de los baremos que las clínicas tienen cargados en la plataforma, coincidentes con esta
+                                intervención (por código o por nombre). Úsalos como referencia nacional de mercado.
+                            </p>
+                        </div>
+                    </Card>
+                );
+            })()}
 
             {/* ══ Comparativa internacional de costos ══ */}
             {!!(r.comparativaInternacional?.paises || []).length && (
